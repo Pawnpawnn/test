@@ -6,18 +6,10 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app" -- Hilangkan trailing slash
+local API_URL = "https://keygen-fsh.vercel.app/api" -- Ganti dengan URL Vercel kamu
 local trialDuration = 5 * 60
 
--- Validasi apakah game mendukung HttpService
-local function checkHttpService()
-    local success = pcall(function()
-        return HttpService:GetAsync("https://httpbin.org/get")
-    end)
-    return success
-end
-
--- Validate key dengan API (dengan error handling yang lebih baik)
+-- Validate key dengan API
 local function validateKeyWithAPI(key)
     local success, result = pcall(function()
         local headers = {
@@ -52,11 +44,10 @@ local function validateKeyWithAPI(key)
             return false, result.message or "Invalid key"
         end
     else
-        -- Detailed error logging
-        warn("API Error:", result)
         return false, "Network error - check console"
     end
 end
+
 
 -- Cek status trial
 local function checkTrial()
@@ -66,174 +57,80 @@ local function checkTrial()
         if elapsed >= trialDuration then
             return false, "Trial expired"
         end
-        return true, "Trial active - Time left: " .. math.floor((trialDuration - elapsed) / 60) .. " minutes"
+        return true, "Trial active"
     end
     return false, "Need activation"
 end
 
 -- Tampilkan input key
-local function createKeyGUI()
-    -- Hapus GUI lama jika ada
-    if playerGui:FindFirstChild("KeyInputGUI") then
-        playerGui:FindFirstChild("KeyInputGUI"):Destroy()
-    end
+local keyGui = Instance.new("ScreenGui")
+keyGui.Name = "KeyInputGUI"
+keyGui.Parent = playerGui
 
-    local keyGui = Instance.new("ScreenGui")
-    keyGui.Name = "KeyInputGUI"
-    keyGui.Parent = playerGui
-    keyGui.ResetOnSpawn = false
-    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- Tambahkan ini
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 350, 0, 250)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+mainFrame.Parent = keyGui
 
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 350, 0, 250)
-    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-    mainFrame.Parent = keyGui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = mainFrame
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 50)
+title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+title.Text = "🔑 FREE TRIAL ACTIVATION"
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(100, 180, 255)
+title.TextSize = 16
+title.Parent = mainFrame
 
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-    title.Text = "🔑 FREE TRIAL ACTIVATION"
-    title.Font = Enum.Font.GothamBold
-    title.TextColor3 = Color3.fromRGB(100, 180, 255)
-    title.TextSize = 16
-    title.Parent = mainFrame
+local keyBox = Instance.new("TextBox")
+keyBox.Size = UDim2.new(0.8, 0, 0, 40)
+keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
+keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
+keyBox.PlaceholderText = "Enter key from website..."
+keyBox.Text = ""
+keyBox.Font = Enum.Font.Gotham
+keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+keyBox.TextSize = 14
+keyBox.Parent = mainFrame
 
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 12)
-    titleCorner.Parent = title
+local submitBtn = Instance.new("TextButton")
+submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
+submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
+submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+submitBtn.Text = "ACTIVATE TRIAL"
+submitBtn.Font = Enum.Font.GothamBold
+submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+submitBtn.TextSize = 14
+submitBtn.Parent = mainFrame
 
-    local keyBox = Instance.new("TextBox")
-    keyBox.Size = UDim2.new(0.8, 0, 0, 40)
-    keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
-    keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
-    keyBox.PlaceholderText = "Enter key from website..."
-    keyBox.Text = ""
-    keyBox.Font = Enum.Font.Gotham
-    keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    keyBox.TextSize = 14
-    keyBox.Parent = mainFrame
+local getKeyBtn = Instance.new("TextButton")
+getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
+getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
+getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
+getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
+getKeyBtn.Font = Enum.Font.GothamBold
+getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+getKeyBtn.TextSize = 12
+getKeyBtn.Parent = mainFrame
 
-    local boxCorner = Instance.new("UICorner")
-    boxCorner.CornerRadius = UDim.new(0, 8)
-    boxCorner.Parent = keyBox
-
-    local submitBtn = Instance.new("TextButton")
-    submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
-    submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
-    submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-    submitBtn.Text = "ACTIVATE TRIAL"
-    submitBtn.Font = Enum.Font.GothamBold
-    submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    submitBtn.TextSize = 14
-    submitBtn.Parent = mainFrame
-
-    local submitCorner = Instance.new("UICorner")
-    submitCorner.CornerRadius = UDim.new(0, 8)
-    submitCorner.Parent = submitBtn
-
-    local getKeyBtn = Instance.new("TextButton")
-    getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
-    getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
-    getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
-    getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
-    getKeyBtn.Font = Enum.Font.GothamBold
-    getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    getKeyBtn.TextSize = 12
-    getKeyBtn.Parent = mainFrame
-
-    local getKeyCorner = Instance.new("UICorner")
-    getKeyCorner.CornerRadius = UDim.new(0, 8)
-    getKeyCorner.Parent = getKeyBtn
-
-    local statusMsg = Instance.new("TextLabel")
-    statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
-    statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
-    statusMsg.BackgroundTransparency = 1
-    statusMsg.Text = "Get key from website and paste here"
-    statusMsg.Font = Enum.Font.Gotham
-    statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
-    statusMsg.TextSize = 12
-    statusMsg.TextWrapped = true
-    statusMsg.Parent = mainFrame
-
-    -- Button events dengan debounce
-    local isProcessing = false
-
-    submitBtn.MouseButton1Click:Connect(function()
-        if isProcessing then return end
-        isProcessing = true
-        
-        local key = keyBox.Text:gsub("%s+", "") -- Hapus whitespace
-        
-        if string.len(key) < 10 then
-            statusMsg.Text = "❌ Invalid key format (min 10 chars)"
-            statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
-            isProcessing = false
-            return
-        end
-        
-        submitBtn.Text = "VALIDATING..."
-        submitBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-        statusMsg.Text = "⏳ Validating key with server..."
-        statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
-        
-        task.wait(0.5) -- Small delay untuk UX
-        
-        local isValid, message = validateKeyWithAPI(key)
-        
-        if isValid then
-            player:SetAttribute("FishItTrialStart", os.time())
-            statusMsg.Text = "✅ " .. message
-            statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-            submitBtn.Text = "SUCCESS!"
-            task.wait(1)
-            loadMainScript()
-        else
-            statusMsg.Text = "❌ " .. message
-            statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
-            submitBtn.Text = "ACTIVATE TRIAL"
-            submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-            isProcessing = false
-        end
-    end)
-
-    getKeyBtn.MouseButton1Click:Connect(function()
-        statusMsg.Text = "🌐 Open: keygen-fsh.vercel.app"
-        statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
-        
-        -- Copy URL to clipboard (optional)
-        pcall(function()
-            setclipboard("https://keygen-fsh.vercel.app/")
-        end)
-    end)
-
-    return keyGui
-end
+local statusMsg = Instance.new("TextLabel")
+statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
+statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
+statusMsg.BackgroundTransparency = 1
+statusMsg.Text = "Get key from website and paste here"
+statusMsg.Font = Enum.Font.Gotham
+statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusMsg.TextSize = 12
+statusMsg.Parent = mainFrame
 
 -- Fungsi untuk load script utama
 local function loadMainScript()
-    -- Hancurkan GUI key input
-    if playerGui:FindFirstChild("KeyInputGUI") then
-        playerGui:FindFirstChild("KeyInputGUI"):Destroy()
-    end
-
-    -- [[ TEMPATKAN SCRIPT UTAMA ANDA DI SINI ]]
-    -- Copy seluruh script utama Anda mulai dari baris ini:
+    keyGui:Destroy()
     
-    warn("✅ Key validated! Loading main script...")
-    
-    -- ===================================
-    -- ========== SCRIPT UTAMA ===========
-    -- ===================================
-    
-    -- Tempatkan seluruh kode script utama Anda di sini...
-    -- Mulai dari: local Players = game:GetService("Players")
-    -- Hingga akhir script
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1428,33 +1325,42 @@ end)
 -- ===================================
 -- ========== SCRIPT LOADED ==========
 -- ===================================
-
--- Script selesai di-load
-
     
+    warn("🎣 Fish It FREE Loaded! Trial time: 5 minutes")
 end
 
--- Main execution
-task.spawn(function()
-    -- Tunggu hingga player siap
-    if not player.Character then
-        player.CharacterAdded:Wait()
-    end
-    task.wait(2) -- Tunggu sedikit lebih lama
+-- Button events
+submitBtn.MouseButton1Click:Connect(function()
+    local key = keyBox.Text
     
-    -- Cek HttpService
-    if not checkHttpService() then
-        warn("❌ HttpService not enabled! Please enable in game settings.")
+    if string.len(key) < 10 then
+        statusMsg.Text = "❌ Invalid key format"
+        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
         return
     end
     
-    -- Check trial status
-    local hasActiveTrial, message = checkTrial()
-    if hasActiveTrial then
-        warn("⏰ " .. message)
+    statusMsg.Text = "⏳ Validating key..."
+    statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
+    
+    local isValid, message = validateKeyWithAPI(key)
+    
+    if isValid then
+        player:SetAttribute("FishItTrialStart", os.time())
+        statusMsg.Text = "✅ " .. message
+        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+        wait(1)
         loadMainScript()
     else
-        warn("🔑 Key System Loaded - Creating GUI...")
-        createKeyGUI()
+        statusMsg.Text = "❌ " .. message
+        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
     end
 end)
+
+getKeyBtn.MouseButton1Click:Connect(function()
+    statusMsg.Text = "🌐 Website: https://keygen-fsh.vercel.app/"
+    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+end)
+
+-- JANGAN AUTO LOAD - SELALU TUNGGU KEY DULU
+-- Hanya tampilkan input key, tidak auto load script utama
+warn("🔑 Key System Loaded - Waiting for key input...")
