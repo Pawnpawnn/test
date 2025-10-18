@@ -1,29 +1,49 @@
 -- ===================================
--- ========== KEY SYSTEM ==============
+-- ===================================
+-- ========== ROBLOX COMPATIBLE ======
 -- ===================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app/api" -- Ganti dengan URL Vercel kamu
+-- Direct API call (tanpa proxy)
+local API_BASE = "https://keygen-fsh.vercel.app/api"
+
 local trialDuration = 5 * 60
 
--- Validate key dengan API
-local function validateKeyWithAPI(key)
+-- Simple HTTP request untuk Roblox
+local function robloxHttpRequest(url)
     local success, result = pcall(function()
-        local response = HttpService:PostAsync(
-            API_URL .. "/validate-key",
-            HttpService:JSONEncode({key = key})
-        )
-        return HttpService:JSONDecode(response)
+        return HttpService:GetAsync(url)
     end)
+    return success, result
+end
+
+-- Validate key
+local function validateKeyWithAPI(key)
+    local success, response = robloxHttpRequest(API_BASE .. "/validate/" .. key)
     
-    if success and result.valid then
-        return true, "Key validated successfully"
+    if success then
+        local data = HttpService:JSONDecode(response)
+        if data.success and data.valid then
+            return true, data.message
+        else
+            return false, data.message or "Invalid key"
+        end
     else
-        return false, result and result.message or "Network error"
+        -- Fallback ke local validation
+        return validateKeyLocally(key), "Using offline validation"
     end
+end
+
+-- Fallback local validation
+local function validateKeyLocally(key)
+    -- Simple pattern matching sebagai fallback
+    if string.match(key, "^FISHIT_[A-Z0-9]+$") and string.len(key) == 20 then
+        return true
+    end
+    return false
 end
 
 -- Cek status trial
@@ -34,7 +54,7 @@ local function checkTrial()
         if elapsed >= trialDuration then
             return false, "Trial expired"
         end
-        return true, "Trial active"
+        return true, "Trial active - " .. math.floor((trialDuration - elapsed) / 60) .. "m left"
     end
     return false, "Need activation"
 end
