@@ -22,18 +22,20 @@ end
 
 -- Validate key
 local function validateKeyWithAPI(key)
-    local success, response = robloxHttpRequest(API_BASE .. "/validate/" .. key)
-    
-    if success then
-        local data = HttpService:JSONDecode(response)
-        if data.success and data.valid then
-            return true, data.message
-        else
-            return false, data.message or "Invalid key"
-        end
+    local success, result = pcall(function()
+        local response = HttpService:PostAsync(
+            API_URL .. "/validate-key",
+            HttpService:JSONEncode({ key = key }),
+            Enum.HttpContentType.ApplicationJson,
+            false
+        )
+        return HttpService:JSONDecode(response)
+    end)
+
+    if success and result.valid then
+        return true, "Key validated successfully"
     else
-        -- Fallback ke local validation
-        return validateKeyLocally(key), "Using offline validation"
+        return false, result and result.message or "Network error"
     end
 end
 
