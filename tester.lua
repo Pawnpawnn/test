@@ -1,13 +1,12 @@
 -- ===================================
--- ========== ADVANCED KEY SYSTEM =====
+-- ========== KEY SYSTEM ==============
 -- ===================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app/api" -- Ganti dengan URL Vercel
-
+local API_URL = "https://keygen-fsh.vercel.app/api" -- Ganti dengan URL Vercel kamu
 local trialDuration = 5 * 60
 
 -- Validate key dengan API
@@ -35,12 +34,81 @@ local function checkTrial()
         if elapsed >= trialDuration then
             return false, "Trial expired"
         end
-        return true, "Trial active - " .. math.floor((trialDuration - elapsed) / 60) .. "m left"
+        return true, "Trial active"
     end
     return false, "Need activation"
 end
 
-local Players = game:GetService("Players")
+-- Tampilkan input key
+local keyGui = Instance.new("ScreenGui")
+keyGui.Name = "KeyInputGUI"
+keyGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 350, 0, 250)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+mainFrame.Parent = keyGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 50)
+title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+title.Text = "🔑 FREE TRIAL ACTIVATION"
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(100, 180, 255)
+title.TextSize = 16
+title.Parent = mainFrame
+
+local keyBox = Instance.new("TextBox")
+keyBox.Size = UDim2.new(0.8, 0, 0, 40)
+keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
+keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
+keyBox.PlaceholderText = "Enter key from website..."
+keyBox.Text = ""
+keyBox.Font = Enum.Font.Gotham
+keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+keyBox.TextSize = 14
+keyBox.Parent = mainFrame
+
+local submitBtn = Instance.new("TextButton")
+submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
+submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
+submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+submitBtn.Text = "ACTIVATE TRIAL"
+submitBtn.Font = Enum.Font.GothamBold
+submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+submitBtn.TextSize = 14
+submitBtn.Parent = mainFrame
+
+local getKeyBtn = Instance.new("TextButton")
+getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
+getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
+getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
+getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
+getKeyBtn.Font = Enum.Font.GothamBold
+getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+getKeyBtn.TextSize = 12
+getKeyBtn.Parent = mainFrame
+
+local statusMsg = Instance.new("TextLabel")
+statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
+statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
+statusMsg.BackgroundTransparency = 1
+statusMsg.Text = "Get key from website and paste here"
+statusMsg.Font = Enum.Font.Gotham
+statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusMsg.TextSize = 12
+statusMsg.Parent = mainFrame
+
+-- Fungsi untuk load script utama
+local function loadMainScript()
+    keyGui:Destroy()
+    
+    local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -1234,9 +1302,11 @@ end)
 -- ===================================
 -- ========== SCRIPT LOADED ==========
 -- ===================================
+    
+    warn("🎣 Fish It FREE Loaded! Trial time: 5 minutes")
+end
 
-
--- Di button event:
+-- Button events
 submitBtn.MouseButton1Click:Connect(function()
     local key = keyBox.Text
     
@@ -1262,3 +1332,12 @@ submitBtn.MouseButton1Click:Connect(function()
         statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
     end
 end)
+
+getKeyBtn.MouseButton1Click:Connect(function()
+    statusMsg.Text = "🌐 Website: https://keygen-fsh.vercel.app/"
+    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+end)
+
+-- JANGAN AUTO LOAD - SELALU TUNGGU KEY DULU
+-- Hanya tampilkan input key, tidak auto load script utama
+warn("🔑 Key System Loaded - Waiting for key input...")
