@@ -182,7 +182,6 @@ local function createKeyGUI()
         statusMsg.Text = "⏳ Validating key with server..."
         statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
         
-        task.wait(5) -- Small delay untuk UX
         
         local isValid, message = validateKeyWithAPI(key)
         
@@ -191,7 +190,15 @@ local function createKeyGUI()
             statusMsg.Text = "✅ " .. message
             statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
             submitBtn.Text = "SUCCESS!"
-            task.wait(4)
+
+            -- Pastikan GUI dihapus sebelum load main script
+            pcall(function()
+                if keyGui and keyGui.Parent then
+                    keyGui:Destroy()
+                end
+            end)
+                
+            task.wait(0.1)
             loadMainScript()
         else
             statusMsg.Text = "❌ " .. message
