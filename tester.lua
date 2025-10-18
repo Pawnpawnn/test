@@ -3,11 +3,21 @@
 -- ===================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app/api" -- Ganti dengan URL Vercel kamu
+local API_URL = "https://keygen-fsh.vercel.app"
 local trialDuration = 5 * 60
+
+-- Validasi apakah game mendukung HttpService
+local function checkHttpService()
+    local success = pcall(function()
+        return HttpService:GetAsync("https://httpbin.org/get")
+    end)
+    return success
+end
 
 -- Validate key dengan API
 local function validateKeyWithAPI(key)
@@ -44,10 +54,10 @@ local function validateKeyWithAPI(key)
             return false, result.message or "Invalid key"
         end
     else
+        warn("API Error:", result)
         return false, "Network error - check console"
     end
 end
-
 
 -- Cek status trial
 local function checkTrial()
@@ -57,80 +67,362 @@ local function checkTrial()
         if elapsed >= trialDuration then
             return false, "Trial expired"
         end
-        return true, "Trial active"
+        return true, "Trial active - Time left: " .. math.floor((trialDuration - elapsed) / 60) .. " minutes"
     end
     return false, "Need activation"
 end
 
+-- ADVANCED: Fungsi untuk buka website langsung di browser
+local function openWebsiteAdvanced()
+    local websiteUrl = "https://keygen-fsh.vercel.app/"
+    
+    -- Method 1: Synapse X
+    local success, result = pcall(function()
+        if syn and syn.websocket then
+            syn.open(websiteUrl)
+            return true, "Opened in browser (Synapse)"
+        end
+        return false
+    end)
+    
+    if success and result then return websiteUrl end
+    
+    -- Method 2: ScriptWare或其他支持直接打开的executor
+    success, result = pcall(function()
+        if SW and SW.OpenURL then
+            SW.OpenURL(websiteUrl)
+            return true, "Opened in browser (ScriptWare)"
+        end
+        return false
+    end)
+    
+    if success and result then return websiteUrl end
+    
+    -- Method 3: KRNL
+    success, result = pcall(function()
+        if krnl then
+            krnl.URL(websiteUrl)
+            return true, "Opened in browser (KRNL)"
+        end
+        return false
+    end)
+    
+    if success and result then return websiteUrl end
+    
+    -- Method 4: Fluxus
+    success, result = pcall(function()
+        if fluxus and fluxus.open then
+            fluxus.open(websiteUrl)
+            return true, "Opened in browser (Fluxus)"
+        end
+        return false
+    end)
+    
+    if success and result then return websiteUrl end
+    
+    -- Method 5: 通用方法通过request
+    success, result = pcall(function()
+        if request then
+            request({
+                Url = "http://localhost:6463/rpc?v=1",
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json",
+                    ["Origin"] = "https://discord.com"
+                },
+                Body = HttpService:JSONEncode({
+                    cmd = "INVITE_BROWSER",
+                    args = {
+                        code = websiteUrl
+                    },
+                    nonce = HttpService:GenerateGUID(false)
+                })
+            })
+            return true, "Attempting to open browser..."
+        end
+        return false
+    end)
+    
+    if success and result then return websiteUrl end
+    
+    -- Method 6: 备用request方法
+    success, result = pcall(function()
+        if http_request then
+            http_request({
+                Url = websiteUrl,
+                Method = "GET"
+            })
+            return true, "Opening website..."
+        end
+        return false
+    end)
+    
+    if success and result then return websiteUrl end
+    
+    -- Method 7: 最后的手段 - 复制到剪贴板
+    pcall(function()
+        if setclipboard then
+            setclipboard(websiteUrl)
+        end
+    end)
+    
+    return websiteUrl
+end
+
 -- Tampilkan input key
-local keyGui = Instance.new("ScreenGui")
-keyGui.Name = "KeyInputGUI"
-keyGui.Parent = playerGui
+local function createKeyGUI()
+    if playerGui:FindFirstChild("KeyInputGUI") then
+        playerGui:FindFirstChild("KeyInputGUI"):Destroy()
+    end
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 350, 0, 250)
-mainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-mainFrame.Parent = keyGui
+    local keyGui = Instance.new("ScreenGui")
+    keyGui.Name = "KeyInputGUI"
+    keyGui.Parent = playerGui
+    keyGui.ResetOnSpawn = false
+    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = mainFrame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 400, 0, 280) -- Sedikit lebih besar untuk fitur tambahan
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -140)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    mainFrame.Parent = keyGui
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 50)
-title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-title.Text = "🔑 FREE TRIAL ACTIVATION"
-title.Font = Enum.Font.GothamBold
-title.TextColor3 = Color3.fromRGB(100, 180, 255)
-title.TextSize = 16
-title.Parent = mainFrame
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
 
-local keyBox = Instance.new("TextBox")
-keyBox.Size = UDim2.new(0.8, 0, 0, 40)
-keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
-keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
-keyBox.PlaceholderText = "Enter key from website..."
-keyBox.Text = ""
-keyBox.Font = Enum.Font.Gotham
-keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-keyBox.TextSize = 14
-keyBox.Parent = mainFrame
+    local uiStroke = Instance.new("UIStroke")
+    uiStroke.Color = Color3.fromRGB(100, 180, 255)
+    uiStroke.Thickness = 2
+    uiStroke.Parent = mainFrame
 
-local submitBtn = Instance.new("TextButton")
-submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
-submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
-submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-submitBtn.Text = "ACTIVATE TRIAL"
-submitBtn.Font = Enum.Font.GothamBold
-submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-submitBtn.TextSize = 14
-submitBtn.Parent = mainFrame
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 50)
+    title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+    title.Text = "🔑 FREE TRIAL ACTIVATION"
+    title.Font = Enum.Font.GothamBold
+    title.TextColor3 = Color3.fromRGB(100, 180, 255)
+    title.TextSize = 18
+    title.Parent = mainFrame
 
-local getKeyBtn = Instance.new("TextButton")
-getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
-getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
-getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
-getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
-getKeyBtn.Font = Enum.Font.GothamBold
-getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-getKeyBtn.TextSize = 12
-getKeyBtn.Parent = mainFrame
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    titleCorner.Parent = title
 
-local statusMsg = Instance.new("TextLabel")
-statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
-statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
-statusMsg.BackgroundTransparency = 1
-statusMsg.Text = "Get key from website and paste here"
-statusMsg.Font = Enum.Font.Gotham
-statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
-statusMsg.TextSize = 12
-statusMsg.Parent = mainFrame
+    local keyBox = Instance.new("TextBox")
+    keyBox.Size = UDim2.new(0.8, 0, 0, 40)
+    keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
+    keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
+    keyBox.PlaceholderText = "Enter key from website..."
+    keyBox.Text = ""
+    keyBox.Font = Enum.Font.Gotham
+    keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyBox.TextSize = 14
+    keyBox.Parent = mainFrame
+
+    local boxCorner = Instance.new("UICorner")
+    boxCorner.CornerRadius = UDim.new(0, 8)
+    boxCorner.Parent = keyBox
+
+    local boxStroke = Instance.new("UIStroke")
+    boxStroke.Color = Color3.fromRGB(60, 80, 120)
+    boxStroke.Thickness = 1
+    boxStroke.Parent = keyBox
+
+    local submitBtn = Instance.new("TextButton")
+    submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
+    submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
+    submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    submitBtn.Text = "ACTIVATE TRIAL"
+    submitBtn.Font = Enum.Font.GothamBold
+    submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    submitBtn.TextSize = 14
+    submitBtn.Parent = mainFrame
+
+    local submitCorner = Instance.new("UICorner")
+    submitCorner.CornerRadius = UDim.new(0, 8)
+    submitCorner.Parent = submitBtn
+
+    local getKeyBtn = Instance.new("TextButton")
+    getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
+    getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
+    getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
+    getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
+    getKeyBtn.Font = Enum.Font.GothamBold
+    getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    getKeyBtn.TextSize = 12
+    getKeyBtn.Parent = mainFrame
+
+    local getKeyCorner = Instance.new("UICorner")
+    getKeyCorner.CornerRadius = UDim.new(0, 8)
+    getKeyCorner.Parent = getKeyBtn
+
+    local statusMsg = Instance.new("TextLabel")
+    statusMsg.Size = UDim2.new(0.8, 0, 0, 40)
+    statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
+    statusMsg.BackgroundTransparency = 1
+    statusMsg.Text = "Click the button below to get your FREE key!"
+    statusMsg.Font = Enum.Font.Gotham
+    statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusMsg.TextSize = 12
+    statusMsg.TextWrapped = true
+    statusMsg.Parent = mainFrame
+
+    -- Info label untuk executor detection
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Size = UDim2.new(0.8, 0, 0, 20)
+    infoLabel.Position = UDim2.new(0.1, 0, 0.9, 0)
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.Text = "Detecting executor..."
+    infoLabel.Font = Enum.Font.Gotham
+    infoLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    infoLabel.TextSize = 10
+    infoLabel.TextWrapped = true
+    infoLabel.Parent = mainFrame
+
+    -- Deteksi executor yang digunakan
+    local function detectExecutor()
+        if syn and syn.websocket then
+            return "Synapse X"
+        elseif SW and SW.OpenURL then
+            return "ScriptWare"
+        elseif krnl then
+            return "KRNL"
+        elseif fluxus and fluxus.open then
+            return "Fluxus"
+        elseif request then
+            return "Supported Executor"
+        else
+            return "Unknown (Clipboard Fallback)"
+        end
+    end
+
+    -- Update info label
+    local executorName = detectExecutor()
+    infoLabel.Text = "Executor: " .. executorName .. " | Direct browser opening supported!"
+
+    -- Button events dengan debounce
+    local isProcessing = false
+
+    submitBtn.MouseButton1Click:Connect(function()
+        if isProcessing then return end
+        isProcessing = true
+        
+        local key = keyBox.Text:gsub("%s+", "")
+        
+        if string.len(key) < 10 then
+            statusMsg.Text = "❌ Invalid key format (min 10 chars)"
+            statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+            isProcessing = false
+            return
+        end
+        
+        submitBtn.Text = "VALIDATING..."
+        submitBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        statusMsg.Text = "⏳ Validating key with server..."
+        statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
+        
+        task.wait(0.5)
+        
+        local isValid, message = validateKeyWithAPI(key)
+        
+        if isValid then
+            player:SetAttribute("FishItTrialStart", os.time())
+            statusMsg.Text = "✅ " .. message
+            statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+            submitBtn.Text = "SUCCESS!"
+            
+            -- Animasi sukses
+            local successTween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                BackgroundColor3 = Color3.fromRGB(30, 60, 30)
+            })
+            successTween:Play()
+            
+            task.wait(1.5)
+            loadMainScript()
+        else
+            statusMsg.Text = "❌ " .. message
+            statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+            submitBtn.Text = "ACTIVATE TRIAL"
+            submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+            isProcessing = false
+        end
+    end)
+
+    getKeyBtn.MouseButton1Click:Connect(function()
+        -- Animasi button click
+        getKeyBtn.Text = "🔄 OPENING..."
+        getKeyBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 200)
+        
+        statusMsg.Text = "🚀 Opening browser automatically..."
+        statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+        
+        task.wait(0.3)
+        
+        -- Buka website dengan method advanced
+        local websiteUrl = openWebsiteAdvanced()
+        
+        -- Update status berdasarkan hasil
+        statusMsg.Text = "✅ Browser opened!\n\nIf browser didn't open, manually visit:\n" .. websiteUrl
+        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+        
+        -- Animasi sukses
+        getKeyBtn.Text = "✅ OPENED!"
+        getKeyBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        
+        -- Auto reset button setelah 3 detik
+        task.wait(3)
+        
+        getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
+        getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
+        
+        -- Reset status message setelah 5 detik
+        task.wait(2)
+        statusMsg.Text = "Paste your key above and click ACTIVATE"
+        statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end)
+
+    -- Advanced hover effects dengan animasi
+    local function addAdvancedHover(button, normalColor, hoverColor)
+        button.MouseEnter:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.2), {
+                BackgroundColor3 = hoverColor,
+                Size = button.Size + UDim2.new(0, 4, 0, 4)
+            }):Play()
+        end)
+        
+        button.MouseLeave:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.2), {
+                BackgroundColor3 = normalColor,
+                Size = button.Size - UDim2.new(0, 4, 0, 4)
+            }):Play()
+        end)
+    end
+
+    addAdvancedHover(submitBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+    addAdvancedHover(getKeyBtn, Color3.fromRGB(80, 100, 180), Color3.fromRGB(100, 120, 200))
+
+    -- Focus ke textbox ketika GUI terbuka
+    task.wait(0.5)
+    keyBox:CaptureFocus()
+
+    return keyGui
+end
 
 -- Fungsi untuk load script utama
 local function loadMainScript()
-    keyGui:Destroy()
+    if playerGui:FindFirstChild("KeyInputGUI") then
+        playerGui:FindFirstChild("KeyInputGUI"):Destroy()
+    end
+
+    warn("✅ Key validated! Loading main script...")
     
+    -- ===================================
+    -- ========== SCRIPT UTAMA ===========
+    -- ===================================
+    
+    -- TEMPATKAN SCRIPT UTAMA ANDA DI SINI
+    -- Copy semua kode script utama mulai dari sini...
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1325,42 +1617,29 @@ end)
 -- ===================================
 -- ========== SCRIPT LOADED ==========
 -- ===================================
+
+-- Script selesai di-load
     
-    warn("🎣 Fish It FREE Loaded! Trial time: 5 minutes")
 end
 
--- Button events
-submitBtn.MouseButton1Click:Connect(function()
-    local key = keyBox.Text
+-- Main execution
+task.spawn(function()
+    if not player.Character then
+        player.CharacterAdded:Wait()
+    end
+    task.wait(2)
     
-    if string.len(key) < 10 then
-        statusMsg.Text = "❌ Invalid key format"
-        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+    if not checkHttpService() then
+        warn("❌ HttpService not enabled! Please enable in game settings.")
         return
     end
     
-    statusMsg.Text = "⏳ Validating key..."
-    statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
-    
-    local isValid, message = validateKeyWithAPI(key)
-    
-    if isValid then
-        player:SetAttribute("FishItTrialStart", os.time())
-        statusMsg.Text = "✅ " .. message
-        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-        wait(1)
+    local hasActiveTrial, message = checkTrial()
+    if hasActiveTrial then
+        warn("⏰ " .. message)
         loadMainScript()
     else
-        statusMsg.Text = "❌ " .. message
-        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        warn("🔑 Key System Loaded - Creating GUI...")
+        createKeyGUI()
     end
 end)
-
-getKeyBtn.MouseButton1Click:Connect(function()
-    statusMsg.Text = "🌐 Website: https://keygen-fsh.vercel.app/"
-    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
-end)
-
--- JANGAN AUTO LOAD - SELALU TUNGGU KEY DULU
--- Hanya tampilkan input key, tidak auto load script utama
-warn("🔑 Key System Loaded - Waiting for key input...")
