@@ -6,8 +6,8 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app"
-local trialDuration = 6 * 60 * 60
+local API_URL = "https://keygen-fsh.vercel.app/api" -- Hilangkan trailing slash
+local trialDuration = 5 * 60
 
 -- Validasi apakah game mendukung HttpService
 local function checkHttpService()
@@ -17,7 +17,7 @@ local function checkHttpService()
     return success
 end
 
--- Validate key dengan API
+-- Validate key dengan API (dengan error handling yang lebih baik)
 local function validateKeyWithAPI(key)
     local success, result = pcall(function()
         local headers = {
@@ -52,6 +52,7 @@ local function validateKeyWithAPI(key)
             return false, result.message or "Invalid key"
         end
     else
+        -- Detailed error logging
         warn("API Error:", result)
         return false, "Network error - check console"
     end
@@ -70,19 +71,9 @@ local function checkTrial()
     return false, "Need activation"
 end
 
--- SIMPLE: Copy ke clipboard
-local function copyToClipboard()
-    local websiteUrl = "https://keygen-fsh.vercel.app/"
-    
-    pcall(function()
-        setclipboard(websiteUrl)
-    end)
-    
-    return websiteUrl
-end
-
 -- Tampilkan input key
 local function createKeyGUI()
+    -- Hapus GUI lama jika ada
     if playerGui:FindFirstChild("KeyInputGUI") then
         playerGui:FindFirstChild("KeyInputGUI"):Destroy()
     end
@@ -91,7 +82,7 @@ local function createKeyGUI()
     keyGui.Name = "KeyInputGUI"
     keyGui.Parent = playerGui
     keyGui.ResetOnSpawn = false
-    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- Tambahkan ini
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 350, 0, 250)
@@ -149,7 +140,7 @@ local function createKeyGUI()
     getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
     getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
     getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
-    getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
+    getKeyBtn.Text = "Get Key"
     getKeyBtn.Font = Enum.Font.GothamBold
     getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     getKeyBtn.TextSize = 12
@@ -170,14 +161,14 @@ local function createKeyGUI()
     statusMsg.TextWrapped = true
     statusMsg.Parent = mainFrame
 
-    -- Button events
+    -- Button events dengan debounce
     local isProcessing = false
 
     submitBtn.MouseButton1Click:Connect(function()
         if isProcessing then return end
         isProcessing = true
         
-        local key = keyBox.Text:gsub("%s+", "")
+        local key = keyBox.Text:gsub("%s+", "") -- Hapus whitespace
         
         if string.len(key) < 10 then
             statusMsg.Text = "❌ Invalid key format (min 10 chars)"
@@ -191,7 +182,7 @@ local function createKeyGUI()
         statusMsg.Text = "⏳ Validating key with server..."
         statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
         
-        task.wait(0.5)
+        task.wait(0.5) -- Small delay untuk UX
         
         local isValid, message = validateKeyWithAPI(key)
         
@@ -212,40 +203,54 @@ local function createKeyGUI()
     end)
 
     getKeyBtn.MouseButton1Click:Connect(function()
-        -- Copy ke clipboard
-        local websiteUrl = copyToClipboard()
-        
-        -- Update status
-        statusMsg.Text = "✅ URL copied to clipboard!\n\nPaste in browser:\n" .. websiteUrl
-        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-        
-        -- Feedback button
-        getKeyBtn.Text = "✅ COPIED!"
-        getKeyBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        
-        -- Auto reset setelah 3 detik
-        task.wait(3)
-        
-        getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
-        getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
+     local keyLink = "https://keygen-fsh.vercel.app/"
+     local copied = false
+
+    -- Coba copy ke clipboard (khusus executor)
+    local ok, _ = pcall(function()
+        setclipboard(keyLink)
     end)
+
+    if ok then
+        copied = true
+    end
+
+    -- Fallback kalau clipboard gagal
+    if not copied then
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("OpenUrl", keyLink)
+        end)
+    end
+
+    statusMsg.Text = copied 
+        and "✅ Link copied to clipboard!" 
+        or "🌐 Opening website..."
+    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+    end)
+
 
     return keyGui
 end
 
 -- Fungsi untuk load script utama
 local function loadMainScript()
+    -- Hancurkan GUI key input
     if playerGui:FindFirstChild("KeyInputGUI") then
         playerGui:FindFirstChild("KeyInputGUI"):Destroy()
     end
 
+    -- [[ TEMPATKAN SCRIPT UTAMA ANDA DI SINI ]]
+    -- Copy seluruh script utama Anda mulai dari baris ini:
+    
     warn("✅ Key validated! Loading main script...")
     
     -- ===================================
     -- ========== SCRIPT UTAMA ===========
     -- ===================================
     
-    -- TEMPATKAN SCRIPT UTAMA ANDA DI SINI
+    -- Tempatkan seluruh kode script utama Anda di sini...
+    -- Mulai dari: local Players = game:GetService("Players")
+    -- Hingga akhir script
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1442,21 +1447,25 @@ end)
 -- ===================================
 
 -- Script selesai di-load
+
     
 end
 
 -- Main execution
 task.spawn(function()
+    -- Tunggu hingga player siap
     if not player.Character then
         player.CharacterAdded:Wait()
     end
-    task.wait(2)
+    task.wait(2) -- Tunggu sedikit lebih lama
     
+    -- Cek HttpService
     if not checkHttpService() then
         warn("❌ HttpService not enabled! Please enable in game settings.")
         return
     end
     
+    -- Check trial status
     local hasActiveTrial, message = checkTrial()
     if hasActiveTrial then
         warn("⏰ " .. message)
