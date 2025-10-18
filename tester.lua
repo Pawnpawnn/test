@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local API_URL = "https://keygen-fsh.vercel.app/api" -- Hilangkan trailing slash
-local trialDuration = 5 * 60
+local trialDuration = 6 * 60 * 60
 
 -- Validasi apakah game mendukung HttpService
 local function checkHttpService()
@@ -140,7 +140,7 @@ local function createKeyGUI()
     getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
     getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
     getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
-    getKeyBtn.Text = "Get Key"
+    getKeyBtn.Text = "🌐 GET KEY FROM WEBSITE"
     getKeyBtn.Font = Enum.Font.GothamBold
     getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     getKeyBtn.TextSize = 12
@@ -203,31 +203,14 @@ local function createKeyGUI()
     end)
 
     getKeyBtn.MouseButton1Click:Connect(function()
-     local keyLink = "https://keygen-fsh.vercel.app/"
-     local copied = false
-
-    -- Coba copy ke clipboard (khusus executor)
-    local ok, _ = pcall(function()
-        setclipboard(keyLink)
-    end)
-
-    if ok then
-        copied = true
-    end
-
-    -- Fallback kalau clipboard gagal
-    if not copied then
+        statusMsg.Text = "🌐 Copied: keygen-fsh.vercel.app"
+        statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+        
+        -- Copy URL to clipboard (optional)
         pcall(function()
-            game:GetService("StarterGui"):SetCore("OpenUrl", keyLink)
+            setclipboard("https://keygen-fsh.vercel.app/")
         end)
-    end
-
-    statusMsg.Text = copied 
-        and "✅ Link copied to clipboard!" 
-        or "🌐 Opening website..."
-    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
     end)
-
 
     return keyGui
 end
@@ -1447,7 +1430,6 @@ end)
 -- ===================================
 
 -- Script selesai di-load
-
     
 end
 
