@@ -182,6 +182,11 @@ local function createKeyGUI()
         statusMsg.Text = "⏳ Validating key with server..."
         statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
         
+        task.wait(1) -- Small delay untuk UX
+        -- Hancurkan GUI key input
+    if playerGui:FindFirstChild("KeyInputGUI") then
+        playerGui:FindFirstChild("KeyInputGUI"):Destroy()
+    end
         
         local isValid, message = validateKeyWithAPI(key)
         
@@ -190,15 +195,7 @@ local function createKeyGUI()
             statusMsg.Text = "✅ " .. message
             statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
             submitBtn.Text = "SUCCESS!"
-
-            -- Pastikan GUI dihapus sebelum load main script
-            pcall(function()
-                if keyGui and keyGui.Parent then
-                    keyGui:Destroy()
-                end
-            end)
-                
-            task.wait(0.1)
+            task.wait(0.5)
             loadMainScript()
         else
             statusMsg.Text = "❌ " .. message
