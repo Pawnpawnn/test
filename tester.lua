@@ -1,40 +1,24 @@
 -- ===================================
--- ========== KEY SYSTEM (FIXED) =====
+-- ========== KEY SYSTEM ==============
 -- ===================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app/api"
+local API_URL = "https://keygen-fsh.vercel.app/api" -- Hilangkan trailing slash
 local trialDuration = 5 * 60
 
--- Flag untuk debug mode
-local DEBUG_MODE = true
-
-local function debugPrint(msg)
-    if DEBUG_MODE then
-        print("[KEY SYSTEM DEBUG] " .. msg)
-    end
-end
-
--- Validasi HttpService dengan lebih baik
+-- Validasi apakah game mendukung HttpService
 local function checkHttpService()
-    debugPrint("Checking HttpService...")
-    local success, result = pcall(function()
-        return HttpService:GetAsync("https://httpbin.org/get", true)
+    local success = pcall(function()
+        return HttpService:GetAsync("https://httpbin.org/get")
     end)
-    debugPrint("HttpService check: " .. tostring(success))
-    if not success then
-        debugPrint("HttpService error: " .. tostring(result))
-    end
     return success
 end
 
--- Validate key dengan timeout protection
+-- Validate key dengan API (dengan error handling yang lebih baik)
 local function validateKeyWithAPI(key)
-    debugPrint("Validating key: " .. key)
-    
     local success, result = pcall(function()
         local headers = {
             ["Content-Type"] = "application/json"
@@ -44,8 +28,6 @@ local function validateKeyWithAPI(key)
             key = key
         })
         
-        debugPrint("Sending request to: " .. API_URL .. "/validate-key")
-        
         local response = HttpService:RequestAsync({
             Url = API_URL .. "/validate-key",
             Method = "POST",
@@ -53,12 +35,8 @@ local function validateKeyWithAPI(key)
             Body = body
         })
         
-        debugPrint("Response code: " .. tostring(response.StatusCode))
-        
         if response.Success and response.StatusCode == 200 then
-            local decoded = HttpService:JSONDecode(response.Body)
-            debugPrint("Response body: " .. HttpService:JSONEncode(decoded))
-            return decoded
+            return HttpService:JSONDecode(response.Body)
         else
             return {
                 valid = false,
@@ -69,47 +47,33 @@ local function validateKeyWithAPI(key)
     
     if success then
         if result.valid then
-            debugPrint("Key valid!")
             return true, result.message or "Key validated successfully"
         else
-            debugPrint("Key invalid: " .. tostring(result.message))
             return false, result.message or "Invalid key"
         end
     else
-        debugPrint("API Error: " .. tostring(result))
+        -- Detailed error logging
         warn("API Error:", result)
-        return false, "Connection error - Check console (F9)"
+        return false, "Network error - check console"
     end
 end
 
 -- Cek status trial
 local function checkTrial()
     local savedTime = player:GetAttribute("FishItTrialStart")
-    debugPrint("Checking trial... Saved time: " .. tostring(savedTime))
-    
     if savedTime then
         local elapsed = os.time() - savedTime
-        debugPrint("Elapsed time: " .. tostring(elapsed) .. " seconds")
-        
         if elapsed >= trialDuration then
-            debugPrint("Trial expired")
             return false, "Trial expired"
         end
-        
-        local timeLeft = math.floor((trialDuration - elapsed) / 60)
-        debugPrint("Trial active, time left: " .. timeLeft .. " minutes")
-        return true, "Trial active - Time left: " .. timeLeft .. " minutes"
+        return true, "Trial active - Time left: " .. math.floor((trialDuration - elapsed) / 60) .. " minutes"
     end
-    
-    debugPrint("No trial found")
     return false, "Need activation"
 end
 
--- GUI dengan error display yang lebih baik
+-- Tampilkan input key
 local function createKeyGUI()
-    debugPrint("Creating Key GUI...")
-    
-    -- Hapus GUI lama
+    -- Hapus GUI lama jika ada
     if playerGui:FindFirstChild("KeyInputGUI") then
         playerGui:FindFirstChild("KeyInputGUI"):Destroy()
     end
@@ -118,14 +82,12 @@ local function createKeyGUI()
     keyGui.Name = "KeyInputGUI"
     keyGui.Parent = playerGui
     keyGui.ResetOnSpawn = false
-    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    keyGui.DisplayOrder = 999 -- Pastikan di atas yang lain
+    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- Tambahkan ini
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 350, 0, 280)
-    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -140)
+    mainFrame.Size = UDim2.new(0, 350, 0, 250)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-    mainFrame.BorderSizePixel = 0
     mainFrame.Parent = keyGui
 
     local corner = Instance.new("UICorner")
@@ -145,27 +107,15 @@ local function createKeyGUI()
     titleCorner.CornerRadius = UDim.new(0, 12)
     titleCorner.Parent = title
 
-    local statusMsg = Instance.new("TextLabel")
-    statusMsg.Size = UDim2.new(0.9, 0, 0, 40)
-    statusMsg.Position = UDim2.new(0.05, 0, 0.22, 0)
-    statusMsg.BackgroundTransparency = 1
-    statusMsg.Text = "Get key from website and paste here"
-    statusMsg.Font = Enum.Font.Gotham
-    statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
-    statusMsg.TextSize = 11
-    statusMsg.TextWrapped = true
-    statusMsg.Parent = mainFrame
-
     local keyBox = Instance.new("TextBox")
-    keyBox.Size = UDim2.new(0.85, 0, 0, 40)
-    keyBox.Position = UDim2.new(0.075, 0, 0.42, 0)
+    keyBox.Size = UDim2.new(0.8, 0, 0, 40)
+    keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
     keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
-    keyBox.PlaceholderText = "Paste your key here..."
+    keyBox.PlaceholderText = "Enter key from website..."
     keyBox.Text = ""
     keyBox.Font = Enum.Font.Gotham
     keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     keyBox.TextSize = 14
-    keyBox.ClearTextOnFocus = false
     keyBox.Parent = mainFrame
 
     local boxCorner = Instance.new("UICorner")
@@ -173,8 +123,8 @@ local function createKeyGUI()
     boxCorner.Parent = keyBox
 
     local submitBtn = Instance.new("TextButton")
-    submitBtn.Size = UDim2.new(0.65, 0, 0, 40)
-    submitBtn.Position = UDim2.new(0.175, 0, 0.62, 0)
+    submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
+    submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
     submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
     submitBtn.Text = "ACTIVATE TRIAL"
     submitBtn.Font = Enum.Font.GothamBold
@@ -187,10 +137,10 @@ local function createKeyGUI()
     submitCorner.Parent = submitBtn
 
     local getKeyBtn = Instance.new("TextButton")
-    getKeyBtn.Size = UDim2.new(0.65, 0, 0, 35)
-    getKeyBtn.Position = UDim2.new(0.175, 0, 0.8, 0)
+    getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
+    getKeyBtn.Position = UDim2.new(0.2, 0, 0.75, 0)
     getKeyBtn.BackgroundColor3 = Color3.fromRGB(80, 100, 180)
-    getKeyBtn.Text = "🌐 Get Key from Website"
+    getKeyBtn.Text = "Get Key"
     getKeyBtn.Font = Enum.Font.GothamBold
     getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     getKeyBtn.TextSize = 12
@@ -200,21 +150,28 @@ local function createKeyGUI()
     getKeyCorner.CornerRadius = UDim.new(0, 8)
     getKeyCorner.Parent = getKeyBtn
 
+    local statusMsg = Instance.new("TextLabel")
+    statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
+    statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
+    statusMsg.BackgroundTransparency = 1
+    statusMsg.Text = "Get key from website and paste here"
+    statusMsg.Font = Enum.Font.Gotham
+    statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusMsg.TextSize = 12
+    statusMsg.TextWrapped = true
+    statusMsg.Parent = mainFrame
+
+    -- Button events dengan debounce
     local isProcessing = false
 
-    -- Submit button handler
     submitBtn.MouseButton1Click:Connect(function()
-        if isProcessing then 
-            debugPrint("Already processing, ignoring click")
-            return 
-        end
+        if isProcessing then return end
         isProcessing = true
         
-        local key = keyBox.Text:gsub("%s+", "")
-        debugPrint("Submit clicked, key length: " .. tostring(string.len(key)))
+        local key = keyBox.Text:gsub("%s+", "") -- Hapus whitespace
         
         if string.len(key) < 10 then
-            statusMsg.Text = "❌ Invalid key (minimum 10 characters)"
+            statusMsg.Text = "❌ Invalid key format (min 10 chars)"
             statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
             isProcessing = false
             return
@@ -222,24 +179,21 @@ local function createKeyGUI()
         
         submitBtn.Text = "VALIDATING..."
         submitBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-        statusMsg.Text = "⏳ Connecting to server..."
+        statusMsg.Text = "⏳ Validating key with server..."
         statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
         
-        task.wait(0.3)
+        task.wait(0.5) -- Small delay untuk UX
         
         local isValid, message = validateKeyWithAPI(key)
         
         if isValid then
-            debugPrint("Key validated successfully!")
             player:SetAttribute("FishItTrialStart", os.time())
             statusMsg.Text = "✅ " .. message
             statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
             submitBtn.Text = "SUCCESS!"
-            submitBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
             task.wait(1)
             loadMainScript()
         else
-            debugPrint("Key validation failed: " .. message)
             statusMsg.Text = "❌ " .. message
             statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
             submitBtn.Text = "ACTIVATE TRIAL"
@@ -248,52 +202,55 @@ local function createKeyGUI()
         end
     end)
 
-    -- Get key button handler
     getKeyBtn.MouseButton1Click:Connect(function()
-        debugPrint("Get Key button clicked")
-        local keyLink = "https://keygen-fsh.vercel.app/"
-        local copied = false
+     local keyLink = "https://keygen-fsh.vercel.app/"
+     local copied = false
 
-        local ok = pcall(function()
-            setclipboard(keyLink)
-        end)
-
-        if ok then
-            copied = true
-            debugPrint("Link copied to clipboard")
-        else
-            debugPrint("Clipboard not available, opening in browser")
-        end
-
-        if not copied then
-            pcall(function()
-                game:GetService("StarterGui"):SetCore("OpenUrl", keyLink)
-            end)
-        end
-
-        statusMsg.Text = copied 
-            and "✅ Link copied! Paste it in your browser" 
-            or "🌐 Opening website in browser..."
-        statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+    -- Coba copy ke clipboard (khusus executor)
+    local ok, _ = pcall(function()
+        setclipboard(keyLink)
     end)
 
-    debugPrint("Key GUI created successfully")
+    if ok then
+        copied = true
+    end
+
+    -- Fallback kalau clipboard gagal
+    if not copied then
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("OpenUrl", keyLink)
+        end)
+    end
+
+    statusMsg.Text = copied 
+        and "✅ Link copied to clipboard!" 
+        or "🌐 Opening website..."
+    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+    end)
+
+
     return keyGui
 end
 
--- Load main script function
-function loadMainScript()
-    debugPrint("Loading main script...")
-    
+-- Fungsi untuk load script utama
+local function loadMainScript()
+    -- Hancurkan GUI key input
     if playerGui:FindFirstChild("KeyInputGUI") then
         playerGui:FindFirstChild("KeyInputGUI"):Destroy()
     end
 
+    -- [[ TEMPATKAN SCRIPT UTAMA ANDA DI SINI ]]
+    -- Copy seluruh script utama Anda mulai dari baris ini:
+    
     warn("✅ Key validated! Loading main script...")
     
-    -- PASTE SELURUH SCRIPT UTAMA DI SINI
+    -- ===================================
+    -- ========== SCRIPT UTAMA ===========
+    -- ===================================
+    
+    -- Tempatkan seluruh kode script utama Anda di sini...
     -- Mulai dari: local Players = game:GetService("Players")
-    -- Hingga akhir script fishing
+    -- Hingga akhir script
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1490,66 +1447,26 @@ end)
 -- ===================================
 
 -- Script selesai di-load
+
     
-    print("🎣 Main script loaded successfully!")
 end
 
--- ===================================
--- ========== MAIN EXECUTION =========
--- ===================================
-
+-- Main execution
 task.spawn(function()
-    debugPrint("Script starting...")
-    
-    -- Tunggu character
+    -- Tunggu hingga player siap
     if not player.Character then
-        debugPrint("Waiting for character...")
         player.CharacterAdded:Wait()
     end
+    task.wait(2) -- Tunggu sedikit lebih lama
     
-    debugPrint("Character found, waiting 3 seconds...")
-    task.wait(3)
     
-    -- Cek HttpService
-    if not checkHttpService() then
-        warn("❌ HttpService is not enabled!")
-        warn("Please enable HttpService in game settings")
-        warn("Or the game might not support HTTP requests")
-        
-        -- Tampilkan GUI error
-        local errorMsg = Instance.new("ScreenGui")
-        errorMsg.Name = "ErrorGUI"
-        errorMsg.Parent = playerGui
-        
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 300, 0, 100)
-        frame.Position = UDim2.new(0.5, -150, 0.5, -50)
-        frame.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        frame.Parent = errorMsg
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, 0, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Text = "❌ HttpService not enabled!\nCheck console (F9) for details"
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.TextSize = 14
-        label.Font = Enum.Font.GothamBold
-        label.Parent = frame
-        
-        return
-    end
-    
-    debugPrint("HttpService is enabled")
-    
-    -- Check trial
+    -- Check trial status
     local hasActiveTrial, message = checkTrial()
     if hasActiveTrial then
-        debugPrint("Active trial found: " .. message)
         warn("⏰ " .. message)
         loadMainScript()
     else
-        debugPrint("No active trial, showing key GUI")
-        warn("🔑 Key System Loaded - Please enter your key")
+        warn("🔑 Key System Loaded - Creating GUI...")
         createKeyGUI()
     end
 end)
