@@ -9,7 +9,9 @@ local TeleportService = game:GetService("TeleportService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local character = player.Character or player.CharacterAdded:Wait()
+
+-- Tunggu character load dulu
+local character = player.CharacterAdded:Wait()
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
 -- ===================================
@@ -53,12 +55,23 @@ end
 
 -- Fungsi untuk menambahkan efek hover pada button
 local function addHover(btn, normal, hover)
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hover}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = normal}):Play()
-    end)
+    if btn and btn.MouseEnter then
+        btn.MouseEnter:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hover}):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = normal}):Play()
+        end)
+    end
+end
+
+-- Fungsi untuk update status
+local function updateStatus(newStatus, color)
+    if statusLabel then
+        local baseText = "Script: V.2.2\nUpdate: +Event Webhook System\nNote: Paste webhook event server!"
+        statusLabel.Text = newStatus .. "\n" .. baseText
+        statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
+    end
 end
 
 -- Fungsi untuk join event via webhook
@@ -78,12 +91,23 @@ local function joinEventViaWebhook()
     local success, err = pcall(function()
         updateStatus("🚀 Mencoba join event...", Color3.fromRGB(100, 200, 255))
         
-        -- Teleport menggunakan webhook URL
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, eventWebhookUrl, player)
+        -- Cek jika webhook adalah full URL atau hanya jobId
+        local jobId = eventWebhookUrl
+        if string.find(eventWebhookUrl, "jobId=") then
+            -- Extract jobId dari URL
+            jobId = string.match(eventWebhookUrl, "jobId=([^&]+)")
+        end
+        
+        if jobId then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, player)
+        else
+            error("Invalid jobId")
+        end
     end)
     
     if not success then
         updateStatus("❌ Gagal join event: " .. tostring(err), Color3.fromRGB(255, 100, 100))
+        eventJoinCooldown = false
     end
     
     -- Cooldown 10 detik
@@ -161,7 +185,7 @@ local titleText = create("TextLabel", {
     Size = UDim2.new(1, -66, 1, 0),
     Position = UDim2.new(0, 12, 0, 0),
     BackgroundTransparency = 1,
-    Text = "🐟 Fish It - Codepikk",
+    Text = "🐟 Fish It - Codepikk (free)",
     Font = Enum.Font.GothamBold,
     TextSize = 13,
     TextColor3 = Color3.fromRGB(100, 180, 255),
@@ -232,16 +256,6 @@ local statusLabel = create("TextLabel", {
     TextColor3 = Color3.fromRGB(255, 100, 100),
     TextXAlignment = Enum.TextXAlignment.Left
 })
-
--- Fungsi untuk update status dengan format yang dipertahankan
-local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.2\nUpdate: +Event Webhook System\nNote: Paste webhook event server!"
-    statusLabel.Text = newStatus .. "\n" .. baseText
-    statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
-end
-
--- Inisialisasi status awal
-updateStatus("🔴 Status: Idle")
 
 -- ===================================
 -- ========== ANTI-AFK SECTION =======
@@ -923,3 +937,6 @@ end)
 
 -- Script selesai di-load
 updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
+
+-- Test jika GUI muncul
+warn("🎣 Fish It Auto GUI Loaded! Check your screen for the interface.")
