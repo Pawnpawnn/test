@@ -210,6 +210,15 @@ local titleBar = create("Frame", {
     BorderSizePixel = 0
 })
 
+-- Title Bar dengan timer
+local titleBar = create("Frame", {
+    Name = "TitleBar",
+    Parent = mainFrame,
+    Size = UDim2.new(1, 0, 0, 33),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 55),
+    BorderSizePixel = 0
+})
+
 create("UICorner", {Parent = titleBar, CornerRadius = UDim.new(0, 10)})
 
 local titleText = create("TextLabel", {
@@ -222,6 +231,18 @@ local titleText = create("TextLabel", {
     TextSize = 13,
     TextColor3 = Color3.fromRGB(100, 180, 255),
     TextXAlignment = Enum.TextXAlignment.Left
+})
+
+local timerLabel = create("TextLabel", {
+    Parent = titleBar,
+    Size = UDim2.new(0, 50, 1, 0),
+    Position = UDim2.new(1, -60, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "05:00",
+    Font = Enum.Font.GothamBold,
+    TextSize = 11,
+    TextColor3 = Color3.fromRGB(255, 255, 100),
+    TextXAlignment = Enum.TextXAlignment.Right
 })
 
 local closeBtn = create("TextButton", {
@@ -1308,3 +1329,37 @@ if checkTrial() then
 else
     -- Tampilkan input key
 end
+
+-- ===================================
+-- ========== TIMER SYSTEM ===========
+-- ===================================
+local startTime = player:GetAttribute("FishItTrialStart")
+if startTime then
+    spawn(function()
+        while true do
+            local currentTime = os.time()
+            local elapsed = currentTime - startTime
+            local remaining = trialDuration - elapsed
+            
+            if remaining <= 0 then
+                if timerLabel then
+                    timerLabel.Text = "00:00"
+                end
+                if statusLabel then
+                    statusLabel.Text = "⏰ TRIAL EXPIRED - Please rejoin"
+                end
+                wait(3)
+                game:Shutdown()
+                break
+            end
+            
+            local minutes = math.floor(remaining / 60)
+            local seconds = remaining % 60
+            if timerLabel then
+                timerLabel.Text = string.format("%02d:%02d", minutes, seconds)
+            end
+            wait(1)
+        end
+    end)
+end
+
