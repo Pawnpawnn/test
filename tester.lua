@@ -1,51 +1,53 @@
 -- ===================================
--- ===================================
--- ========== ROBLOX COMPATIBLE ======
+-- ========== KEY SYSTEM ==============
 -- ===================================
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Direct API call (tanpa proxy)
-local API_BASE = "https://keygen-fsh.vercel.app/api"
-
+local API_URL = "https://keygen-fsh.vercel.app" -- Hilangkan trailing slash
 local trialDuration = 5 * 60
 
--- Simple HTTP request untuk Roblox
-local function robloxHttpRequest(url)
-    local success, result = pcall(function()
-        return HttpService:GetAsync(url)
-    end)
-    return success, result
-end
-
--- Validate key
+-- Validate key dengan API (dengan error handling yang lebih baik)
 local function validateKeyWithAPI(key)
     local success, result = pcall(function()
-        local response = HttpService:PostAsync(
-            API_URL .. "/validate-key",
-            HttpService:JSONEncode({ key = key }),
-            Enum.HttpContentType.ApplicationJson,
-            false
-        )
-        return HttpService:JSONDecode(response)
+        local headers = {
+            ["Content-Type"] = "application/json"
+        }
+        
+        local body = HttpService:JSONEncode({
+            key = key
+        })
+        
+        local response = HttpService:RequestAsync({
+            Url = API_URL .. "/validate-key",
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+        
+        if response.Success and response.StatusCode == 200 then
+            return HttpService:JSONDecode(response.Body)
+        else
+            return {
+                valid = false,
+                message = "Server error: " .. tostring(response.StatusCode)
+            }
+        end
     end)
-
-    if success and result.valid then
-        return true, "Key validated successfully"
+    
+    if success then
+        if result.valid then
+            return true, result.message or "Key validated successfully"
+        else
+            return false, result.message or "Invalid key"
+        end
     else
-        return false, result and result.message or "Network error"
+        -- Detailed error logging
+        warn("API Error:", result)
+        return false, "Network error - check console"
     end
-end
-
--- Fallback local validation
-local function validateKeyLocally(key)
-    -- Simple pattern matching sebagai fallback
-    if string.match(key, "^FISHIT_[A-Z0-9]+$") and string.len(key) == 20 then
-        return true
-    end
-    return false
 end
 
 -- Cek status trial
@@ -56,7 +58,7 @@ local function checkTrial()
         if elapsed >= trialDuration then
             return false, "Trial expired"
         end
-        return true, "Trial active - " .. math.floor((trialDuration - elapsed) / 60) .. "m left"
+        return true, "Trial active"
     end
     return false, "Need activation"
 end
@@ -65,6 +67,7 @@ end
 local keyGui = Instance.new("ScreenGui")
 keyGui.Name = "KeyInputGUI"
 keyGui.Parent = playerGui
+keyGui.ResetOnSpawn = false
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 350, 0, 250)
@@ -85,6 +88,10 @@ title.TextColor3 = Color3.fromRGB(100, 180, 255)
 title.TextSize = 16
 title.Parent = mainFrame
 
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = title
+
 local keyBox = Instance.new("TextBox")
 keyBox.Size = UDim2.new(0.8, 0, 0, 40)
 keyBox.Position = UDim2.new(0.1, 0, 0.3, 0)
@@ -96,6 +103,10 @@ keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 keyBox.TextSize = 14
 keyBox.Parent = mainFrame
 
+local boxCorner = Instance.new("UICorner")
+boxCorner.CornerRadius = UDim.new(0, 8)
+boxCorner.Parent = keyBox
+
 local submitBtn = Instance.new("TextButton")
 submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
 submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
@@ -105,6 +116,10 @@ submitBtn.Font = Enum.Font.GothamBold
 submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 submitBtn.TextSize = 14
 submitBtn.Parent = mainFrame
+
+local submitCorner = Instance.new("UICorner")
+submitCorner.CornerRadius = UDim.new(0, 8)
+submitCorner.Parent = submitBtn
 
 local getKeyBtn = Instance.new("TextButton")
 getKeyBtn.Size = UDim2.new(0.6, 0, 0, 35)
@@ -116,6 +131,10 @@ getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 getKeyBtn.TextSize = 12
 getKeyBtn.Parent = mainFrame
 
+local getKeyCorner = Instance.new("UICorner")
+getKeyCorner.CornerRadius = UDim.new(0, 8)
+getKeyCorner.Parent = getKeyBtn
+
 local statusMsg = Instance.new("TextLabel")
 statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
 statusMsg.Position = UDim2.new(0.1, 0, 0.15, 0)
@@ -124,12 +143,12 @@ statusMsg.Text = "Get key from website and paste here"
 statusMsg.Font = Enum.Font.Gotham
 statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
 statusMsg.TextSize = 12
+statusMsg.TextWrapped = true
 statusMsg.Parent = mainFrame
 
 -- Fungsi untuk load script utama
 local function loadMainScript()
     keyGui:Destroy()
-    
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1324,22 +1343,33 @@ end)
 -- ===================================
 -- ========== SCRIPT LOADED ==========
 -- ===================================
-    
-    warn("🎣 Fish It FREE Loaded! Trial time: 5 minutes")
-end
 
--- Button events
+-- Script selesai di-load
+    
+  
+end)
+-- Button events dengan debounce
+local isProcessing = false
+
 submitBtn.MouseButton1Click:Connect(function()
-    local key = keyBox.Text
+    if isProcessing then return end
+    isProcessing = true
+    
+    local key = keyBox.Text:gsub("%s+", "") -- Hapus whitespace
     
     if string.len(key) < 10 then
-        statusMsg.Text = "❌ Invalid key format"
+        statusMsg.Text = "❌ Invalid key format (min 10 chars)"
         statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        isProcessing = false
         return
     end
     
-    statusMsg.Text = "⏳ Validating key..."
+    submitBtn.Text = "VALIDATING..."
+    submitBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    statusMsg.Text = "⏳ Validating key with server..."
     statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
+    
+    task.wait(0.5) -- Small delay untuk UX
     
     local isValid, message = validateKeyWithAPI(key)
     
@@ -1347,19 +1377,38 @@ submitBtn.MouseButton1Click:Connect(function()
         player:SetAttribute("FishItTrialStart", os.time())
         statusMsg.Text = "✅ " .. message
         statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-        wait(1)
+        submitBtn.Text = "SUCCESS!"
+        task.wait(1)
         loadMainScript()
     else
         statusMsg.Text = "❌ " .. message
         statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        submitBtn.Text = "ACTIVATE TRIAL"
+        submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        isProcessing = false
     end
 end)
 
 getKeyBtn.MouseButton1Click:Connect(function()
-    statusMsg.Text = "🌐 Website: https://keygen-fsh.vercel.app/"
+    statusMsg.Text = "🌐 Open: keygen-fsh.vercel.app"
     statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+    
+    -- Copy URL to clipboard (optional)
+    pcall(function()
+        setclipboard("https://keygen-fsh.vercel.app/")
+    end)
 end)
 
--- JANGAN AUTO LOAD - SELALU TUNGGU KEY DULU
--- Hanya tampilkan input key, tidak auto load script utama
+-- Check trial on load
+task.spawn(function()
+    local hasActiveTrial, message = checkTrial()
+    if hasActiveTrial then
+        statusMsg.Text = "⏰ " .. message .. " - Loading..."
+        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+        task.wait(1)
+        loadMainScript()
+    end
+end)
+
 warn("🔑 Key System Loaded - Waiting for key input...")
+warn("⚠️ Make sure HttpService is enabled in game settings!")
