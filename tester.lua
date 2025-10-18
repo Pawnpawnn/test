@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app/api"
+local API_URL = "https://keygen-fsh.vercel.app"
 local trialDuration = 6 * 60 * 60
 
 -- Validasi apakah game mendukung HttpService
