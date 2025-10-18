@@ -9,6 +9,14 @@ local playerGui = player:WaitForChild("PlayerGui")
 local API_URL = "https://keygen-fsh.vercel.app/api" -- Hilangkan trailing slash
 local trialDuration = 6 * 60 * 60
 
+-- Validasi apakah game mendukung HttpService
+local function checkHttpService()
+    local success = pcall(function()
+        return HttpService:GetAsync("https://httpbin.org/get")
+    end)
+    return success
+end
+
 -- Validate key dengan API (dengan error handling yang lebih baik)
 local function validateKeyWithAPI(key)
     local success, result = pcall(function()
@@ -58,7 +66,7 @@ local function checkTrial()
         if elapsed >= trialDuration then
             return false, "Trial expired"
         end
-        return true, "Trial active"
+        return true, "Trial active - Time left: " .. math.floor((trialDuration - elapsed) / 60) .. " minutes"
     end
     return false, "Need activation"
 end
