@@ -307,7 +307,7 @@ local fishV2Title = create("TextLabel", {
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
-    Text = "⚡ Auto Fishing V2 (ULTRA FAST)",
+    Text = "⚡ Auto Fishing V2 (FAKE EXCLAIM)",
     Font = Enum.Font.GothamBold,
     TextSize = 9,
     TextColor3 = Color3.fromRGB(100, 255, 100),
@@ -611,15 +611,41 @@ local function autoFishingLoop()
 end
 
 -- ===================================
+-- ========== FAKE EXCLAIM SYSTEM ====
+-- ===================================
+
+local function triggerInstantRecast()
+    if autoFishingV2Enabled then
+        -- V2: Instant recast tanpa delay
+        task.wait(0.1) -- Delay sangat singkat
+        finishRemote:FireServer()
+        updateStatus("⚡ Fake Exclaim Triggered!", Color3.fromRGB(255, 255, 100))
+    end
+end
+
+-- Fake exclaim system - kita trigger sendiri tanpa nunggu game
+local function startFakeExclaimSystem()
+    while autoFishingV2Enabled do
+        -- Trigger recast setiap 2-3 detik (simulasi dapat ikan)
+        local randomDelay = math.random(20, 30) / 10 -- 2-3 detik
+        task.wait(randomDelay)
+        
+        if autoFishingV2Enabled then
+            triggerInstantRecast()
+        end
+    end
+end
+
+-- ===================================
 -- ========== FISHING V2 SYSTEM ======
 -- ===================================
 
--- Fungsi utama Auto Fishing V2 (ULTRA FAST)
+-- Fungsi utama Auto Fishing V2 (ULTRA FAST + FAKE EXCLAIM)
 local function autoFishingV2Loop()
     while autoFishingV2Enabled do
         local ok, err = pcall(function()
             fishingActive = true
-            updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
+            updateStatus("⚡ Status: Fishing V2 + FAKE EXCLAIM", Color3.fromRGB(255, 255, 100))
             
             -- Equip rod super cepat
             equipRemote:FireServer(1)
@@ -630,20 +656,17 @@ local function autoFishingV2Loop()
 
             -- Random coordinates yang lebih natural tapi tetap cepat
             local baseX, baseY = -0.7499996, 1
-            -- Random kecil tapi cukup untuk avoid detection
             local x = baseX + (math.random(-300, 300) / 10000000)
             local y = baseY + (math.random(-300, 300) / 10000000)
 
             -- Mini game instant
             miniGameRemote:InvokeServer(x, y)
             
-            -- Finish dalam 0.5 detik (super cepat tapi masih natural)
-            task.wait(0.5)
+            -- TIDAK PERLU NUNGGU TANDA SERU LAGI!
+            -- Langsung finish dalam waktu sangat singkat
+            task.wait(0.3)
             finishRemote:FireServer(true)
             
-            -- Auto recast cepat
-            task.wait(0.3)
-            finishRemote:FireServer()
         end)
         
         if not ok then
@@ -669,22 +692,15 @@ task.spawn(function()
 
     if success and exclaimEvent then
         exclaimEvent.OnClientEvent:Connect(function(data)
-            if (autoFishingEnabled or autoFishingV2Enabled) and data and data.TextData
+            if autoFishingEnabled and data and data.TextData
                 and data.TextData.EffectType == "Exclaim" then
 
                 local head = player.Character and player.Character:FindFirstChild("Head")
                 if head and data.Container == head then
                     task.spawn(function()
-                        if autoFishingV2Enabled then
-                            -- V2: Instant recast tanpa delay 3 detik
-                            task.wait(0.2) -- Delay sangat singkat
+                        for i = 1, 3 do
+                            task.wait(1)
                             finishRemote:FireServer()
-                        else
-                            -- V1: Original behavior
-                            for i = 1, 3 do
-                                task.wait(1)
-                                finishRemote:FireServer()
-                            end
                         end
                     end)
                 end
@@ -1239,7 +1255,7 @@ fishBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Fishing V2 Button
+-- Fishing V2 Button (dengan fake exclaim system)
 fishV2Btn.MouseButton1Click:Connect(function()
     autoFishingV2Enabled = not autoFishingV2Enabled
     autoFishingEnabled = false -- Matikan V1 jika V2 aktif
@@ -1249,8 +1265,12 @@ fishV2Btn.MouseButton1Click:Connect(function()
         fishV2Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         fishBtn.Text = "START"
         fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        updateStatus("⚡ Status: Auto Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
+        updateStatus("⚡ Status: Fishing V2 + FAKE EXCLAIM", Color3.fromRGB(255, 255, 100))
+        
+        -- Jalankan kedua sistem
         task.spawn(autoFishingV2Loop)
+        task.spawn(startFakeExclaimSystem)
+        
     else
         fishV2Btn.Text = "START"
         fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
