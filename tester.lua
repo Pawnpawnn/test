@@ -338,7 +338,7 @@ local statusLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🔴 Status: Idle\nScript: V.2.3\nNote: found bug on script? Pm me on discord!",
+    Text = "🔴 Status: Idle\nScript: V.2.4\nNote: if auto fishing stuck respawn",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(255, 100, 100),
@@ -347,7 +347,7 @@ local statusLabel = create("TextLabel", {
 
 -- Fungsi untuk update status dengan format yang dipertahankan
 local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.3\nNote: found bug on script? Pm me on discord!"
+    local baseText = "Script: V.2.4\nNote: If auto fishing stuck respawn"
     statusLabel.Text = newStatus .. "\n" .. baseText
     statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
 end
@@ -973,11 +973,13 @@ task.spawn(function()
                             -- V2: Instant recast tanpa delay 3 detik
                             task.wait(0.2) -- Delay sangat singkat
                             finishRemote:FireServer()
+                            rconsoleclear()
                         else
                             -- V1: Original behavior
                             for i = 1, 3 do
                                 task.wait(1)
                                 finishRemote:FireServer()
+                                rconsoleclear()
                             end
                         end
                     end)
@@ -1530,6 +1532,7 @@ fishBtn.MouseButton1Click:Connect(function()
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
+        rconsoleclear()
     end
 end)
 
@@ -1551,6 +1554,7 @@ fishV2Btn.MouseButton1Click:Connect(function()
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
+        rconsoleclear()
     end
 end)
 
