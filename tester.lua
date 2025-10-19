@@ -16,6 +16,7 @@ local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
 -- State Variables
 local autoFishingEnabled = false
+local autoFishingV2Enabled = false
 local autoSellEnabled = false
 local antiAFKEnabled = false
 local fishingActive = false
@@ -100,8 +101,8 @@ local screenGui = create("ScreenGui", {
 local mainFrame = create("Frame", {
     Name = "MainFrame",
     Parent = screenGui,
-    Size = UDim2.new(0, 300, 0, 420),
-    Position = UDim2.new(0.5, -150, 0.5, -210),
+    Size = UDim2.new(0, 300, 0, 460),
+    Position = UDim2.new(0.5, -150, 0.5, -230),
     BackgroundColor3 = Color3.fromRGB(15, 20, 30),
     BorderSizePixel = 0
 })
@@ -168,7 +169,7 @@ local contentFrame = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 400)
+    CanvasSize = UDim2.new(0, 0, 0, 440)
 })
 
 -- ===================================
@@ -288,13 +289,53 @@ local fishBtn = create("TextButton", {
 create("UICorner", {Parent = fishBtn, CornerRadius = UDim.new(0, 6)})
 
 -- ===================================
+-- ========== FISHING V2 SECTION =====
+-- ===================================
+
+local fishV2Section = create("Frame", {
+    Parent = contentFrame,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 154),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+
+create("UICorner", {Parent = fishV2Section, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = fishV2Section, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local fishV2Title = create("TextLabel", {
+    Parent = fishV2Section,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "⚡ Auto Fishing V2 (ULTRA FAST)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(100, 255, 100),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local fishV2Btn = create("TextButton", {
+    Parent = fishV2Section,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+
+create("UICorner", {Parent = fishV2Btn, CornerRadius = UDim.new(0, 6)})
+
+-- ===================================
 -- ========== AUTO SELL SECTION ======
 -- ===================================
 
 local sellSection = create("Frame", {
     Parent = contentFrame,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 154),
+    Position = UDim2.new(0, 0, 0, 202),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -335,7 +376,7 @@ create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
 local teleportSection = create("Frame", {
     Parent = contentFrame,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 202),
+    Position = UDim2.new(0, 0, 0, 250),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -372,7 +413,7 @@ create("UICorner", {Parent = teleportBtn, CornerRadius = UDim.new(0, 6)})
 local teleportNPCSection = create("Frame", {
     Parent = contentFrame,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 250),
+    Position = UDim2.new(0, 0, 0, 298),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -409,7 +450,7 @@ create("UICorner", {Parent = teleportNPCBtn, CornerRadius = UDim.new(0, 6)})
 local teleportEventSection = create("Frame", {
     Parent = contentFrame,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 298),
+    Position = UDim2.new(0, 0, 0, 346),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -490,6 +531,7 @@ addHover(closeBtn, Color3.fromRGB(220, 50, 50), Color3.fromRGB(240, 80, 80))
 addHover(minimizeBtn, Color3.fromRGB(70, 80, 100), Color3.fromRGB(90, 100, 120))
 addHover(antiAFKBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+addHover(fishV2Btn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(teleportBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
 addHover(teleportNPCBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
@@ -543,7 +585,7 @@ local function autoFishingLoop()
     while autoFishingEnabled do
         local ok, err = pcall(function()
             fishingActive = true
-            updateStatus("🎣 Status: Fishing", Color3.fromRGB(100, 255, 100))
+            updateStatus("🎣 Status: Fishing V1", Color3.fromRGB(100, 255, 100))
             equipRemote:FireServer(1)
             task.wait(0.1)
 
@@ -570,11 +612,86 @@ end
 
 -- ===================================
 -- ========== FISHING V2 SYSTEM ======
--- ========== TAMBAH FITUR BARU DIBAWAH INI ==========
 -- ===================================
 
--- [[ TAMBAHKAN FISHING V2 LOGIC DI SINI ]]
--- Buat fungsi autoFishingV2Loop() dan variabel autoFishingV2Enabled
+-- Fungsi utama Auto Fishing V2 (ULTRA FAST)
+local function autoFishingV2Loop()
+    while autoFishingV2Enabled do
+        local ok, err = pcall(function()
+            fishingActive = true
+            updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
+            
+            -- Equip rod super cepat
+            equipRemote:FireServer(1)
+            
+            -- Cast langsung tanpa delay
+            local timestamp = workspace:GetServerTimeNow()
+            rodRemote:InvokeServer(timestamp)
+
+            -- Random coordinates yang lebih natural tapi tetap cepat
+            local baseX, baseY = -0.7499996, 1
+            -- Random kecil tapi cukup untuk avoid detection
+            local x = baseX + (math.random(-300, 300) / 10000000)
+            local y = baseY + (math.random(-300, 300) / 10000000)
+
+            -- Mini game instant
+            miniGameRemote:InvokeServer(x, y)
+            
+            -- Finish dalam 0.5 detik (super cepat tapi masih natural)
+            task.wait(0.5)
+            finishRemote:FireServer(true)
+            
+            -- Auto recast cepat
+            task.wait(0.3)
+            finishRemote:FireServer()
+        end)
+        
+        if not ok then
+            -- Error handling silent
+        end
+        
+        -- Delay antara fishing cycle yang random (antara 0.1-0.3 detik)
+        task.wait(math.random(10, 30) / 100)
+    end
+    fishingActive = false
+    updateStatus("🔴 Status: Idle")
+end
+
+-- ===================================
+-- ========== EXCLAIM DETECTION V1 ===
+-- ===================================
+
+-- Listener untuk detect exclaim (tanda seru) dan auto recast
+task.spawn(function()
+    local success, exclaimEvent = pcall(function()
+        return net:WaitForChild("RE/ReplicateTextEffect", 2)
+    end)
+
+    if success and exclaimEvent then
+        exclaimEvent.OnClientEvent:Connect(function(data)
+            if (autoFishingEnabled or autoFishingV2Enabled) and data and data.TextData
+                and data.TextData.EffectType == "Exclaim" then
+
+                local head = player.Character and player.Character:FindFirstChild("Head")
+                if head and data.Container == head then
+                    task.spawn(function()
+                        if autoFishingV2Enabled then
+                            -- V2: Instant recast tanpa delay 3 detik
+                            task.wait(0.2) -- Delay sangat singkat
+                            finishRemote:FireServer()
+                        else
+                            -- V1: Original behavior
+                            for i = 1, 3 do
+                                task.wait(1)
+                                finishRemote:FireServer()
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
 
 -- ===================================
 -- ========== AUTO SELL SYSTEM =======
@@ -1092,35 +1209,6 @@ local function createEventTeleportGUI()
 end
 
 -- ===================================
--- ========== EXCLAIM DETECTION ======
--- ===================================
-
--- Listener untuk detect exclaim (tanda seru) dan auto recast
-task.spawn(function()
-    local success, exclaimEvent = pcall(function()
-        return net:WaitForChild("RE/ReplicateTextEffect", 2)
-    end)
-
-    if success and exclaimEvent then
-        exclaimEvent.OnClientEvent:Connect(function(data)
-            if autoFishingEnabled and data and data.TextData
-                and data.TextData.EffectType == "Exclaim" then
-
-                local head = player.Character and player.Character:FindFirstChild("Head")
-                if head and data.Container == head then
-                    task.spawn(function()
-                        for i = 1, 3 do
-                            task.wait(1)
-                            finishRemote:FireServer()
-                        end
-                    end)
-                end
-            end
-        end)
-    end
-end)
-
--- ===================================
 -- ========== BUTTON CONNECTIONS =====
 -- ===================================
 
@@ -1133,15 +1221,39 @@ antiAFKBtn.MouseButton1Click:Connect(toggleAntiAFK)
 -- Fishing V1 Button
 fishBtn.MouseButton1Click:Connect(function()
     autoFishingEnabled = not autoFishingEnabled
+    autoFishingV2Enabled = false -- Matikan V2 jika V1 aktif
     
     if autoFishingEnabled then
         fishBtn.Text = "STOP"
         fishBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        updateStatus("🟢 Status: Auto Fishing Started", Color3.fromRGB(100, 255, 100))
+        fishV2Btn.Text = "START"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🟢 Status: Auto Fishing V1 Started", Color3.fromRGB(100, 255, 100))
         task.spawn(autoFishingLoop)
     else
         fishBtn.Text = "START"
         fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🔴 Status: Auto Fishing Stopped")
+        fishingActive = false
+        finishRemote:FireServer()
+    end
+end)
+
+-- Fishing V2 Button
+fishV2Btn.MouseButton1Click:Connect(function()
+    autoFishingV2Enabled = not autoFishingV2Enabled
+    autoFishingEnabled = false -- Matikan V1 jika V2 aktif
+    
+    if autoFishingV2Enabled then
+        fishV2Btn.Text = "STOP"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        fishBtn.Text = "START"
+        fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("⚡ Status: Auto Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
+        task.spawn(autoFishingV2Loop)
+    else
+        fishV2Btn.Text = "START"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
@@ -1172,6 +1284,7 @@ teleportEventBtn.MouseButton1Click:Connect(createEventTeleportGUI)
 -- Close dan Minimize Buttons
 closeBtn.MouseButton1Click:Connect(function()
     autoFishingEnabled = false
+    autoFishingV2Enabled = false
     autoSellEnabled = false
     fishingActive = false
     if antiAFKEnabled then
@@ -1184,7 +1297,7 @@ local minimized = false
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-        Size = minimized and UDim2.new(0, 300, 0, 33) or UDim2.new(0, 300, 0, 420)
+        Size = minimized and UDim2.new(0, 300, 0, 33) or UDim2.new(0, 300, 0, 460)
     }):Play()
     minimizeBtn.Text = minimized and "+" or "—"
 end)
