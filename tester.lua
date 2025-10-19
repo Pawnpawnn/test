@@ -905,45 +905,69 @@ local function autoFishingLoop()
 end
 
 -- ===================================
--- ========== FISHING V2 SYSTEM ======
+-- ========== AUTO ROD DETECTOR ======
 -- ===================================
+local function getEquippedRodID()
+    local backpack = player:WaitForChild("Backpack")
+    local character = player.Character
+    
+    -- Cek di tangan (Character)
+    if character then
+        for _, tool in pairs(character:GetChildren()) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("rod") or tool.Name:lower():find("pole")) then
+                -- Extract ID dari tool name atau properties
+                -- Biasanya rod punya NumberValue atau IntValue buat ID
+                local idValue = tool:FindFirstChild("RodID") or tool:FindFirstChild("ID") or tool:FindFirstChild("ItemID")
+                if idValue and idValue:IsA("IntValue") or idValue:IsA("NumberValue") then
+                    return idValue.Value
+                end
+            end
+        end
+    end
+    
+    -- Cek di backpack
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") and (tool.Name:lower():find("rod") or tool.Name:lower():find("pole")) then
+            local idValue = tool:FindFirstChild("RodID") or tool:FindFirstChild("ID") or tool:FindFirstChild("ItemID")
+            if idValue and (idValue:IsA("IntValue") or idValue:IsA("NumberValue")) then
+                return idValue.Value
+            end
+        end
+    end
+    
+    return 1 -- Default fallback
+end
 
--- Fungsi utama Auto Fishing V2 (ULTRA FAST)
+-- ===================================
+-- ========== FISHING V2 (FIXED) =====
+-- ===================================
 local function autoFishingV2Loop()
     while autoFishingV2Enabled do
         local ok, err = pcall(function()
             fishingActive = true
             updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
             
-            -- Equip rod super cepat
-            equipRemote:FireServer(1)
-
+            -- Auto detect rod ID
+            local rodID = getEquippedRodID()
+            equipRemote:FireServer(rodID) -- ✅ Pake rod yang bener
             task.wait(0.1)
             
-            -- Cast langsung tanpa delay
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
-
-            -- Random coordinates yang lebih natural tapi tetap cepat
+            
             local baseX, baseY = -0.7499996, 1
-            -- Random kecil tapi cukup untuk avoid detection
             local x = baseX + (math.random(-300, 300) / 10000000)
             local y = baseY + (math.random(-300, 300) / 10000000)
-
-            -- Mini game instant
-            miniGameRemote:InvokeServer(x, y)
             
-            -- Finish dalam 0.5 detik (super cepat tapi masih natural)
+            miniGameRemote:InvokeServer(x, y)
             task.wait(0.5)
             finishRemote:FireServer(true)
-            
-            -- Auto recast cepat
             task.wait(0.2)
             finishRemote:FireServer()
         end)
         
         if not ok then
-            -- Error handling silent
+            warn("Fishing error:", err)
         end
         
         task.wait(0.2)
