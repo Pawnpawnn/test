@@ -1418,54 +1418,43 @@ closeBtn.MouseButton1Click:Connect(function()
 end)
 
 local minimized = false
-local originalSize = mainFrame.Size
-local originalPosition = mainFrame.Position
-
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        -- Minimize: kecilkan jadi sangat kecil di pojok kanan bawah
+        -- Minimize SEMUA: kecilkan jadi sangat kecil
         TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 50, 0, 25),
-            Position = UDim2.new(1, -60, 1, -35)
+            Size = UDim2.new(0, 80, 0, 25),
+            Position = UDim2.new(1, -90, 1, -35)  -- Posisi di pojok kanan bawah
         }):Play()
         
-        -- Sembunyikan semua child kecuali titleBar
-        for _, child in ipairs(mainFrame:GetChildren()) do
-            if child ~= titleBar then
-                child.Visible = false
-            end
-        end
-        
-        -- Modifikasi titleBar untuk mode minimize
-        titleBar.Size = UDim2.new(1, 0, 1, 0)
+        -- Sembunyikan semua elemen kecuali minimize button
         titleText.Visible = false
         closeBtn.Visible = false
-        minimizeBtn.Size = UDim2.new(1, -10, 1, -4)
+        tabContainer.Visible = false
+        contentFrame.Visible = false
+        
+        -- Pindahkan minimize button ke posisi yang sesuai
+        minimizeBtn.Size = UDim2.new(0, 70, 0, 20)
         minimizeBtn.Position = UDim2.new(0, 5, 0, 2)
         minimizeBtn.Text = "+"
-        minimizeBtn.ZIndex = 10
         
     else
         -- Maximize: kembalikan ke ukuran normal
         TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = originalSize,
-            Position = originalPosition
+            Size = UDim2.new(0, 320, 0, 380),
+            Position = UDim2.new(0.5, -160, 0.5, -190)
         }):Play()
         
-        -- Tampilkan semua child kembali
-        for _, child in ipairs(mainFrame:GetChildren()) do
-            child.Visible = true
-        end
-        
-        -- Kembalikan titleBar ke state semula
-        titleBar.Size = UDim2.new(1, 0, 0, 33)
+        -- Tampilkan kembali semua elemen
         titleText.Visible = true
         closeBtn.Visible = true
+        tabContainer.Visible = true
+        contentFrame.Visible = true
+        
+        -- Kembalikan minimize button ke posisi semula
         minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
         minimizeBtn.Position = UDim2.new(1, -58, 0, 4)
         minimizeBtn.Text = "—"
-        minimizeBtn.ZIndex = 1
     end
 end)
 
