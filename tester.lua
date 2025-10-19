@@ -660,6 +660,7 @@ addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(npcDropdownBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
 addHover(islandsDropdownBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
 addHover(eventsDropdownBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
+addHover(boostFPSBtn, Color3.fromRGB(180, 100, 50), Color3.fromRGB(200, 120, 70))
 
 -- ===================================
 -- ========== ANTI-AFK SYSTEM ========
@@ -1456,6 +1457,11 @@ minimizeBtn.MouseButton1Click:Connect(function()
         minimizeBtn.Position = UDim2.new(1, -58, 0, 4)
         minimizeBtn.Text = "—"
     end
+end)
+
+-- Boost FPS Button
+boostFPSBtn.MouseButton1Click:Connect(function()
+    BoostFPS()
 end)
 
 -- ===================================
