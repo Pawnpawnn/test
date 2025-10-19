@@ -101,8 +101,8 @@ local screenGui = create("ScreenGui", {
 local mainFrame = create("Frame", {
     Name = "MainFrame",
     Parent = screenGui,
-    Size = UDim2.new(0, 300, 0, 460),
-    Position = UDim2.new(0.5, -150, 0.5, -230),
+    Size = UDim2.new(0, 320, 0, 380),
+    Position = UDim2.new(0.5, -160, 0.5, -190),
     BackgroundColor3 = Color3.fromRGB(15, 20, 30),
     BorderSizePixel = 0
 })
@@ -159,26 +159,76 @@ local minimizeBtn = create("TextButton", {
 
 create("UICorner", {Parent = minimizeBtn, CornerRadius = UDim.new(0, 6)})
 
+-- Tab Container
+local tabContainer = create("Frame", {
+    Name = "TabContainer",
+    Parent = mainFrame,
+    Size = UDim2.new(1, -20, 0, 35),
+    Position = UDim2.new(0, 10, 0, 38),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0
+})
+
+-- Tab Buttons
+local tabs = {"Main", "Teleport", "Settings"}
+local tabButtons = {}
+local activeTab = "Main"
+
+for i, tabName in ipairs(tabs) do
+    local tabBtn = create("TextButton", {
+        Name = tabName .. "Tab",
+        Parent = tabContainer,
+        Size = UDim2.new(1/#tabs, -4, 1, 0),
+        Position = UDim2.new((i-1)/#tabs, 2, 0, 0),
+        BackgroundColor3 = tabName == "Main" and Color3.fromRGB(40, 60, 100) or Color3.fromRGB(30, 40, 60),
+        Text = tabName,
+        Font = Enum.Font.GothamBold,
+        TextSize = 11,
+        TextColor3 = Color3.fromRGB(220, 220, 220)
+    })
+    
+    create("UICorner", {Parent = tabBtn, CornerRadius = UDim.new(0, 6)})
+    tabButtons[tabName] = tabBtn
+    
+    addHover(tabBtn, 
+        tabName == "Main" and Color3.fromRGB(40, 60, 100) or Color3.fromRGB(30, 40, 60),
+        Color3.fromRGB(50, 70, 110)
+    )
+end
+
 -- Content Frame untuk menampung semua section
-local contentFrame = create("ScrollingFrame", {
+local contentFrame = create("Frame", {
     Name = "Content",
     Parent = mainFrame,
-    Size = UDim2.new(1, -18, 1, -51),
-    Position = UDim2.new(0, 9, 0, 42),
+    Size = UDim2.new(1, -18, 1, -85),
+    Position = UDim2.new(0, 9, 0, 80),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+})
+
+-- ===================================
+-- ========== TAB CONTENT ============
+-- ===================================
+
+-- Content untuk setiap tab
+local tabContents = {}
+
+-- Main Tab Content
+local mainTab = create("ScrollingFrame", {
+    Name = "MainTab",
+    Parent = contentFrame,
+    Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 440)
+    CanvasSize = UDim2.new(0, 0, 0, 260),
+    Visible = true
 })
-
--- ===================================
--- ========== STATUS SECTION =========
--- ===================================
 
 -- Status box untuk menampilkan informasi status script
 local statusBox = create("Frame", {
-    Parent = contentFrame,
+    Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 50),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
@@ -200,7 +250,7 @@ local statusLabel = create("TextLabel", {
 
 -- Fungsi untuk update status dengan format yang dipertahankan
 local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.2\nNote: found bug on script? Pm me on discord!"
+    local baseText = "Script: V.2.3\nNote: found bug on script? Pm me on discord!"
     statusLabel.Text = newStatus .. "\n" .. baseText
     statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
 end
@@ -208,12 +258,9 @@ end
 -- Inisialisasi status awal
 updateStatus("🔴 Status: Idle")
 
--- ===================================
--- ========== ANTI-AFK SECTION =======
--- ===================================
-
+-- ANTI-AFK SECTION
 local antiAFKSection = create("Frame", {
-    Parent = contentFrame,
+    Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
     Position = UDim2.new(0, 0, 0, 58),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
@@ -248,12 +295,9 @@ local antiAFKBtn = create("TextButton", {
 
 create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
 
--- ===================================
--- ========== FISHING V1 SECTION =====
--- ===================================
-
+-- FISHING V1 SECTION
 local fishSection = create("Frame", {
-    Parent = contentFrame,
+    Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
     Position = UDim2.new(0, 0, 0, 106),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
@@ -288,12 +332,9 @@ local fishBtn = create("TextButton", {
 
 create("UICorner", {Parent = fishBtn, CornerRadius = UDim.new(0, 6)})
 
--- ===================================
--- ========== FISHING V2 SECTION =====
--- ===================================
-
+-- FISHING V2 SECTION
 local fishV2Section = create("Frame", {
-    Parent = contentFrame,
+    Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
     Position = UDim2.new(0, 0, 0, 154),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
@@ -328,12 +369,9 @@ local fishV2Btn = create("TextButton", {
 
 create("UICorner", {Parent = fishV2Btn, CornerRadius = UDim.new(0, 6)})
 
--- ===================================
--- ========== AUTO SELL SECTION ======
--- ===================================
-
+-- AUTO SELL SECTION
 local sellSection = create("Frame", {
-    Parent = contentFrame,
+    Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
     Position = UDim2.new(0, 0, 0, 202),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
@@ -368,15 +406,24 @@ local sellBtn = create("TextButton", {
 
 create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
 
--- ===================================
--- ========== TELEPORT SECTIONS ======
--- ===================================
-
--- Teleport to Islands Section
-local teleportSection = create("Frame", {
+-- Teleport Tab Content
+local teleportTab = create("ScrollingFrame", {
+    Name = "TeleportTab",
     Parent = contentFrame,
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 5,
+    ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+    CanvasSize = UDim2.new(0, 0, 0, 160),
+    Visible = false
+})
+
+-- TELEPORT TO ISLANDS SECTION
+local teleportSection = create("Frame", {
+    Parent = teleportTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 250),
+    Position = UDim2.new(0, 0, 0, 10),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -409,11 +456,11 @@ local teleportBtn = create("TextButton", {
 
 create("UICorner", {Parent = teleportBtn, CornerRadius = UDim.new(0, 6)})
 
--- Teleport to NPC Section
+-- TELEPORT TO NPC SECTION
 local teleportNPCSection = create("Frame", {
-    Parent = contentFrame,
+    Parent = teleportTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 298),
+    Position = UDim2.new(0, 0, 0, 58),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -446,11 +493,11 @@ local teleportNPCBtn = create("TextButton", {
 
 create("UICorner", {Parent = teleportNPCBtn, CornerRadius = UDim.new(0, 6)})
 
--- Teleport to Event Section
+-- TELEPORT TO EVENT SECTION
 local teleportEventSection = create("Frame", {
-    Parent = contentFrame,
+    Parent = teleportTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 346),
+    Position = UDim2.new(0, 0, 0, 106),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -482,6 +529,80 @@ local teleportEventBtn = create("TextButton", {
 })
 
 create("UICorner", {Parent = teleportEventBtn, CornerRadius = UDim.new(0, 6)})
+
+-- Settings Tab Content
+local settingsTab = create("ScrollingFrame", {
+    Name = "SettingsTab",
+    Parent = contentFrame,
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 5,
+    ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+    CanvasSize = UDim2.new(0, 0, 0, 100),
+    Visible = false
+})
+
+-- INFO SECTION
+local infoSection = create("Frame", {
+    Parent = settingsTab,
+    Size = UDim2.new(1, 0, 0, 80),
+    Position = UDim2.new(0, 0, 0, 10),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+
+create("UICorner", {Parent = infoSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = infoSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local infoLabel = create("TextLabel", {
+    Parent = infoSection,
+    Size = UDim2.new(1, -12, 1, -8),
+    Position = UDim2.new(0, 6, 0, 4),
+    BackgroundTransparency = 1,
+    Text = "🐟 Fish It Premium V2.3\n\nMade by: Codepikk\nDiscord: codepikk",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(100, 200, 255),
+    TextXAlignment = Enum.TextXAlignment.Center
+})
+
+-- ===================================
+-- ========== TAB FUNCTIONALITY ======
+-- ===================================
+
+local function switchTab(tabName)
+    activeTab = tabName
+    
+    -- Sembunyikan semua tab
+    mainTab.Visible = false
+    teleportTab.Visible = false
+    settingsTab.Visible = false
+    
+    -- Tampilkan tab aktif
+    if tabName == "Main" then
+        mainTab.Visible = true
+    elseif tabName == "Teleport" then
+        teleportTab.Visible = true
+    elseif tabName == "Settings" then
+        settingsTab.Visible = true
+    end
+    
+    -- Update tampilan tab buttons
+    for name, btn in pairs(tabButtons) do
+        if name == tabName then
+            btn.BackgroundColor3 = Color3.fromRGB(40, 60, 100)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+        end
+    end
+end
+
+-- Connect tab buttons
+for tabName, btn in pairs(tabButtons) do
+    btn.MouseButton1Click:Connect(function()
+        switchTab(tabName)
+    end)
+end
 
 -- ===================================
 -- ========== DRAG FUNCTIONALITY =====
@@ -1297,7 +1418,7 @@ local minimized = false
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-        Size = minimized and UDim2.new(0, 300, 0, 33) or UDim2.new(0, 300, 0, 460)
+        Size = minimized and UDim2.new(0, 320, 0, 33) or UDim2.new(0, 320, 0, 380)
     }):Play()
     minimizeBtn.Text = minimized and "+" or "—"
 end)
@@ -1307,3 +1428,4 @@ end)
 -- ===================================
 
 -- Script selesai di-load
+updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
