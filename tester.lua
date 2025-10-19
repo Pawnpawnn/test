@@ -126,7 +126,7 @@ local titleText = create("TextLabel", {
     Size = UDim2.new(1, -66, 1, 0),
     Position = UDim2.new(0, 12, 0, 0),
     BackgroundTransparency = 1,
-    Text = "🐟 Fish It - Codepikk (free)",
+    Text = "🐟 Fish It - Codepikk Premium",
     Font = Enum.Font.GothamBold,
     TextSize = 13,
     TextColor3 = Color3.fromRGB(100, 180, 255),
@@ -191,7 +191,7 @@ local statusLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🔴 Status: Idle\nScript: V.2.2\nUpdate: +Buff Speed Fishing, +Add Anti AFK\nNote: found bug on script? Pm me on discord!",
+    Text = "🔴 Status: Idle\nScript: V.2.3\nNote: found bug on script? Pm me on discord!",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(255, 100, 100),
@@ -200,7 +200,7 @@ local statusLabel = create("TextLabel", {
 
 -- Fungsi untuk update status dengan format yang dipertahankan
 local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.2\nUpdate: +Buff Speed Fishing, +Add Anti AFK\nNote: found bug on script? Pm me on discord!"
+    local baseText = "Script: V.2.2\nNote: found bug on script? Pm me on discord!"
     statusLabel.Text = newStatus .. "\n" .. baseText
     statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
 end
@@ -638,11 +638,11 @@ local function autoFishingV2Loop()
             miniGameRemote:InvokeServer(x, y)
             
             -- Finish dalam 0.5 detik (super cepat tapi masih natural)
-            task.wait(0.2)
+            task.wait(0.5)
             finishRemote:FireServer(true)
             
             -- Auto recast cepat
-            task.wait(0.2)
+            task.wait(0.3)
             finishRemote:FireServer()
         end)
         
@@ -664,7 +664,7 @@ end
 -- Listener untuk detect exclaim (tanda seru) dan auto recast
 task.spawn(function()
     local success, exclaimEvent = pcall(function()
-        return net:WaitForChild("RE/ReplicateTextEffect", 5)
+        return net:WaitForChild("RE/ReplicateTextEffect", 2)
     end)
 
     if success and exclaimEvent then
@@ -676,7 +676,8 @@ task.spawn(function()
                 if head and data.Container == head then
                     task.spawn(function()
                         if autoFishingV2Enabled then
-                            task.wait(0.1) -- Delay sangat singkat
+                            -- V2: Instant recast tanpa delay 3 detik
+                            task.wait(0.2) -- Delay sangat singkat
                             finishRemote:FireServer()
                         else
                             -- V1: Original behavior
