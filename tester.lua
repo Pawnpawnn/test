@@ -183,10 +183,6 @@ local function createKeyGUI()
         statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
         
         task.wait(1) -- Small delay untuk UX
-        -- Hancurkan GUI key input
-    if playerGui:FindFirstChild("KeyInputGUI") then
-        playerGui:FindFirstChild("KeyInputGUI"):Destroy()
-    end
         
         local isValid, message = validateKeyWithAPI(key)
         
@@ -241,6 +237,11 @@ local function loadMainScript()
     -- Hancurkan GUI key input
     if playerGui:FindFirstChild("KeyInputGUI") then
         playerGui:FindFirstChild("KeyInputGUI"):Destroy()
+    end
+
+    if not player.Character then
+        player.CharacterAdded:Wait()
+        wait(2) -- Tunggu sedikit biar karakter fully loaded
     end
 
     -- [[ TEMPATKAN SCRIPT UTAMA ANDA DI SINI ]]
