@@ -1418,12 +1418,55 @@ closeBtn.MouseButton1Click:Connect(function()
 end)
 
 local minimized = false
+local originalSize = mainFrame.Size
+local originalPosition = mainFrame.Position
+
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
-    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-        Size = minimized and UDim2.new(0, 320, 0, 33) or UDim2.new(0, 320, 0, 380)
-    }):Play()
-    minimizeBtn.Text = minimized and "+" or "—"
+    if minimized then
+        -- Minimize: kecilkan jadi sangat kecil di pojok kanan bawah
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 50, 0, 25),
+            Position = UDim2.new(1, -60, 1, -35)
+        }):Play()
+        
+        -- Sembunyikan semua child kecuali titleBar
+        for _, child in ipairs(mainFrame:GetChildren()) do
+            if child ~= titleBar then
+                child.Visible = false
+            end
+        end
+        
+        -- Modifikasi titleBar untuk mode minimize
+        titleBar.Size = UDim2.new(1, 0, 1, 0)
+        titleText.Visible = false
+        closeBtn.Visible = false
+        minimizeBtn.Size = UDim2.new(1, -10, 1, -4)
+        minimizeBtn.Position = UDim2.new(0, 5, 0, 2)
+        minimizeBtn.Text = "+"
+        minimizeBtn.ZIndex = 10
+        
+    else
+        -- Maximize: kembalikan ke ukuran normal
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = originalSize,
+            Position = originalPosition
+        }):Play()
+        
+        -- Tampilkan semua child kembali
+        for _, child in ipairs(mainFrame:GetChildren()) do
+            child.Visible = true
+        end
+        
+        -- Kembalikan titleBar ke state semula
+        titleBar.Size = UDim2.new(1, 0, 0, 33)
+        titleText.Visible = true
+        closeBtn.Visible = true
+        minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+        minimizeBtn.Position = UDim2.new(1, -58, 0, 4)
+        minimizeBtn.Text = "—"
+        minimizeBtn.ZIndex = 1
+    end
 end)
 
 -- ===================================
