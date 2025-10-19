@@ -881,7 +881,7 @@ local function autoFishingLoop()
             fishingActive = true
             updateStatus("🎣 Status: Fishing V1", Color3.fromRGB(100, 255, 100))
             equipRemote:FireServer(1)
-            task.wait(0.1)
+            task.wait(0.5)
 
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
@@ -891,9 +891,9 @@ local function autoFishingLoop()
             local y = baseY + (math.random(-500, 500) / 10000000)
 
             miniGameRemote:InvokeServer(x, y)
-            task.wait(2)
+            task.wait(5)
             finishRemote:FireServer(true)
-            task.wait(2)
+            task.wait(5)
         end)
         if not ok then
             -- Handle error silently
@@ -917,6 +917,8 @@ local function autoFishingV2Loop()
             
             -- Equip rod super cepat
             equipRemote:FireServer(1)
+
+            task.wait(0.1)
             
             -- Cast langsung tanpa delay
             local timestamp = workspace:GetServerTimeNow()
@@ -936,7 +938,7 @@ local function autoFishingV2Loop()
             finishRemote:FireServer(true)
             
             -- Auto recast cepat
-            task.wait(0.3)
+            task.wait(0.2)
             finishRemote:FireServer()
         end)
         
@@ -969,13 +971,12 @@ task.spawn(function()
                 if head and data.Container == head then
                     task.spawn(function()
                         if autoFishingV2Enabled then
-                            -- V2: Instant recast tanpa delay 3 detik
-                            task.wait(0.3) -- Delay sangat singkat
+                            task.wait(0.5) -- Delay sangat singkat
                             finishRemote:FireServer()
                         else
                             -- V1: Original behavior
                             for i = 1, 3 do
-                                task.wait(1)
+                                task.wait(4)
                                 finishRemote:FireServer()
                                 rconsoleclear()
                             end
