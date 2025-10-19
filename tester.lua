@@ -20,6 +20,7 @@ local autoFishingV2Enabled = false
 local autoSellEnabled = false
 local antiAFKEnabled = false
 local fishingActive = false
+local autoFavoriteEnabled = false
 
 -- Remote Variables
 local net
@@ -56,7 +57,6 @@ local function addHover(btn, normal, hover)
     end)
 end
 
-
 -- ===================================
 -- ========== AUTO BOOST FPS =========
 -- ===================================
@@ -91,6 +91,67 @@ local function BoostFPS()
     updateStatus("✅ FPS Boosted Successfully", Color3.fromRGB(100, 255, 100))
 end
 
+-- ===================================
+-- ========== AUTO FAVORITE ==========
+-- ===================================
+
+local allowedTiers = { 
+    ["Secret"] = true, 
+    ["Mythic"] = true, 
+    ["Legendary"] = true 
+}
+
+local function startAutoFavorite()
+    task.spawn(function()
+        while autoFavoriteEnabled do
+            local success, err = pcall(function()
+                -- Cari Replion service
+                local Replion
+                local success1, err1 = pcall(function()
+                    Replion = ReplicatedStorage:WaitForChild("Packages")
+                        :WaitForChild("_Index")
+                        :WaitForChild("sleitnick_knit@1.5.4")
+                        :WaitForChild("knit")
+                        :WaitForChild("Services")
+                        :WaitForChild("ReplionService")
+                        :WaitForChild("RF")
+                        :WaitForChild("GetReplion")
+                end)
+                
+                if not success1 then
+                    Replion = ReplicatedStorage:WaitForChild("Replion")
+                end
+                
+                if not Replion then return end
+                
+                -- Get inventory data
+                local inventoryData = Replion:InvokeServer("Data")
+                if inventoryData and inventoryData.Inventory and inventoryData.Inventory.Items then
+                    local items = inventoryData.Inventory.Items
+                    
+                    for _, item in ipairs(items) do
+                        if item and item.Id and allowedTiers[item.Tier] and not item.Favorited then
+                            -- Mark as favorite
+                            local favoriteSuccess = pcall(function()
+                                Replion:InvokeServer("FavoriteItem", item.Id, true)
+                            end)
+                            
+                            if favoriteSuccess then
+                                updateStatus("⭐ Favorite: " .. item.Tier .. " fish", Color3.fromRGB(255, 215, 0))
+                            end
+                        end
+                    end
+                end
+            end)
+            
+            if not success then
+                -- Silent error handling
+            end
+            
+            task.wait(5) -- Check setiap 5 detik
+        end
+    end)
+end
 
 -- ===================================
 -- ========== REMOTE SETUP ===========
@@ -258,7 +319,7 @@ local mainTab = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 200),
+    CanvasSize = UDim2.new(0, 0, 0, 250),
     Visible = true
 })
 
@@ -310,7 +371,7 @@ local fishTitle = create("TextLabel", {
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
-    Text = "🎣 Auto Instant Fishing V1 (perfect)",
+    Text = "🎣 Auto Instant Fishing V1 (perfect + delay)",
     Font = Enum.Font.GothamBold,
     TextSize = 9,
     TextColor3 = Color3.fromRGB(220, 220, 220),
@@ -347,7 +408,7 @@ local fishV2Title = create("TextLabel", {
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
-    Text = "⚡ Auto Fishing V2 (ULTRA FAST)",
+    Text = "⚡ Auto Fishing V2 (FAST)",
     Font = Enum.Font.GothamBold,
     TextSize = 9,
     TextColor3 = Color3.fromRGB(100, 255, 100),
@@ -405,6 +466,43 @@ local sellBtn = create("TextButton", {
 
 create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
 
+-- AUTO FAVORITE SECTION
+local favoriteSection = create("Frame", {
+    Parent = mainTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 202),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+
+create("UICorner", {Parent = favoriteSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = favoriteSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local favoriteTitle = create("TextLabel", {
+    Parent = favoriteSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "⭐ Auto Favorite (Secret/Mythic/Legendary)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local favoriteBtn = create("TextButton", {
+    Parent = favoriteSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(180, 80, 180),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+
+create("UICorner", {Parent = favoriteBtn, CornerRadius = UDim.new(0, 6)})
+
 -- Teleports Tab Content dengan Dropdown
 local teleportsTab = create("ScrollingFrame", {
     Name = "TeleportsTab",
@@ -419,7 +517,6 @@ local teleportsTab = create("ScrollingFrame", {
 })
 
 -- Dropdown untuk Teleport to NPC
-local npcDropdownOpen = false
 local npcDropdownSection = create("Frame", {
     Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
@@ -457,7 +554,6 @@ local npcDropdownBtn = create("TextButton", {
 create("UICorner", {Parent = npcDropdownBtn, CornerRadius = UDim.new(0, 6)})
 
 -- Dropdown untuk Teleport to Islands
-local islandsDropdownOpen = false
 local islandsDropdownSection = create("Frame", {
     Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
@@ -495,7 +591,6 @@ local islandsDropdownBtn = create("TextButton", {
 create("UICorner", {Parent = islandsDropdownBtn, CornerRadius = UDim.new(0, 6)})
 
 -- Dropdown untuk Teleport to Events
-local eventsDropdownOpen = false
 local eventsDropdownSection = create("Frame", {
     Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
@@ -541,7 +636,7 @@ local miscTab = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 200),  -- Diperbesar karena ada tambahan section
+    CanvasSize = UDim2.new(0, 0, 0, 200),
     Visible = false
 })
 
@@ -623,7 +718,7 @@ create("UICorner", {Parent = boostFPSBtn, CornerRadius = UDim.new(0, 6)})
 local infoSection = create("Frame", {
     Parent = miscTab,
     Size = UDim2.new(1, 0, 0, 80),
-    Position = UDim2.new(0, 0, 0, 106),  -- Position diubah karena ada tambahan section
+    Position = UDim2.new(0, 0, 0, 106),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -641,6 +736,7 @@ local infoLabel = create("TextLabel", {
     TextColor3 = Color3.fromRGB(100, 200, 255),
     TextXAlignment = Enum.TextXAlignment.Center
 })
+
 -- ===================================
 -- ========== TAB FUNCTIONALITY ======
 -- ===================================
@@ -729,9 +825,11 @@ addHover(antiAFKBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishV2Btn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+addHover(favoriteBtn, Color3.fromRGB(180, 80, 180), Color3.fromRGB(200, 100, 200))
 addHover(npcDropdownBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
 addHover(islandsDropdownBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
 addHover(eventsDropdownBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
+addHover(boostFPSBtn, Color3.fromRGB(180, 100, 50), Color3.fromRGB(200, 120, 70))
 
 -- ===================================
 -- ========== ANTI-AFK SYSTEM ========
@@ -1472,6 +1570,27 @@ sellBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Auto Favorite Button
+favoriteBtn.MouseButton1Click:Connect(function()
+    autoFavoriteEnabled = not autoFavoriteEnabled
+    
+    if autoFavoriteEnabled then
+        favoriteBtn.Text = "STOP"
+        favoriteBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        updateStatus("⭐ Auto Favorite: Enabled", Color3.fromRGB(255, 215, 0))
+        startAutoFavorite()
+    else
+        favoriteBtn.Text = "START"
+        favoriteBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 180)
+        updateStatus("🔴 Auto Favorite: Disabled")
+    end
+end)
+
+-- Boost FPS Button
+boostFPSBtn.MouseButton1Click:Connect(function()
+    BoostFPS()
+end)
+
 -- Teleport Dropdown Buttons
 npcDropdownBtn.MouseButton1Click:Connect(createNPCTeleportGUI)
 islandsDropdownBtn.MouseButton1Click:Connect(createTeleportGUI)
@@ -1483,15 +1602,12 @@ closeBtn.MouseButton1Click:Connect(function()
     autoFishingV2Enabled = false
     autoSellEnabled = false
     fishingActive = false
+    autoFavoriteEnabled = false
+
     if antiAFKEnabled then
         toggleAntiAFK()
     end
     screenGui:Destroy()
-end)
-
--- Boost FPS Button
-boostFPSBtn.MouseButton1Click:Connect(function()
-    BoostFPS()
 end)
 
 local minimized = false
