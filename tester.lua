@@ -338,7 +338,7 @@ local statusLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🔴 Status: Idle\nScript: V.2.4\nNote: Auto-Recovery 10s Enabled",
+    Text = "🔴 Status: Idle\nScript: V.2.4\nNote: if auto fishing stuck respawn",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(255, 100, 100),
@@ -347,7 +347,7 @@ local statusLabel = create("TextLabel", {
 
 -- Fungsi untuk update status dengan format yang dipertahankan
 local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.4\nNote: Auto-Recovery 10s Enabled"
+    local baseText = "Script: V.2.4\nNote: If auto fishing stuck respawn"
     statusLabel.Text = newStatus .. "\n" .. baseText
     statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
 end
@@ -730,7 +730,7 @@ local infoLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🐟 Fish It Premium V2.4\n\nMade by: Codepikk\nDiscord: codepikk",
+    Text = "🐟 Fish It Premium V2.3\n\nMade by: Codepikk\nDiscord: codepikk",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(100, 200, 255),
@@ -876,58 +876,29 @@ end
 
 -- Fungsi utama Auto Fishing V1
 local function autoFishingLoop()
-    local errorCount = 0
-    local maxErrors = 5
-    
     while autoFishingEnabled do
         local ok, err = pcall(function()
             fishingActive = true
             updateStatus("🎣 Status: Fishing V1", Color3.fromRGB(100, 255, 100))
-            
-            -- Equip fishing rod
             equipRemote:FireServer(1)
-            task.wait(0.2)
+            task.wait(0.1)
 
-            -- Cast fishing rod
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
 
-            -- Random coordinates
             local baseX, baseY = -0.7499996, 1
             local x = baseX + (math.random(-500, 500) / 10000000)
             local y = baseY + (math.random(-500, 500) / 10000000)
 
-            -- Start minigame
             miniGameRemote:InvokeServer(x, y)
-            task.wait(2.5)
-            
-            -- Finish fishing
+            task.wait(2)
             finishRemote:FireServer(true)
             task.wait(2)
-            
-            -- Reset error count on success
-            errorCount = 0
         end)
-        
         if not ok then
-            errorCount = errorCount + 1
-            updateStatus("⚠️ Fishing Error: " .. errorCount, Color3.fromRGB(255, 165, 0))
-            
-            -- Jika terlalu banyak error, stop sementara
-            if errorCount >= maxErrors then
-                updateStatus("❌ Too many errors, stopping...", Color3.fromRGB(255, 0, 0))
-                autoFishingEnabled = false
-                fishBtn.Text = "START"
-                fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-                break
-            end
-            
-            -- Wait longer on error
-            task.wait(1)
-        else
-            -- Normal delay between cycles
-            task.wait(0.5)
+            -- Handle error silently
         end
+        task.wait(0.2)
     end
     fishingActive = false
     updateStatus("🔴 Status: Idle")
@@ -937,136 +908,56 @@ end
 -- ========== FISHING V2 SYSTEM ======
 -- ===================================
 
--- Fungsi utama Auto Fishing V2
+-- Fungsi utama Auto Fishing V2 (ULTRA FAST)
 local function autoFishingV2Loop()
-    local errorCount = 0
-    local maxErrors = 5
-    local consecutiveCasts = 0
-    
     while autoFishingV2Enabled do
         local ok, err = pcall(function()
             fishingActive = true
-            updateStatus("⚡ Status: Fishing V2 - Cast " .. consecutiveCasts, Color3.fromRGB(255, 255, 100))
+            updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
             
-            -- Equip rod dengan safety check
+            -- Equip rod super cepat
             equipRemote:FireServer(1)
-            task.wait(0.15)
-
-            -- Cast fishing rod
+            
+            -- Cast langsung tanpa delay
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
 
-            -- Random coordinates
+            -- Random coordinates yang lebih natural tapi tetap cepat
             local baseX, baseY = -0.7499996, 1
+            -- Random kecil tapi cukup untuk avoid detection
             local x = baseX + (math.random(-300, 300) / 10000000)
             local y = baseY + (math.random(-300, 300) / 10000000)
 
-            -- Start minigame
+            -- Mini game instant
             miniGameRemote:InvokeServer(x, y)
             
-            -- Dynamic wait time based on consecutive casts
-            local waitTime = 0.5
-            if consecutiveCasts > 10 then
-                waitTime = 0.8 -- Slow down setelah banyak cast
-            end
-            task.wait(waitTime)
-            
-            -- Finish fishing
+            -- Finish dalam 0.5 detik (super cepat tapi masih natural)
+            task.wait(0.5)
             finishRemote:FireServer(true)
             
-            -- Auto recast dengan delay yang lebih aman
-            task.wait(0.4)
+            -- Auto recast cepat
+            task.wait(0.3)
             finishRemote:FireServer()
-            
-            consecutiveCasts = consecutiveCasts + 1
-            errorCount = 0 -- Reset error count
-            
-            -- Reset consecutive casts setelah 20 kali
-            if consecutiveCasts >= 20 then
-                consecutiveCasts = 0
-                task.wait(1) -- Break longer setiap 20 casts
-            end
-            
         end)
         
         if not ok then
-            errorCount = errorCount + 1
-            consecutiveCasts = 0
-            updateStatus("⚠️ V2 Error: " .. errorCount, Color3.fromRGB(255, 165, 0))
-            
-            -- Safety mechanism
-            if errorCount >= maxErrors then
-                updateStatus("❌ V2 Stopped - Too many errors", Color3.fromRGB(255, 0, 0))
-                autoFishingV2Enabled = false
-                fishV2Btn.Text = "START"
-                fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-                break
-            end
-            
-            task.wait(1) -- Wait longer on error
-        else
-            -- Random delay antara cycles untuk avoid detection
-            task.wait(math.random(8, 15) / 100) -- 0.08-0.15 detik
+            -- Error handling silent
         end
+        
+        task.wait(0.2)
     end
     fishingActive = false
     updateStatus("🔴 Status: Idle")
 end
 
 -- ===================================
--- ========== AUTO RECOVERY SYSTEM ===
+-- ========== EXCLAIM DETECTION V1 ===
 -- ===================================
 
-local function checkFishingStuck()
-    task.spawn(function()
-        local lastStatus = statusLabel.Text
-        local checkCount = 0
-        
-        while autoFishingEnabled or autoFishingV2Enabled do
-            task.wait(10) -- Check setiap 10 detik
-            
-            if fishingActive then
-                -- Jika status tetap sama selama 10 detik, restart fishing
-                if statusLabel.Text == lastStatus then
-                    checkCount = checkCount + 1
-                    updateStatus("🔄 Auto-Recovery (" .. checkCount .. "/3)...", Color3.fromRGB(255, 165, 0))
-                    
-                    -- Force finish current fishing
-                    pcall(function()
-                        finishRemote:FireServer()
-                    end)
-                    
-                    task.wait(1)
-                    
-                    -- Restart fishing process
-                    if autoFishingV2Enabled then
-                        updateStatus("⚡ V2 Restarted - Recovery", Color3.fromRGB(100, 255, 100))
-                    else
-                        updateStatus("🎣 V1 Restarted - Recovery", Color3.fromRGB(100, 255, 100))
-                    end
-                    
-                    -- Reset setelah 3 kali recovery
-                    if checkCount >= 3 then
-                        checkCount = 0
-                        task.wait(2) -- Break longer
-                    end
-                else
-                    checkCount = 0 -- Reset jika status berubah
-                    lastStatus = statusLabel.Text
-                end
-            end
-        end
-    end)
-end
-
--- ===================================
--- ========== EXCLAIM DETECTION ======
--- ===================================
-
--- Improved exclaim detection system
+-- Listener untuk detect exclaim (tanda seru) dan auto recast
 task.spawn(function()
     local success, exclaimEvent = pcall(function()
-        return net:WaitForChild("RE/ReplicateTextEffect", 5)
+        return net:WaitForChild("RE/ReplicateTextEffect", 2)
     end)
 
     if success and exclaimEvent then
@@ -1077,48 +968,22 @@ task.spawn(function()
                 local head = player.Character and player.Character:FindFirstChild("Head")
                 if head and data.Container == head then
                     task.spawn(function()
-                        updateStatus("❗ Exclaim Detected - Recasting...", Color3.fromRGB(255, 165, 0))
-                        
                         if autoFishingV2Enabled then
-                            -- V2: Improved recast dengan backup system
-                            task.wait(0.3)
-                            
-                            -- Try multiple recast methods
-                            local recastSuccess = pcall(function()
-                                finishRemote:FireServer()
-                            end)
-                            
-                            -- Backup: Jika gagal, tunggu dan coba lagi
-                            if not recastSuccess then
-                                task.wait(0.5)
-                                pcall(function()
-                                    finishRemote:FireServer()
-                                end)
-                            end
-                            
+                            -- V2: Instant recast tanpa delay 3 detik
+                            task.wait(0.3) -- Delay sangat singkat
+                            finishRemote:FireServer()
                         else
-                            -- V1: Original behavior dengan improvement
+                            -- V1: Original behavior
                             for i = 1, 3 do
                                 task.wait(1)
-                                local successRecast = pcall(function()
-                                    finishRemote:FireServer()
-                                end)
-                                if not successRecast and i == 3 then
-                                    -- Final attempt dengan delay lebih lama
-                                    task.wait(0.5)
-                                    pcall(function()
-                                        finishRemote:FireServer()
-                                    end)
-                                end
+                                finishRemote:FireServer()
+                                rconsoleclear()
                             end
                         end
                     end)
                 end
             end
         end)
-    else
-        -- Fallback system jika event tidak ditemukan
-        warn("Exclaim event not found, using fallback system")
     end
 end)
 
@@ -1590,13 +1455,13 @@ local function createEventTeleportGUI()
                             end
                         end
                     end
-                }
+                end
                 
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if string.lower(obj.Name) == string.lower(eventName) then
                         return obj
                     end
-                }
+                end
                 
                 return nil
             end
@@ -1659,13 +1524,13 @@ fishBtn.MouseButton1Click:Connect(function()
         fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         updateStatus("🟢 Status: Auto Fishing V1 Started", Color3.fromRGB(100, 255, 100))
         task.spawn(autoFishingLoop)
-        checkFishingStuck() -- AUTO RECOVERY SYSTEM
     else
         fishBtn.Text = "START"
         fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
+        rconsoleclear()
     end
 end)
 
@@ -1679,15 +1544,15 @@ fishV2Btn.MouseButton1Click:Connect(function()
         fishV2Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
         fishBtn.Text = "START"
         fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        updateStatus("⚡ Status: Auto Fishing V2 Started", Color3.fromRGB(255, 255, 100))
+        updateStatus("⚡ Status: Auto Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
         task.spawn(autoFishingV2Loop)
-        checkFishingStuck() -- AUTO RECOVERY SYSTEM
     else
         fishV2Btn.Text = "START"
         fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
+        rconsoleclear()
     end
 end)
 
