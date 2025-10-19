@@ -905,41 +905,7 @@ local function autoFishingLoop()
 end
 
 -- ===================================
--- ========== AUTO ROD DETECTOR ======
--- ===================================
-local function getEquippedRodID()
-    local backpack = player:WaitForChild("Backpack")
-    local character = player.Character
-    
-    -- Cek di tangan (Character)
-    if character then
-        for _, tool in pairs(character:GetChildren()) do
-            if tool:IsA("Tool") and (tool.Name:lower():find("rod") or tool.Name:lower():find("pole")) then
-                -- Extract ID dari tool name atau properties
-                -- Biasanya rod punya NumberValue atau IntValue buat ID
-                local idValue = tool:FindFirstChild("RodID") or tool:FindFirstChild("ID") or tool:FindFirstChild("ItemID")
-                if idValue and idValue:IsA("IntValue") or idValue:IsA("NumberValue") then
-                    return idValue.Value
-                end
-            end
-        end
-    end
-    
-    -- Cek di backpack
-    for _, tool in pairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") and (tool.Name:lower():find("rod") or tool.Name:lower():find("pole")) then
-            local idValue = tool:FindFirstChild("RodID") or tool:FindFirstChild("ID") or tool:FindFirstChild("ItemID")
-            if idValue and (idValue:IsA("IntValue") or idValue:IsA("NumberValue")) then
-                return idValue.Value
-            end
-        end
-    end
-    
-    return 1 -- Default fallback
-end
-
--- ===================================
--- ========== FISHING V2 (FIXED) =====
+-- ========== FISHING V2 (FIXED TIMING) =====
 -- ===================================
 local function autoFishingV2Loop()
     while autoFishingV2Enabled do
@@ -947,22 +913,27 @@ local function autoFishingV2Loop()
             fishingActive = true
             updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
             
-            -- Auto detect rod ID
-            local rodID = getEquippedRodID()
-            equipRemote:FireServer(rodID) -- ✅ Pake rod yang bener
-            task.wait(0.1)
+            -- Equip rod - kasih waktu lebih banyak
+            equipRemote:FireServer(1)
+            task.wait(0.3) -- ✅ Naikin dari 0.1 ke 0.3
             
+            -- Cast - tunggu rod bener-bener equipped
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
+            task.wait(0.5) -- ✅ Tambahin delay buat cast animation
             
+            -- Mini game
             local baseX, baseY = -0.7499996, 1
             local x = baseX + (math.random(-300, 300) / 10000000)
             local y = baseY + (math.random(-300, 300) / 10000000)
-            
             miniGameRemote:InvokeServer(x, y)
-            task.wait(0.5)
+            
+            -- Finish - kasih waktu buat minigame complete
+            task.wait(1) -- ✅ Naikin dari 0.5 ke 1 detik
             finishRemote:FireServer(true)
-            task.wait(0.2)
+            
+            -- Auto recast
+            task.wait(0.3) -- ✅ Kasih jeda sebelum loop lagi
             finishRemote:FireServer()
         end)
         
