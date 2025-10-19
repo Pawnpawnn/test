@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local API_URL = "https://keygen-fsh.vercel.app/api" -- Hilangkan trailing slash
+local API_URL = "https://keygen-fsh.vercel.app/api"
 local trialDuration = 5 * 60
 
 -- Validasi apakah game mendukung HttpService
@@ -17,7 +17,7 @@ local function checkHttpService()
     return success
 end
 
--- Validate key dengan API (dengan error handling yang lebih baik)
+-- Validate key dengan API
 local function validateKeyWithAPI(key)
     local success, result = pcall(function()
         local headers = {
@@ -52,7 +52,6 @@ local function validateKeyWithAPI(key)
             return false, result.message or "Invalid key"
         end
     else
-        -- Detailed error logging
         warn("API Error:", result)
         return false, "Network error - check console"
     end
@@ -71,6 +70,41 @@ local function checkTrial()
     return false, "Need activation"
 end
 
+-- Fungsi untuk load script utama
+local function loadMainScript()
+    if not player.Character then
+        player.CharacterAdded:Wait()
+        wait(2)
+    end
+
+    warn("✅ Key validated! Loading main script...")
+    
+    -- ===================================
+    -- ========== SCRIPT UTAMA ===========
+    -- ===================================
+    
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local TweenService = game:GetService("TweenService")
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local VirtualUser = game:GetService("VirtualUser")
+
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+    -- State Variables
+    local autoFishingEnabled = false
+    local autoSellEnabled = false
+    local antiAFKEnabled = false
+    local fishingActive = false
+    
+    print("✅ Main script loaded successfully!")
+    -- Lanjutkan dengan kode main script Anda...
+end
+
 -- Tampilkan input key
 local function createKeyGUI()
     -- Hapus GUI lama jika ada
@@ -82,7 +116,7 @@ local function createKeyGUI()
     keyGui.Name = "KeyInputGUI"
     keyGui.Parent = playerGui
     keyGui.ResetOnSpawn = false
-    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling -- Tambahkan ini
+    keyGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 350, 0, 250)
@@ -168,7 +202,7 @@ local function createKeyGUI()
         if isProcessing then return end
         isProcessing = true
         
-        local key = keyBox.Text:gsub("%s+", "") -- Hapus whitespace
+        local key = keyBox.Text:gsub("%s+", "")
         
         if string.len(key) < 10 then
             statusMsg.Text = "❌ Invalid key format (min 10 chars)"
@@ -182,18 +216,32 @@ local function createKeyGUI()
         statusMsg.Text = "⏳ Validating key with server..."
         statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
         
-        task.wait(1) -- Small delay untuk UX
+        task.wait(0.5) -- Delay untuk UX
         
         local isValid, message = validateKeyWithAPI(key)
         
         if isValid then
+            -- Set attribute sebelum menghancurkan GUI
             player:SetAttribute("FishItTrialStart", os.time())
+            
+            -- Update UI untuk feedback
             statusMsg.Text = "✅ " .. message
             statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
             submitBtn.Text = "SUCCESS!"
-            task.wait(0.5)
+            submitBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            
+            -- Tunggu sebentar agar user melihat pesan sukses
+            task.wait(1.5)
+            
+            -- BARU kemudian hancurkan GUI dan load main script
+            if playerGui:FindFirstChild("KeyInputGUI") then
+                playerGui:FindFirstChild("KeyInputGUI"):Destroy()
+            end
+            
+            -- Load main script
             loadMainScript()
         else
+            -- Jika gagal, reset UI
             statusMsg.Text = "❌ " .. message
             statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
             submitBtn.Text = "ACTIVATE TRIAL"
@@ -203,31 +251,30 @@ local function createKeyGUI()
     end)
 
     getKeyBtn.MouseButton1Click:Connect(function()
-     local keyLink = "https://keygen-fsh.vercel.app/"
-     local copied = false
+        local keyLink = "https://keygen-fsh.vercel.app/"
+        local copied = false
 
-    -- Coba copy ke clipboard (khusus executor)
-    local ok, _ = pcall(function()
-        setclipboard(keyLink)
-    end)
-
-    if ok then
-        copied = true
-    end
-
-    -- Fallback kalau clipboard gagal
-    if not copied then
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("OpenUrl", keyLink)
+        -- Coba copy ke clipboard
+        local ok, _ = pcall(function()
+            setclipboard(keyLink)
         end)
-    end
 
-    statusMsg.Text = copied 
-        and "✅ Link copied to clipboard!" 
-        or "🌐 Opening website..."
-    statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
+        if ok then
+            copied = true
+        end
+
+        -- Fallback kalau clipboard gagal
+        if not copied then
+            pcall(function()
+                game:GetService("StarterGui"):SetCore("OpenUrl", keyLink)
+            end)
+        end
+
+        statusMsg.Text = copied 
+            and "✅ Link copied to clipboard!" 
+            or "🌐 Opening website..."
+        statusMsg.TextColor3 = Color3.fromRGB(100, 200, 255)
     end)
-
 
     return keyGui
 end
@@ -237,11 +284,6 @@ local function loadMainScript()
     -- Hancurkan GUI key input
     if playerGui:FindFirstChild("KeyInputGUI") then
         playerGui:FindFirstChild("KeyInputGUI"):Destroy()
-    end
-
-    if not player.Character then
-        player.CharacterAdded:Wait()
-        wait(2) -- Tunggu sedikit biar karakter fully loaded
     end
 
     -- [[ TEMPATKAN SCRIPT UTAMA ANDA DI SINI ]]
@@ -1457,21 +1499,13 @@ end)
 end
 
 -- Main execution
-task.spawn(function()
-    -- Tunggu hingga player siap
-    if not player.Character then
-        player.CharacterAdded:Wait()
-    end
-    task.wait(2) -- Tunggu sedikit lebih lama
-    
-    
-    -- Check trial status
-    local hasActiveTrial, message = checkTrial()
-    if hasActiveTrial then
-        warn("⏰ " .. message)
-        loadMainScript()
-    else
-        warn("🔑 Key System Loaded - Creating GUI...")
-        createKeyGUI()
-    end
-end)
+-- Cek trial dulu
+local trialActive, trialMessage = checkTrial()
+
+if trialActive then
+    warn("✅ " .. trialMessage)
+    loadMainScript()
+else
+    warn("⚠️ " .. trialMessage)
+    createKeyGUI()
+end
