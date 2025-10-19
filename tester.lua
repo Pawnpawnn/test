@@ -56,6 +56,42 @@ local function addHover(btn, normal, hover)
     end)
 end
 
+
+-- ===================================
+-- ========== AUTO BOOST FPS =========
+-- ===================================
+
+local function BoostFPS()
+    updateStatus("🚀 Boosting FPS...", Color3.fromRGB(255, 200, 100))
+    
+    -- Optimize parts and materials
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v.Transparency = 1
+        end
+    end
+
+    -- Optimize lighting
+    local Lighting = game:GetService("Lighting")
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") then
+            effect.Enabled = false
+        end
+    end
+
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 1e10
+
+    -- Set graphics quality to lowest
+    settings().Rendering.QualityLevel = "Level01"
+    
+    updateStatus("✅ FPS Boosted Successfully", Color3.fromRGB(100, 255, 100))
+end
+
+
 -- ===================================
 -- ========== REMOTE SETUP ===========
 -- ===================================
@@ -505,7 +541,7 @@ local miscTab = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 150),
+    CanvasSize = UDim2.new(0, 0, 0, 200),  -- Diperbesar karena ada tambahan section
     Visible = false
 })
 
@@ -546,11 +582,48 @@ local antiAFKBtn = create("TextButton", {
 
 create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
 
+-- BOOST FPS SECTION
+local boostFPSSection = create("Frame", {
+    Parent = miscTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 58),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+
+create("UICorner", {Parent = boostFPSSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = boostFPSSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local boostFPSTitle = create("TextLabel", {
+    Parent = boostFPSSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🚀 Auto Boost FPS",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local boostFPSBtn = create("TextButton", {
+    Parent = boostFPSSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(180, 100, 50),
+    Text = "BOOST",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+
+create("UICorner", {Parent = boostFPSBtn, CornerRadius = UDim.new(0, 6)})
+
 -- INFO SECTION
 local infoSection = create("Frame", {
     Parent = miscTab,
     Size = UDim2.new(1, 0, 0, 80),
-    Position = UDim2.new(0, 0, 0, 58),
+    Position = UDim2.new(0, 0, 0, 106),  -- Position diubah karena ada tambahan section
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -568,7 +641,6 @@ local infoLabel = create("TextLabel", {
     TextColor3 = Color3.fromRGB(100, 200, 255),
     TextXAlignment = Enum.TextXAlignment.Center
 })
-
 -- ===================================
 -- ========== TAB FUNCTIONALITY ======
 -- ===================================
@@ -660,7 +732,6 @@ addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(npcDropdownBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
 addHover(islandsDropdownBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
 addHover(eventsDropdownBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
-addHover(boostFPSBtn, Color3.fromRGB(180, 100, 50), Color3.fromRGB(200, 120, 70))
 
 -- ===================================
 -- ========== ANTI-AFK SYSTEM ========
@@ -1418,6 +1489,11 @@ closeBtn.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
+-- Boost FPS Button
+boostFPSBtn.MouseButton1Click:Connect(function()
+    BoostFPS()
+end)
+
 local minimized = false
 minimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
@@ -1457,11 +1533,6 @@ minimizeBtn.MouseButton1Click:Connect(function()
         minimizeBtn.Position = UDim2.new(1, -58, 0, 4)
         minimizeBtn.Text = "—"
     end
-end)
-
--- Boost FPS Button
-boostFPSBtn.MouseButton1Click:Connect(function()
-    BoostFPS()
 end)
 
 -- ===================================
