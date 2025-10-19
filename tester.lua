@@ -170,7 +170,7 @@ local tabContainer = create("Frame", {
 })
 
 -- Tab Buttons
-local tabs = {"Main", "Teleport", "Settings"}
+local tabs = {"Main", "Teleports", "Misc"}
 local tabButtons = {}
 local activeTab = "Main"
 
@@ -222,7 +222,7 @@ local mainTab = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 260),
+    CanvasSize = UDim2.new(0, 0, 0, 200),
     Visible = true
 })
 
@@ -258,48 +258,11 @@ end
 -- Inisialisasi status awal
 updateStatus("🔴 Status: Idle")
 
--- ANTI-AFK SECTION
-local antiAFKSection = create("Frame", {
-    Parent = mainTab,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 58),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = antiAFKSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = antiAFKSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local antiAFKTitle = create("TextLabel", {
-    Parent = antiAFKSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "⏰ Anti-AFK System",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local antiAFKBtn = create("TextButton", {
-    Parent = antiAFKSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
-    Text = "START",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
-
 -- FISHING V1 SECTION
 local fishSection = create("Frame", {
     Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 106),
+    Position = UDim2.new(0, 0, 0, 58),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -336,7 +299,7 @@ create("UICorner", {Parent = fishBtn, CornerRadius = UDim.new(0, 6)})
 local fishV2Section = create("Frame", {
     Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 154),
+    Position = UDim2.new(0, 0, 0, 106),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -373,7 +336,7 @@ create("UICorner", {Parent = fishV2Btn, CornerRadius = UDim.new(0, 6)})
 local sellSection = create("Frame", {
     Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 202),
+    Position = UDim2.new(0, 0, 0, 154),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -406,69 +369,33 @@ local sellBtn = create("TextButton", {
 
 create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
 
--- Teleport Tab Content
-local teleportTab = create("ScrollingFrame", {
-    Name = "TeleportTab",
+-- Teleports Tab Content dengan Dropdown
+local teleportsTab = create("ScrollingFrame", {
+    Name = "TeleportsTab",
     Parent = contentFrame,
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 160),
+    CanvasSize = UDim2.new(0, 0, 0, 200),
     Visible = false
 })
 
--- TELEPORT TO ISLANDS SECTION
-local teleportSection = create("Frame", {
-    Parent = teleportTab,
+-- Dropdown untuk Teleport to NPC
+local npcDropdownOpen = false
+local npcDropdownSection = create("Frame", {
+    Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
     Position = UDim2.new(0, 0, 0, 10),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
-create("UICorner", {Parent = teleportSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = teleportSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+create("UICorner", {Parent = npcDropdownSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = npcDropdownSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
 
-local teleportTitle = create("TextLabel", {
-    Parent = teleportSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🚀 Teleport to Islands",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local teleportBtn = create("TextButton", {
-    Parent = teleportSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(150, 100, 50),
-    Text = "OPEN",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = teleportBtn, CornerRadius = UDim.new(0, 6)})
-
--- TELEPORT TO NPC SECTION
-local teleportNPCSection = create("Frame", {
-    Parent = teleportTab,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 58),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = teleportNPCSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = teleportNPCSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local teleportNPCTitle = create("TextLabel", {
-    Parent = teleportNPCSection,
+local npcDropdownTitle = create("TextLabel", {
+    Parent = npcDropdownSection,
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
@@ -480,8 +407,8 @@ local teleportNPCTitle = create("TextLabel", {
     TextYAlignment = Enum.TextYAlignment.Center
 })
 
-local teleportNPCBtn = create("TextButton", {
-    Parent = teleportNPCSection,
+local npcDropdownBtn = create("TextButton", {
+    Parent = npcDropdownSection,
     Size = UDim2.new(0, 72, 0, 27),
     Position = UDim2.new(1, -78, 0, 6),
     BackgroundColor3 = Color3.fromRGB(100, 80, 180),
@@ -491,21 +418,60 @@ local teleportNPCBtn = create("TextButton", {
     TextColor3 = Color3.fromRGB(255, 255, 255)
 })
 
-create("UICorner", {Parent = teleportNPCBtn, CornerRadius = UDim.new(0, 6)})
+create("UICorner", {Parent = npcDropdownBtn, CornerRadius = UDim.new(0, 6)})
 
--- TELEPORT TO EVENT SECTION
-local teleportEventSection = create("Frame", {
-    Parent = teleportTab,
+-- Dropdown untuk Teleport to Islands
+local islandsDropdownOpen = false
+local islandsDropdownSection = create("Frame", {
+    Parent = teleportsTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 58),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+
+create("UICorner", {Parent = islandsDropdownSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = islandsDropdownSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local islandsDropdownTitle = create("TextLabel", {
+    Parent = islandsDropdownSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🏝️ Teleport to Islands",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local islandsDropdownBtn = create("TextButton", {
+    Parent = islandsDropdownSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(150, 100, 50),
+    Text = "OPEN",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+
+create("UICorner", {Parent = islandsDropdownBtn, CornerRadius = UDim.new(0, 6)})
+
+-- Dropdown untuk Teleport to Events
+local eventsDropdownOpen = false
+local eventsDropdownSection = create("Frame", {
+    Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
     Position = UDim2.new(0, 0, 0, 106),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
-create("UICorner", {Parent = teleportEventSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = teleportEventSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+create("UICorner", {Parent = eventsDropdownSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = eventsDropdownSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
 
-local teleportEventTitle = create("TextLabel", {
-    Parent = teleportEventSection,
+local eventsDropdownTitle = create("TextLabel", {
+    Parent = eventsDropdownSection,
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
@@ -517,8 +483,8 @@ local teleportEventTitle = create("TextLabel", {
     TextYAlignment = Enum.TextYAlignment.Center
 })
 
-local teleportEventBtn = create("TextButton", {
-    Parent = teleportEventSection,
+local eventsDropdownBtn = create("TextButton", {
+    Parent = eventsDropdownSection,
     Size = UDim2.new(0, 72, 0, 27),
     Position = UDim2.new(1, -78, 0, 6),
     BackgroundColor3 = Color3.fromRGB(180, 80, 120),
@@ -528,26 +494,63 @@ local teleportEventBtn = create("TextButton", {
     TextColor3 = Color3.fromRGB(255, 255, 255)
 })
 
-create("UICorner", {Parent = teleportEventBtn, CornerRadius = UDim.new(0, 6)})
+create("UICorner", {Parent = eventsDropdownBtn, CornerRadius = UDim.new(0, 6)})
 
--- Settings Tab Content
-local settingsTab = create("ScrollingFrame", {
-    Name = "SettingsTab",
+-- Misc Tab Content
+local miscTab = create("ScrollingFrame", {
+    Name = "MiscTab",
     Parent = contentFrame,
     Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 100),
+    CanvasSize = UDim2.new(0, 0, 0, 150),
     Visible = false
 })
 
+-- ANTI-AFK SECTION
+local antiAFKSection = create("Frame", {
+    Parent = miscTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 10),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+
+create("UICorner", {Parent = antiAFKSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = antiAFKSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local antiAFKTitle = create("TextLabel", {
+    Parent = antiAFKSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "⏰ Anti-AFK System",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local antiAFKBtn = create("TextButton", {
+    Parent = antiAFKSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+
+create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
+
 -- INFO SECTION
 local infoSection = create("Frame", {
-    Parent = settingsTab,
+    Parent = miscTab,
     Size = UDim2.new(1, 0, 0, 80),
-    Position = UDim2.new(0, 0, 0, 10),
+    Position = UDim2.new(0, 0, 0, 58),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -575,16 +578,16 @@ local function switchTab(tabName)
     
     -- Sembunyikan semua tab
     mainTab.Visible = false
-    teleportTab.Visible = false
-    settingsTab.Visible = false
+    teleportsTab.Visible = false
+    miscTab.Visible = false
     
     -- Tampilkan tab aktif
     if tabName == "Main" then
         mainTab.Visible = true
-    elseif tabName == "Teleport" then
-        teleportTab.Visible = true
-    elseif tabName == "Settings" then
-        settingsTab.Visible = true
+    elseif tabName == "Teleports" then
+        teleportsTab.Visible = true
+    elseif tabName == "Misc" then
+        miscTab.Visible = true
     end
     
     -- Update tampilan tab buttons
@@ -654,9 +657,9 @@ addHover(antiAFKBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishV2Btn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
-addHover(teleportBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
-addHover(teleportNPCBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
-addHover(teleportEventBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
+addHover(npcDropdownBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
+addHover(islandsDropdownBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
+addHover(eventsDropdownBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
 
 -- ===================================
 -- ========== ANTI-AFK SYSTEM ========
@@ -891,7 +894,7 @@ local function createTeleportGUI()
         Parent = teleportFrame,
         Size = UDim2.new(1, 0, 0, 35),
         BackgroundColor3 = Color3.fromRGB(25, 35, 55),
-        Text = "🚀 Island Teleport",
+        Text = "🏝️ Island Teleport",
         Font = Enum.Font.GothamBold,
         TextSize = 14,
         TextColor3 = Color3.fromRGB(100, 180, 255),
@@ -1397,10 +1400,10 @@ sellBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Teleport Buttons
-teleportBtn.MouseButton1Click:Connect(createTeleportGUI)
-teleportNPCBtn.MouseButton1Click:Connect(createNPCTeleportGUI)
-teleportEventBtn.MouseButton1Click:Connect(createEventTeleportGUI)
+-- Teleport Dropdown Buttons
+npcDropdownBtn.MouseButton1Click:Connect(createNPCTeleportGUI)
+islandsDropdownBtn.MouseButton1Click:Connect(createTeleportGUI)
+eventsDropdownBtn.MouseButton1Click:Connect(createEventTeleportGUI)
 
 -- Close dan Minimize Buttons
 closeBtn.MouseButton1Click:Connect(function()
