@@ -957,28 +957,33 @@ end
 -- ===================================
 
 -- Listener untuk detect exclaim (tanda seru) dan auto recast
+-- VERSI ALTERNATIF (Kalau masih stuck)
 task.spawn(function()
     local success, exclaimEvent = pcall(function()
         return net:WaitForChild("RE/ReplicateTextEffect", 2)
     end)
-
+    
     if success and exclaimEvent then
         exclaimEvent.OnClientEvent:Connect(function(data)
             if (autoFishingEnabled or autoFishingV2Enabled) and data and data.TextData
                 and data.TextData.EffectType == "Exclaim" then
-
+                
                 local head = player.Character and player.Character:FindFirstChild("Head")
                 if head and data.Container == head then
                     task.spawn(function()
                         if autoFishingV2Enabled then
-                            task.wait(0.5) -- Delay sangat singkat
-                            finishRemote:FireServer()
+                            -- Force finish multiple kali biar pasti kelar
+                            task.wait(0.2)
+                            finishRemote:FireServer(true)
+                            task.wait(0.1)
+                            finishRemote:FireServer(true) -- Double finish
+                            task.wait(0.2)
+                            finishRemote:FireServer() -- Reset state
                         else
                             -- V1: Original behavior
                             for i = 1, 3 do
                                 task.wait(4)
-                                finishRemote:FireServer()
-                                rconsoleclear()
+                                finishRemote:FireServer(true)
                             end
                         end
                     end)
