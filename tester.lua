@@ -730,7 +730,7 @@ local infoLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🐟 Fish It Premium V2.3\n\nMade by: Codepikk\nDiscord: codepikk",
+    Text = "🐟 Fish It Premium V2.4\n\nMade by: Codepikk\nDiscord: codepikk",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(100, 200, 255),
@@ -913,27 +913,23 @@ local function autoFishingV2Loop()
             fishingActive = true
             updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
             
-            -- Equip rod - kasih waktu lebih banyak
             equipRemote:FireServer(1)
-            task.wait(0.3) -- ✅ Naikin dari 0.1 ke 0.3
+            task.wait(0.1)
             
-            -- Cast - tunggu rod bener-bener equipped
+            -- Fire cast multiple times buat mastiin ke-trigger
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
-            task.wait(0.5) -- ✅ Tambahin delay buat cast animation
+            task.wait(0.05)
+            rodRemote:InvokeServer(timestamp) -- ✅ Double cast
             
-            -- Mini game
             local baseX, baseY = -0.7499996, 1
             local x = baseX + (math.random(-300, 300) / 10000000)
             local y = baseY + (math.random(-300, 300) / 10000000)
+            
             miniGameRemote:InvokeServer(x, y)
-            
-            -- Finish - kasih waktu buat minigame complete
-            task.wait(1) -- ✅ Naikin dari 0.5 ke 1 detik
+            task.wait(0.5)
             finishRemote:FireServer(true)
-            
-            -- Auto recast
-            task.wait(0.3) -- ✅ Kasih jeda sebelum loop lagi
+            task.wait(0.2)
             finishRemote:FireServer()
         end)
         
