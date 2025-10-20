@@ -1,14 +1,13 @@
 -- ===================================
 -- ========== LOCAL KEY SYSTEM ==============
 -- ===================================
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
+local KeySystemPlayers = game:GetService("Players")
+local KeySystemHttpService = game:GetService("HttpService")
+local KeySystemPlayer = KeySystemPlayers.LocalPlayer
+local KeySystemPlayerGui = KeySystemPlayer:WaitForChild("PlayerGui")
 
 -- 50 Local Keys (masing-masing untuk 1 device)
-local validKeys = {
+local KeySystemValidKeys = {
     ["CPK-ALPHA-7392-BETA"] = {used = false, hwid = nil},
     ["CPK-GAMMA-4856-DELTA"] = {used = false, hwid = nil},
     ["CPK-OMEGA-1274-SIGMA"] = {used = false, hwid = nil},
@@ -62,7 +61,7 @@ local validKeys = {
 }
 
 -- Fungsi untuk mendapatkan Hardware ID sederhana
-local function getHardwareID()
+local function KeySystemGetHardwareID()
     local hwid = ""
     
     -- Gabungkan beberapa identifier system
@@ -75,7 +74,7 @@ local function getHardwareID()
     
     pcall(function()
         -- Dari player (userid + account age)
-        hwid = hwid .. tostring(player.UserId) .. tostring(player.AccountAge)
+        hwid = hwid .. tostring(KeySystemPlayer.UserId) .. tostring(KeySystemPlayer.AccountAge)
     end)
     
     pcall(function()
@@ -90,23 +89,23 @@ local function getHardwareID()
         return string.sub(tostring(string.gsub(hwid, "%W", "")), 1, 16)
     end
     
-    return "DEFAULT_HWID_" .. tostring(player.UserId)
+    return "DEFAULT_HWID_" .. tostring(KeySystemPlayer.UserId)
 end
 
-local currentHWID = getHardwareID()
+local KeySystemCurrentHWID = KeySystemGetHardwareID()
 
 -- Validate key lokal
-local function validateLocalKey(key)
-    if not validKeys[key] then
+local function KeySystemValidateLocalKey(key)
+    if not KeySystemValidKeys[key] then
         return false, "❌ Invalid key"
     end
     
-    local keyData = validKeys[key]
+    local keyData = KeySystemValidKeys[key]
     
     -- Jika key sudah digunakan
     if keyData.used then
         -- Cek apakah digunakan di device yang sama
-        if keyData.hwid == currentHWID then
+        if keyData.hwid == KeySystemCurrentHWID then
             return true, "✅ Key validated (same device)"
         else
             return false, "❌ Key already used on another device"
@@ -115,15 +114,15 @@ local function validateLocalKey(key)
     
     -- Jika key belum digunakan, assign ke device ini
     keyData.used = true
-    keyData.hwid = currentHWID
+    keyData.hwid = KeySystemCurrentHWID
     
     return true, "✅ Key activated successfully!"
 end
 
 -- Cek apakah user sudah pernah activate key di device ini
-local function checkExistingActivation()
-    for key, keyData in pairs(validKeys) do
-        if keyData.used and keyData.hwid == currentHWID then
+local function KeySystemCheckExistingActivation()
+    for key, keyData in pairs(KeySystemValidKeys) do
+        if keyData.used and keyData.hwid == KeySystemCurrentHWID then
             return true, key
         end
     end
@@ -131,85 +130,83 @@ local function checkExistingActivation()
 end
 
 -- Tampilkan input key
-local keyGui = Instance.new("ScreenGui")
-keyGui.Name = "KeyInputGUI"
-keyGui.Parent = playerGui
+local KeySystemGui = Instance.new("ScreenGui")
+KeySystemGui.Name = "KeySystemInputGUI"
+KeySystemGui.Parent = KeySystemPlayerGui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 400, 0, 300)
-mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-mainFrame.Parent = keyGui
+local KeySystemMainFrame = Instance.new("Frame")
+KeySystemMainFrame.Size = UDim2.new(0, 400, 0, 300)
+KeySystemMainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+KeySystemMainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+KeySystemMainFrame.Parent = KeySystemGui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = mainFrame
+local KeySystemCorner = Instance.new("UICorner")
+KeySystemCorner.CornerRadius = UDim.new(0, 12)
+KeySystemCorner.Parent = KeySystemMainFrame
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 60)
-title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-title.Text = "🔑 Codepik Premium"
-title.Font = Enum.Font.GothamBold
-title.TextColor3 = Color3.fromRGB(100, 180, 255)
-title.TextSize = 18
-title.Parent = mainFrame
+local KeySystemTitle = Instance.new("TextLabel")
+KeySystemTitle.Size = UDim2.new(1, 0, 0, 60)
+KeySystemTitle.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+KeySystemTitle.Text = "🔑 Codepik Premium"
+KeySystemTitle.Font = Enum.Font.GothamBold
+KeySystemTitle.TextColor3 = Color3.fromRGB(100, 180, 255)
+KeySystemTitle.TextSize = 18
+KeySystemTitle.Parent = KeySystemMainFrame
 
-local hwidLabel = Instance.new("TextLabel")
-hwidLabel.Size = UDim2.new(0.9, 0, 0, 30)
-hwidLabel.Position = UDim2.new(0.05, 0, 0.2, 0)
-hwidLabel.BackgroundTransparency = 1
-hwidLabel.Text = "Device ID: " .. string.sub(currentHWID, 1, 8) .. "..."
-hwidLabel.Font = Enum.Font.Gotham
-hwidLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-hwidLabel.TextSize = 11
-hwidLabel.Parent = mainFrame
+local KeySystemHWIDLabel = Instance.new("TextLabel")
+KeySystemHWIDLabel.Size = UDim2.new(0.9, 0, 0, 30)
+KeySystemHWIDLabel.Position = UDim2.new(0.05, 0, 0.2, 0)
+KeySystemHWIDLabel.BackgroundTransparency = 1
+KeySystemHWIDLabel.Text = "Device ID: " .. string.sub(KeySystemCurrentHWID, 1, 8) .. "..."
+KeySystemHWIDLabel.Font = Enum.Font.Gotham
+KeySystemHWIDLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+KeySystemHWIDLabel.TextSize = 11
+KeySystemHWIDLabel.Parent = KeySystemMainFrame
 
-local keyBox = Instance.new("TextBox")
-keyBox.Size = UDim2.new(0.8, 0, 0, 40)
-keyBox.Position = UDim2.new(0.1, 0, 0.35, 0)
-keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
-keyBox.PlaceholderText = "Enter your premium key..."
-keyBox.Text = ""
-keyBox.Font = Enum.Font.Gotham
-keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-keyBox.TextSize = 14
-keyBox.Parent = mainFrame
+local KeySystemKeyBox = Instance.new("TextBox")
+KeySystemKeyBox.Size = UDim2.new(0.8, 0, 0, 40)
+KeySystemKeyBox.Position = UDim2.new(0.1, 0, 0.35, 0)
+KeySystemKeyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
+KeySystemKeyBox.PlaceholderText = "Enter your premium key..."
+KeySystemKeyBox.Text = ""
+KeySystemKeyBox.Font = Enum.Font.Gotham
+KeySystemKeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeySystemKeyBox.TextSize = 14
+KeySystemKeyBox.Parent = KeySystemMainFrame
 
-local submitBtn = Instance.new("TextButton")
-submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
-submitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
-submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-submitBtn.Text = "Activate Key"
-submitBtn.Font = Enum.Font.GothamBold
-submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-submitBtn.TextSize = 14
-submitBtn.Parent = mainFrame
+local KeySystemSubmitBtn = Instance.new("TextButton")
+KeySystemSubmitBtn.Size = UDim2.new(0.6, 0, 0, 40)
+KeySystemSubmitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
+KeySystemSubmitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+KeySystemSubmitBtn.Text = "Activate Key"
+KeySystemSubmitBtn.Font = Enum.Font.GothamBold
+KeySystemSubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeySystemSubmitBtn.TextSize = 14
+KeySystemSubmitBtn.Parent = KeySystemMainFrame
 
-local statusMsg = Instance.new("TextLabel")
-statusMsg.Size = UDim2.new(0.8, 0, 0, 40)
-statusMsg.Position = UDim2.new(0.1, 0, 0.75, 0)
-statusMsg.BackgroundTransparency = 1
-statusMsg.Text = "Enter your premium key to continue"
-statusMsg.Font = Enum.Font.Gotham
-statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
-statusMsg.TextSize = 12
-statusMsg.TextWrapped = true
-statusMsg.Parent = mainFrame
+local KeySystemStatusMsg = Instance.new("TextLabel")
+KeySystemStatusMsg.Size = UDim2.new(0.8, 0, 0, 40)
+KeySystemStatusMsg.Position = UDim2.new(0.1, 0, 0.75, 0)
+KeySystemStatusMsg.BackgroundTransparency = 1
+KeySystemStatusMsg.Text = "Enter your premium key to continue"
+KeySystemStatusMsg.Font = Enum.Font.Gotham
+KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeySystemStatusMsg.TextSize = 12
+KeySystemStatusMsg.TextWrapped = true
+KeySystemStatusMsg.Parent = KeySystemMainFrame
 
 -- Fungsi untuk load script utama
-local function loadMainScript()
-    keyGui:Destroy()
+local function KeySystemLoadMainScript()
+    KeySystemGui:Destroy()
     
-    -- Clear semua GUI existing dulu
-    for _, gui in pairs(playerGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui.Name ~= "Chat" and gui.Name ~= "PlayerList" then
-            gui:Destroy()
-        end
+    -- Clear hanya GUI key system, jangan clear yang lain
+    if KeySystemPlayerGui:FindFirstChild("FishItAutoGUI") then
+        KeySystemPlayerGui:FindFirstChild("FishItAutoGUI"):Destroy()
     end
     
-    wait(0.5) -- Biar clear sempurna
+    wait(0.3)
     
-    -- Load dari Gist kamu
+    -- Load script utama dari Gist
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -1874,42 +1871,42 @@ updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
 end
 
 -- Button events
-submitBtn.MouseButton1Click:Connect(function()
-    local key = string.upper(string.gsub(keyBox.Text, "%s+", ""))
+KeySystemSubmitBtn.MouseButton1Click:Connect(function()
+    local key = string.upper(string.gsub(KeySystemKeyBox.Text, "%s+", ""))
     
     if string.len(key) < 5 then
-        statusMsg.Text = "❌ Please enter a valid key"
-        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        KeySystemStatusMsg.Text = "❌ Please enter a valid key"
+        KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
         return
     end
     
-    statusMsg.Text = "⏳ Validating key..."
-    statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
+    KeySystemStatusMsg.Text = "⏳ Validating key..."
+    KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
     
-    local isValid, message = validateLocalKey(key)
+    local isValid, message = KeySystemValidateLocalKey(key)
     
     if isValid then
-        statusMsg.Text = message
-        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+        KeySystemStatusMsg.Text = message
+        KeySystemStatusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
         wait(1)
-        loadMainScript()
+        KeySystemLoadMainScript()
     else
-        statusMsg.Text = message
-        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        KeySystemStatusMsg.Text = message
+        KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
     end
 end)
 
 -- Auto check jika sudah ada aktivasi
-local hasActivation, activatedKey = checkExistingActivation()
-if hasActivation then
-    statusMsg.Text = "✅ Already activated with key: " .. string.sub(activatedKey, 1, 8) .. "..."
-    statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+local KeySystemHasActivation, KeySystemActivatedKey = KeySystemCheckExistingActivation()
+if KeySystemHasActivation then
+    KeySystemStatusMsg.Text = "✅ Already activated with key: " .. string.sub(KeySystemActivatedKey, 1, 8) .. "..."
+    KeySystemStatusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
     wait(2)
-    loadMainScript()
+    KeySystemLoadMainScript()
 else
-    statusMsg.Text = "🔑 Enter your premium key\n10 keys available • 1 key per device"
-    statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeySystemStatusMsg.Text = "🔑 Enter your premium key\n50 keys available • 1 key per device"
+    KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
 end
 
-warn("🔑 Local Key System Loaded - HWID: " .. currentHWID)
-warn("📝 Available Keys: " .. #validKeys .. " keys • 1 device per key")
+warn("🔑 Local Key System Loaded - HWID: " .. KeySystemCurrentHWID)
+warn("📝 Available Keys: " .. #KeySystemValidKeys .. " keys • 1 device per key")
