@@ -1,5 +1,5 @@
 -- ===================================
--- ========== COMMERCIAL KEY SYSTEM ==
+-- ========== ENCODED JSON SYSTEM ====
 -- ===================================
 local KeySystemPlayers = game:GetService("Players")
 local KeySystemHttpService = game:GetService("HttpService")
@@ -63,7 +63,7 @@ for _, key in ipairs(KeySystemExpiredKeys) do
     table.insert(KeySystemAllKeys, key)
 end
 
--- Simple Hardware ID (CEPAT)
+-- Simple Hardware ID
 local function KeySystemGetHardwareID()
     local identifiers = {}
     
@@ -95,41 +95,46 @@ end
 local KeySystemCurrentHWID = KeySystemGetHardwareID()
 
 -- ===================================
--- ========== SUPER SIMPLE ENCRYPTION 
+-- ========== SIMPLE ENCODING SYSTEM =
 -- ===================================
 
-local function superSimpleEncrypt(data)
+-- Fungsi untuk encode data menjadi string acak
+local function encodeData(data)
     local json = KeySystemHttpService:JSONEncode(data)
-    local encrypted = ""
+    local encoded = ""
     
-    -- XOR dengan fixed key + HWID (SIMPLE TAPI EFFECTIVE)
+    -- Acak string dengan pattern sederhana + HWID
     for i = 1, #json do
-        local key = (i * 13 + string.byte(KeySystemCurrentHWID, (i % #KeySystemCurrentHWID) + 1)) % 256
-        local encryptedByte = string.byte(json, i) ~ key
-        encrypted = encrypted .. string.char(encryptedByte)
+        local char = string.sub(json, i, i)
+        local hwidChar = string.sub(KeySystemCurrentHWID, (i % #KeySystemCurrentHWID) + 1, (i % #KeySystemCurrentHWID) + 1)
+        local encodedByte = string.byte(char) + string.byte(hwidChar) + i
+        encoded = encoded .. string.char(encodedByte % 128 + 32) -- Pastikan dalam range printable
     end
     
-    return encrypted
+    return encoded
 end
 
-local function superSimpleDecrypt(encrypted)
-    local decrypted = ""
+-- Fungsi untuk decode string acak menjadi data
+local function decodeData(encoded)
+    local decoded = ""
     
-    for i = 1, #encrypted do
-        local key = (i * 13 + string.byte(KeySystemCurrentHWID, (i % #KeySystemCurrentHWID) + 1)) % 256
-        local decryptedByte = string.byte(encrypted, i) ~ key
-        decrypted = decrypted .. string.char(decryptedByte)
+    for i = 1, #encoded do
+        local encodedByte = string.byte(encoded, i)
+        local hwidChar = string.sub(KeySystemCurrentHWID, (i % #KeySystemCurrentHWID) + 1, (i % #KeySystemCurrentHWID) + 1)
+        local decodedByte = (encodedByte - 32) - string.byte(hwidChar) - i
+        while decodedByte < 0 do decodedByte = decodedByte + 128 end
+        decoded = decoded .. string.char(decodedByte % 128)
     end
     
     local success, result = pcall(function()
-        return KeySystemHttpService:JSONDecode(decrypted)
+        return KeySystemHttpService:JSONDecode(decoded)
     end)
     
     return success and result or {}
 end
 
 -- ===================================
--- ========== SIMPLE FILE SYSTEM =====
+-- ========== FILE SYSTEM ============
 -- ===================================
 
 local function KeySystemEnsureFolder()
@@ -154,9 +159,15 @@ local function KeySystemSaveToFile(data)
     KeySystemEnsureFolder()
     
     local success, err = pcall(function()
-        local encryptedData = superSimpleEncrypt(data)
-        writefile("codepik/codepik.dat", encryptedData)
+        local encodedData = encodeData(data)
+        writefile("codepik/codepik_data.json", encodedData)
     end)
+    
+    if success then
+        print("💾 Data saved successfully")
+    else
+        warn("❌ Failed to save data: " .. tostring(err))
+    end
     
     return success
 end
@@ -166,21 +177,27 @@ local function KeySystemLoadFromFile()
     
     KeySystemEnsureFolder()
     
-    if isfile("codepik/codepik.dat") then
-        local success, encryptedData = pcall(function()
-            return readfile("codepik/codepik.dat")
+    if isfile("codepik/codepik_data.json") then
+        local success, encodedData = pcall(function()
+            return readfile("codepik/codepik_data.json")
         end)
         
-        if success and encryptedData then
-            local decryptedData = superSimpleDecrypt(encryptedData)
-            if next(decryptedData) ~= nil then
-                return decryptedData
+        if success and encodedData then
+            local decodedData = decodeData(encodedData)
+            if next(decodedData) ~= nil then
+                print("📂 Data loaded successfully")
+                return decodedData
             else
+                print("⚠️ Data corrupted, resetting...")
                 pcall(function()
-                    delfile("codepik/codepik.dat")
+                    delfile("codepik/codepik_data.json")
                 end)
             end
+        else
+            print("⚠️ Failed to read data file")
         end
+    else
+        print("📁 No data file found, creating new...")
     end
     
     return {}
@@ -190,7 +207,7 @@ end
 local KeySystemActivations = KeySystemLoadFromFile()
 
 -- ===================================
--- ========== FAST VALIDATION ========
+-- ========== VALIDATION SYSTEM ======
 -- ===================================
 
 local function KeySystemIsPermanentKey(key)
@@ -303,7 +320,7 @@ local function KeySystemCheckActivation()
 end
 
 -- ===================================
--- ========== FAST GUI ===============
+-- ========== GUI SYSTEM =============
 -- ===================================
 
 local KeySystemGui = Instance.new("ScreenGui")
@@ -333,7 +350,7 @@ local KeySystemHWIDLabel = Instance.new("TextLabel")
 KeySystemHWIDLabel.Size = UDim2.new(0.9, 0, 0, 20)
 KeySystemHWIDLabel.Position = UDim2.new(0.05, 0, 0.16, 0)
 KeySystemHWIDLabel.BackgroundTransparency = 1
-KeySystemHWIDLabel.Text = "Version Info: " .. KeySystemCurrentHWID
+KeySystemHWIDLabel.Text = "Device: " .. KeySystemCurrentHWID
 KeySystemHWIDLabel.Font = Enum.Font.Gotham
 KeySystemHWIDLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 KeySystemHWIDLabel.TextSize = 9
@@ -401,8 +418,6 @@ local function KeySystemLoadMainScript()
     -- [SCRIPT UTAMA DI SINI - USER AKAN MENGISI]
     print("✅ License Validated! Loading main script...")
     -- User akan memasukkan script utama mereka di sini
-     
-    
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -2045,7 +2060,7 @@ minimizeBtn.MouseButton1Click:Connect(function()
             Position = UDim2.new(0.5, -160, 0.5, -190)
         }):Play()
         
-        -- Tampilkan kembali semua j
+        -- Tampilkan kembali semua elemen
         titleText.Visible = true
         closeBtn.Visible = true
         tabContainer.Visible = true
@@ -2058,7 +2073,12 @@ minimizeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- ===================================
+-- ========== SCRIPT LOADED ==========
+-- ===================================
 
+-- Script selesai di-load
+updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
 end
 
 -- Button events dengan anti-spam
@@ -2078,7 +2098,7 @@ KeySystemSubmitBtn.MouseButton1Click:Connect(function()
     KeySystemStatusMsg.Text = "⏳ Validating..."
     KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
     
-    wait(0.1) -- Delay kecil untuk UI feedback
+    wait(0.1)
     
     local isValid, message = KeySystemValidateKey(key)
     
@@ -2119,6 +2139,6 @@ end
 
 warn("🔑 Codepik Key System Loaded")
 warn("📱 Device ID: " .. KeySystemCurrentHWID)
-warn("🔒 File: codepik/codepik.dat (Encrypted)")
+warn("🔐 File: codepik/codepik_data.json (Encoded)")
 warn("💎 Premium Keys: " .. #KeySystemValidKeys)
 warn("⏰ Trial Keys: " .. #KeySystemExpiredKeys)
