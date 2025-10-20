@@ -401,6 +401,8 @@ local function KeySystemLoadMainScript()
     -- [SCRIPT UTAMA DI SINI - USER AKAN MENGISI]
     print("✅ License Validated! Loading main script...")
     -- User akan memasukkan script utama mereka di sini
+     
+    
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -2043,7 +2045,7 @@ minimizeBtn.MouseButton1Click:Connect(function()
             Position = UDim2.new(0.5, -160, 0.5, -190)
         }):Play()
         
-        -- Tampilkan kembali semua elemen
+        -- Tampilkan kembali semua j
         titleText.Visible = true
         closeBtn.Visible = true
         tabContainer.Visible = true
@@ -2056,12 +2058,7 @@ minimizeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ===================================
--- ========== SCRIPT LOADED ==========
--- ===================================
 
--- Script selesai di-load
-updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
 end
 
 -- Button events dengan anti-spam
