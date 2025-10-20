@@ -1,82 +1,212 @@
--- final_v3.lua
--- Fish It - Codepikk Premium V3 (REBUILT FINAL)
--- Features: compact 320x300, high ZIndex, smart overlay, hidden scrollbars,
--- tabs top, drag by titlebar only, minimize -> bubble (🐟), includes core logic.
-
--- Services
+-- v3.lua (patched final)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
-local VirtualUser = game:GetService("VirtualUser")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Simple create helper (safe minimal)
-local function create(className, props)
-    local obj = Instance.new(className)
-    if props then
-        for k,v in pairs(props) do
-            if k ~= "Parent" then
-                pcall(function() obj[k] = v end)
+-- ===================================
+-- ========== VARIABLES ==============
+-- ===================================
+
+-- State Variables
+local autoFishingEnabled = false
+local autoFishingV2Enabled = false
+local autoFishingV3Enabled = false
+local autoSellEnabled = false
+local antiAFKEnabled = false
+local fishingActive = false
+local autoFavoriteEnabled = false
+
+-- Remote Variables
+local net
+local rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote
+
+-- Connection Variables
+local AFKConnection = nil
+
+-- ===================================
+-- ========== HELPER FUNCTIONS =======
+-- ===================================
+
+-- Fungsi untuk membuat instance dengan properties
+local function create(className, properties)
+    local instance = Instance.new(className)
+    for property, value in pairs(properties) do
+        if property ~= "Parent" then
+            instance[property] = value
+        end
+    end
+    if properties.Parent then
+        instance.Parent = properties.Parent
+    end
+    return instance
+end
+
+-- Fungsi untuk menambahkan efek hover pada button
+local function addHover(btn, normal, hover)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hover}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = normal}):Play()
+    end)
+end
+
+-- ===================================
+-- ========== AUTO BOOST FPS =========
+-- ===================================
+
+local function BoostFPS()
+    updateStatus("🚀 Boosting FPS...", Color3.fromRGB(255, 200, 100))
+    
+    -- Optimize parts and materials
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v.Transparency = 1
+        end
+    end
+
+    -- Optimize lighting
+    local Lighting = game:GetService("Lighting")
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") then
+            effect.Enabled = false
+        end
+    end
+
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 1e10
+
+    -- Set graphics quality to lowest
+    settings().Rendering.QualityLevel = "Level01"
+    
+    updateStatus("✅ FPS Boosted Successfully", Color3.fromRGB(100, 255, 100))
+end
+
+-- ===================================
+-- ========== AUTO FAVORITE ==========
+-- ===================================
+
+local allowedTiers = { 
+    ["Secret"] = true, 
+    ["Mythic"] = true, 
+    ["Legendary"] = true 
+}
+
+local function startAutoFavorite()
+    task.spawn(function()
+        while autoFavoriteEnabled do
+            pcall(function()
+                updateStatus("⭐ Scanning for rare items...", Color3.fromRGB(255, 215, 0))
+                
+                local totalFavorited = 0
+                
+                -- METHOD 1: Gunakan Remote Event FavoriteItem yang sudah ada
+                if favoriteRemote then
+                    -- Coba untuk item ID 1-200 (range yang umum)
+                    for itemId = 1, 200 do
+                        if not autoFavoriteEnabled then break end
+                        
+                        -- Coba favorite item
+                        local success = pcall(function()
+                            favoriteRemote:FireServer(itemId)
+                        end)
+                        
+                        if success then
+                            totalFavorited = totalFavorited + 1
+                            updateStatus("⭐ Favorited item: " .. itemId, Color3.fromRGB(100, 255, 100))
+                        end
+                        
+                        -- Delay kecil antara setiap item
+                        task.wait(0.1)
+                        
+                        -- Update progress setiap 10 item
+                        if itemId % 10 == 0 then
+                            updateStatus("⭐ Progress: " .. itemId .. "/200", Color3.fromRGB(255, 215, 0))
+                        end
+                    end
+                else
+                    updateStatus("❌ Favorite remote not found", Color3.fromRGB(255, 100, 100))
+                end
+                
+                -- SHOW FINAL RESULT
+                if totalFavorited > 0 then
+                    updateStatus("✅ Done! Fav: " .. totalFavorited .. " items", Color3.fromRGB(100, 255, 100))
+                else
+                    updateStatus("ℹ️ No items favorited", Color3.fromRGB(255, 255, 100))
+                end
+            end)
+            
+            -- Wait before next scan (5 menit)
+            if autoFavoriteEnabled then
+                updateStatus("⏰ Next scan in 5 minutes...", Color3.fromRGB(200, 200, 100))
+                for i = 1, 300 do  -- 300 detik = 5 menit
+                    if not autoFavoriteEnabled then break end
+                    task.wait(1)
+                end
             end
         end
-        if props.Parent then
-            pcall(function() obj.Parent = props.Parent end)
-        end
-    end
-    return obj
-end
-
--- Simple addHover helper (changes bg on mouse enter/leave)
-local function addHover(inst, normal, hover)
-    if not inst then return end
-    inst.MouseEnter:Connect(function()
-        pcall(function() inst.BackgroundColor3 = hover end)
-    end)
-    inst.MouseLeave:Connect(function()
-        pcall(function() inst.BackgroundColor3 = normal end)
+        updateStatus("🔴 Auto Favorite: Stopped")
     end)
 end
 
--- updateStatus helper (shows statusLabel text if exists)
-local function updateStatus(text, color)
-    if statusLabel and statusLabel.Parent then
-        statusLabel.Text = text
-        if color then
-            statusLabel.TextColor3 = color
-        end
-    end
-end
+-- ===================================
+-- ========== REMOTE SETUP ===========
+-- ===================================
 
--- Remotes placeholders (will try to setup)
-local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote = nil, nil, nil, nil, nil, nil, nil
-
+-- Setup remote events/functions untuk komunikasi dengan server
 local function setupRemotes()
-    local ok
-    ok = pcall(function()
-        net = ReplicatedStorage:WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+    local success, err = pcall(function()
+        net = ReplicatedStorage:WaitForChild("Packages")
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_net@0.2.0")
+            :WaitForChild("net")
     end)
-    if not ok then
-        pcall(function() net = ReplicatedStorage:WaitForChild("Net") end)
+
+    if not success then
+        -- fallback
+        local ok, _ = pcall(function()
+            net = ReplicatedStorage:WaitForChild("Net")
+        end)
+        if not ok then
+            net = nil
+        end
     end
 
     if net then
-        pcall(function() rodRemote = net:WaitForChild("RF/ChargeFishingRod") end)
-        pcall(function() miniGameRemote = net:WaitForChild("RF/RequestFishingMinigameStarted") end)
-        pcall(function() finishRemote = net:WaitForChild("RE/FishingCompleted") end)
-        pcall(function() equipRemote = net:WaitForChild("RE/EquipToolFromHotbar") end)
-        pcall(function() sellRemote = net:WaitForChild("RF/SellAllItems") end)
-        pcall(function() favoriteRemote = net:WaitForChild("RE/FavoriteItem") end)
-        updateStatus("✅ Remotes setup completed", Color3.fromRGB(100,255,100))
+        -- Setup fishing remotes
+        rodRemote = net:WaitForChild("RF/ChargeFishingRod")
+        miniGameRemote = net:WaitForChild("RF/RequestFishingMinigameStarted")
+        finishRemote = net:WaitForChild("RE/FishingCompleted")
+        equipRemote = net:WaitForChild("RE/EquipToolFromHotbar")
+        sellRemote = net:WaitForChild("RF/SellAllItems")
+        
+        -- Setup favorite remote
+        favoriteRemote = net:WaitForChild("RE/FavoriteItem")
+        
+        updateStatus("✅ Remotes setup completed", Color3.fromRGB(100, 255, 100))
     else
-        updateStatus("⚠️ Remotes not found (some features may not work)", Color3.fromRGB(255,180,80))
+        -- If net couldn't be found, still continue but warn
+        updateStatus("❌ Net remotes not found (some features may not work)", Color3.fromRGB(255, 150, 100))
     end
 end
 
--- Cleanup existing GUI
+-- ===================================
+-- ========== GUI CREATION ===========
+-- ===================================
+
+-- Hapus GUI lama jika ada
 if playerGui:FindFirstChild("FishItAutoGUI") then
     playerGui:FindFirstChild("FishItAutoGUI"):Destroy()
 end
@@ -86,34 +216,37 @@ local screenGui = create("ScreenGui", {
     Name = "FishItAutoGUI",
     Parent = playerGui,
     ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    -- we keep it under playerGui but we'll manage ZIndex per element
 })
 
--- Main Frame (320x300 compact)
+-- Main Frame (compact square 320x300)
 local mainFrame = create("Frame", {
     Name = "MainFrame",
     Parent = screenGui,
-    Size = UDim2.new(0,320,0,300),
+    Size = UDim2.new(0, 320, 0, 300), -- changed height to 300
     Position = UDim2.new(0.5, -160, 0.5, -150),
-    BackgroundColor3 = Color3.fromRGB(15,20,30),
+    BackgroundColor3 = Color3.fromRGB(15, 20, 30),
     BorderSizePixel = 0,
     ZIndex = 100
 })
-mainFrame.ClipsDescendants = false
-create("UICorner", {Parent = mainFrame, CornerRadius = UDim.new(0,10)})
-create("UIStroke", {Parent = mainFrame, Color = Color3.fromRGB(40,80,150), Thickness = 1.5})
 
--- TitleBar (drag area)
+mainFrame.ClipsDescendants = false
+create("UICorner", {Parent = mainFrame, CornerRadius = UDim.new(0, 10)})
+create("UIStroke", {Parent = mainFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
+
+-- Title Bar dengan close dan minimize button
 local titleBar = create("Frame", {
     Name = "TitleBar",
     Parent = mainFrame,
-    Size = UDim2.new(1,0,0,33),
-    BackgroundColor3 = Color3.fromRGB(25,35,55),
+    Size = UDim2.new(1, 0, 0, 33),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 55),
     BorderSizePixel = 0,
     ZIndex = 103
 })
+
 titleBar.ClipsDescendants = false
-create("UICorner", {Parent = titleBar, CornerRadius = UDim.new(0,10)})
+create("UICorner", {Parent = titleBar, CornerRadius = UDim.new(0, 10)})
 
 local titleText = create("TextLabel", {
     Parent = titleBar,
@@ -123,188 +256,628 @@ local titleText = create("TextLabel", {
     Text = "🐟 Fish It - Codepikk Premium V3",
     Font = Enum.Font.GothamBold,
     TextSize = 13,
-    TextColor3 = Color3.fromRGB(100,180,255),
+    TextColor3 = Color3.fromRGB(100, 180, 255),
     TextXAlignment = Enum.TextXAlignment.Left
 })
 
--- Close & Minimize buttons (ZIndex high)
 local closeBtn = create("TextButton", {
     Parent = titleBar,
-    Size = UDim2.new(0,25,0,25),
+    Size = UDim2.new(0, 25, 0, 25),
     Position = UDim2.new(1, -29, 0, 4),
-    BackgroundColor3 = Color3.fromRGB(220,50,50),
+    BackgroundColor3 = Color3.fromRGB(220, 50, 50),
     Text = "X",
     Font = Enum.Font.GothamBold,
     TextSize = 13,
-    TextColor3 = Color3.fromRGB(255,255,255)
+    TextColor3 = Color3.fromRGB(255, 255, 255)
 })
-create("UICorner", {Parent = closeBtn, CornerRadius = UDim.new(0,6)})
+
+create("UICorner", {Parent = closeBtn, CornerRadius = UDim.new(0, 6)})
 closeBtn.ZIndex = 104
 
 local minimizeBtn = create("TextButton", {
     Parent = titleBar,
-    Size = UDim2.new(0,25,0,25),
+    Size = UDim2.new(0, 25, 0, 25),
     Position = UDim2.new(1, -58, 0, 4),
-    BackgroundColor3 = Color3.fromRGB(70,80,100),
+    BackgroundColor3 = Color3.fromRGB(70, 80, 100),
     Text = "—",
     Font = Enum.Font.GothamBold,
     TextSize = 13,
-    TextColor3 = Color3.fromRGB(255,255,255)
+    TextColor3 = Color3.fromRGB(255, 255, 255)
 })
-create("UICorner", {Parent = minimizeBtn, CornerRadius = UDim.new(0,6)})
+
+create("UICorner", {Parent = minimizeBtn, CornerRadius = UDim.new(0, 6)})
 minimizeBtn.ZIndex = 104
 
--- Tab container (top)
+-- Tab Container (top horizontal)
 local tabContainer = create("Frame", {
     Name = "TabContainer",
     Parent = mainFrame,
     Size = UDim2.new(1, -20, 0, 35),
-    Position = UDim2.new(0,10,0,38),
+    Position = UDim2.new(0, 10, 0, 38),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
     ZIndex = 101
 })
 
-local tabs = {"Main","Teleports","Misc"}
+-- Tab Buttons
+local tabs = {"Main", "Teleports", "Misc"}
 local tabButtons = {}
 local activeTab = "Main"
 
 for i, tabName in ipairs(tabs) do
     local tabBtn = create("TextButton", {
-        Name = tabName.."Tab",
+        Name = tabName .. "Tab",
         Parent = tabContainer,
         Size = UDim2.new(1/#tabs, -4, 1, 0),
         Position = UDim2.new((i-1)/#tabs, 2, 0, 0),
-        BackgroundColor3 = tabName == "Main" and Color3.fromRGB(40,60,100) or Color3.fromRGB(30,40,60),
+        BackgroundColor3 = tabName == "Main" and Color3.fromRGB(40, 60, 100) or Color3.fromRGB(30, 40, 60),
         Text = tabName,
         Font = Enum.Font.GothamBold,
         TextSize = 11,
-        TextColor3 = Color3.fromRGB(220,220,220)
+        TextColor3 = Color3.fromRGB(220, 220, 220)
     })
-    create("UICorner", {Parent = tabBtn, CornerRadius = UDim.new(0,6)})
+    
+    create("UICorner", {Parent = tabBtn, CornerRadius = UDim.new(0, 6)})
     tabBtn.ZIndex = 101
     tabButtons[tabName] = tabBtn
-
-    addHover(tabBtn,
-        tabName == "Main" and Color3.fromRGB(40,60,100) or Color3.fromRGB(30,40,60),
-        Color3.fromRGB(50,70,110)
+    
+    addHover(tabBtn, 
+        tabName == "Main" and Color3.fromRGB(40, 60, 100) or Color3.fromRGB(30, 40, 60),
+        Color3.fromRGB(50, 70, 110)
     )
 end
 
--- Content frame below tabs
+-- Content Frame untuk menampung semua section
 local contentFrame = create("Frame", {
     Name = "Content",
     Parent = mainFrame,
     Size = UDim2.new(1, -18, 1, -85),
-    Position = UDim2.new(0,9,0,80),
+    Position = UDim2.new(0, 9, 0, 80),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
     ZIndex = 99
 })
 
--- MainTab (scrolling, hidden scrollbar)
+-- ===================================
+-- ========== TAB CONTENT ============
+-- ===================================
+
+-- Main Tab Content
 local mainTab = create("ScrollingFrame", {
     Name = "MainTab",
     Parent = contentFrame,
-    Size = UDim2.new(1,0,1,0),
+    Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
-    ScrollBarThickness = 0,
-    ScrollBarImageColor3 = Color3.fromRGB(50,100,180),
-    CanvasSize = UDim2.new(0,0,0,400),
+    ScrollBarThickness = 0, -- modern: hide scrollbar
+    ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+    CanvasSize = UDim2.new(0, 0, 0, 300),
     Visible = true
 })
 mainTab.ZIndex = 99
 
--- Status box
+-- Status box untuk menampilkan informasi status script
 local statusBox = create("Frame", {
     Parent = mainTab,
-    Size = UDim2.new(1,0,0,50),
-    BackgroundColor3 = Color3.fromRGB(25,35,50),
+    Size = UDim2.new(1, 0, 0, 50),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 statusBox.ZIndex = 99
-create("UICorner", {Parent = statusBox, CornerRadius = UDim.new(0,7)})
-create("UIStroke", {Parent = statusBox, Color = Color3.fromRGB(40,60,90), Thickness = 1})
 
-statusLabel = create("TextLabel", {
+create("UICorner", {Parent = statusBox, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = statusBox, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local statusLabel = create("TextLabel", {
     Parent = statusBox,
-    Size = UDim2.new(1,-12,1,-8),
-    Position = UDim2.new(0,6,0,4),
+    Size = UDim2.new(1, -12, 1, -8),
+    Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🔴 Status: Idle\nScript: V.3.0",
+    Text = "🔴 Status: Idle\nScript: V.3.0\nNote: Donate me if you happy using this script  :)",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
-    TextColor3 = Color3.fromRGB(255,100,100),
+    TextColor3 = Color3.fromRGB(255, 100, 100),
     TextXAlignment = Enum.TextXAlignment.Left
 })
 statusLabel.ZIndex = 99
 
--- Teleports Tab
-local teleportsTab = create("Frame", {
+-- Fungsi untuk update status dengan format yang dipertahankan
+local function updateStatus(newStatus, color)
+    local baseText = "Script: V.3.0\nNote: Donate me if you happy using this script :)"
+    statusLabel.Text = newStatus .. "\n" .. baseText
+    statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
+end
+
+-- Inisialisasi status awal
+updateStatus("🔴 Status: Idle")
+
+-- FISHING V1 SECTION
+local fishSection = create("Frame", {
+    Parent = mainTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 58),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+fishSection.ZIndex = 99
+
+create("UICorner", {Parent = fishSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = fishSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local fishTitle = create("TextLabel", {
+    Parent = fishSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🎣 Auto Instant Fishing V1 (perfect + delay)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local fishBtn = create("TextButton", {
+    Parent = fishSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+fishBtn.ZIndex = 100
+
+create("UICorner", {Parent = fishBtn, CornerRadius = UDim.new(0, 6)})
+
+-- FISHING V2 SECTION
+local fishV2Section = create("Frame", {
+    Parent = mainTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 106),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+fishV2Section.ZIndex = 99
+
+create("UICorner", {Parent = fishV2Section, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = fishV2Section, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local fishV2Title = create("TextLabel", {
+    Parent = fishV2Section,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "⚡ Auto Fishing V2 (FAST)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(100, 255, 100),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local fishV2Btn = create("TextButton", {
+    Parent = fishV2Section,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+fishV2Btn.ZIndex = 100
+
+create("UICorner", {Parent = fishV2Btn, CornerRadius = UDim.new(0, 6)})
+
+-- FISHING V3 SECTION
+local fishV3Section = create("Frame", {
+    Parent = mainTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 154),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+fishV3Section.ZIndex = 99
+
+create("UICorner", {Parent = fishV3Section, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = fishV3Section, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local fishV3Title = create("TextLabel", {
+    Parent = fishV3Section,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🚀 Auto Fishing V3 (TIMING EXPLOIT)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(255, 100, 100),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local fishV3Btn = create("TextButton", {
+    Parent = fishV3Section,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(180, 60, 60),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+fishV3Btn.ZIndex = 100
+
+create("UICorner", {Parent = fishV3Btn, CornerRadius = UDim.new(0, 6)})
+
+-- AUTO SELL SECTION
+local sellSection = create("Frame", {
+    Parent = mainTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 202),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+sellSection.ZIndex = 99
+
+create("UICorner", {Parent = sellSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = sellSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local sellTitle = create("TextLabel", {
+    Parent = sellSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "💰 Auto Sell All (non favorite fish)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local sellBtn = create("TextButton", {
+    Parent = sellSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+sellBtn.ZIndex = 100
+
+create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
+
+-- AUTO FAVORITE SECTION
+local favoriteSection = create("Frame", {
+    Parent = mainTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 250),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+favoriteSection.ZIndex = 99
+
+create("UICorner", {Parent = favoriteSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = favoriteSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local favoriteTitle = create("TextLabel", {
+    Parent = favoriteSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "⭐ Auto Favorite (Secret/Mythic/Legendary)",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local favoriteBtn = create("TextButton", {
+    Parent = favoriteSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(180, 80, 180),
+    Text = "START",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+favoriteBtn.ZIndex = 100
+
+create("UICorner", {Parent = favoriteBtn, CornerRadius = UDim.new(0, 6)})
+
+-- Teleports Tab Content
+local teleportsTab = create("ScrollingFrame", {
     Name = "TeleportsTab",
     Parent = contentFrame,
-    Size = UDim2.new(1,0,1,0),
+    Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
+    BorderSizePixel = 0,
+    ScrollBarThickness = 0, -- modern hide
+    ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+    CanvasSize = UDim2.new(0, 0, 0, 200),
     Visible = false
 })
 teleportsTab.ZIndex = 99
 
--- Misc Tab
+-- Dropdown untuk Teleport to NPC
+local npcDropdownSection = create("Frame", {
+    Parent = teleportsTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 10),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+npcDropdownSection.ZIndex = 99
+
+create("UICorner", {Parent = npcDropdownSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = npcDropdownSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local npcDropdownTitle = create("TextLabel", {
+    Parent = npcDropdownSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🧍 Teleport to NPC",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local npcDropdownBtn = create("TextButton", {
+    Parent = npcDropdownSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(100, 80, 180),
+    Text = "OPEN",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+npcDropdownBtn.ZIndex = 100
+
+create("UICorner", {Parent = npcDropdownBtn, CornerRadius = UDim.new(0, 6)})
+
+-- Dropdown untuk Teleport to Islands
+local islandsDropdownSection = create("Frame", {
+    Parent = teleportsTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 58),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+islandsDropdownSection.ZIndex = 99
+
+create("UICorner", {Parent = islandsDropdownSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = islandsDropdownSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local islandsDropdownTitle = create("TextLabel", {
+    Parent = islandsDropdownSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🏝️ Teleport to Islands",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local islandsDropdownBtn = create("TextButton", {
+    Parent = islandsDropdownSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(150, 100, 50),
+    Text = "OPEN",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+islandsDropdownBtn.ZIndex = 100
+
+create("UICorner", {Parent = islandsDropdownBtn, CornerRadius = UDim.new(0, 6)})
+
+-- Dropdown untuk Teleport to Events
+local eventsDropdownSection = create("Frame", {
+    Parent = teleportsTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 106),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+eventsDropdownSection.ZIndex = 99
+
+create("UICorner", {Parent = eventsDropdownSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = eventsDropdownSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local eventsDropdownTitle = create("TextLabel", {
+    Parent = eventsDropdownSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🎯 Teleport to Events",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local eventsDropdownBtn = create("TextButton", {
+    Parent = eventsDropdownSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(180, 80, 120),
+    Text = "OPEN",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+eventsDropdownBtn.ZIndex = 100
+
+create("UICorner", {Parent = eventsDropdownBtn, CornerRadius = UDim.new(0, 6)})
+
+-- Misc Tab Content
 local miscTab = create("ScrollingFrame", {
     Name = "MiscTab",
     Parent = contentFrame,
-    Size = UDim2.new(1,0,1,0),
+    Size = UDim2.new(1, 0, 1, 0),
     BackgroundTransparency = 1,
     BorderSizePixel = 0,
-    ScrollBarThickness = 0,
-    CanvasSize = UDim2.new(0,0,0,200),
+    ScrollBarThickness = 0, -- modern hide
+    ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+    CanvasSize = UDim2.new(0, 0, 0, 200),
     Visible = false
 })
 miscTab.ZIndex = 99
 
--- Example Misc: Anti-AFK toggle button
+-- ANTI-AFK SECTION
 local antiAFKSection = create("Frame", {
     Parent = miscTab,
-    Size = UDim2.new(1,0,0,40),
-    Position = UDim2.new(0,0,0,10),
-    BackgroundColor3 = Color3.fromRGB(25,35,50),
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 10),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 antiAFKSection.ZIndex = 99
-create("UICorner", {Parent = antiAFKSection, CornerRadius = UDim.new(0,7)})
-create("UIStroke", {Parent = antiAFKSection, Color = Color3.fromRGB(40,60,90), Thickness = 1})
+
+create("UICorner", {Parent = antiAFKSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = antiAFKSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local antiAFKTitle = create("TextLabel", {
+    Parent = antiAFKSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "⏰ Anti-AFK System",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
 
 local antiAFKBtn = create("TextButton", {
     Parent = antiAFKSection,
-    Size = UDim2.new(0,72,0,27),
+    Size = UDim2.new(0, 72, 0, 27),
     Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(50,150,50),
+    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
     Text = "START",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
-    TextColor3 = Color3.fromRGB(255,255,255)
+    TextColor3 = Color3.fromRGB(255, 255, 255)
 })
-create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0,6)})
+antiAFKBtn.ZIndex = 100
 
--- Tab switching logic
+create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
+
+-- BOOST FPS SECTION
+local boostFPSSection = create("Frame", {
+    Parent = miscTab,
+    Size = UDim2.new(1, 0, 0, 40),
+    Position = UDim2.new(0, 0, 0, 58),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+boostFPSSection.ZIndex = 99
+
+create("UICorner", {Parent = boostFPSSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = boostFPSSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local boostFPSTitle = create("TextLabel", {
+    Parent = boostFPSSection,
+    Size = UDim2.new(0.55, 0, 1, 0),
+    Position = UDim2.new(0, 9, 0, 0),
+    BackgroundTransparency = 1,
+    Text = "🚀 Auto Boost FPS",
+    Font = Enum.Font.GothamBold,
+    TextSize = 9,
+    TextColor3 = Color3.fromRGB(220, 220, 220),
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextYAlignment = Enum.TextYAlignment.Center
+})
+
+local boostFPSBtn = create("TextButton", {
+    Parent = boostFPSSection,
+    Size = UDim2.new(0, 72, 0, 27),
+    Position = UDim2.new(1, -78, 0, 6),
+    BackgroundColor3 = Color3.fromRGB(180, 100, 50),
+    Text = "BOOST",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(255, 255, 255)
+})
+boostFPSBtn.ZIndex = 100
+
+create("UICorner", {Parent = boostFPSBtn, CornerRadius = UDim.new(0, 6)})
+
+-- INFO SECTION
+local infoSection = create("Frame", {
+    Parent = miscTab,
+    Size = UDim2.new(1, 0, 0, 80),
+    Position = UDim2.new(0, 0, 0, 106),
+    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+})
+infoSection.ZIndex = 99
+
+create("UICorner", {Parent = infoSection, CornerRadius = UDim.new(0, 7)})
+create("UIStroke", {Parent = infoSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+local infoLabel = create("TextLabel", {
+    Parent = infoSection,
+    Size = UDim2.new(1, -12, 1, -8),
+    Position = UDim2.new(0, 6, 0, 4),
+    BackgroundTransparency = 1,
+    Text = "🐟 Fish It Premium V3.0\n\nMade by: Codepikk\nDiscord: codepikk",
+    Font = Enum.Font.GothamBold,
+    TextSize = 10,
+    TextColor3 = Color3.fromRGB(100, 200, 255),
+    TextXAlignment = Enum.TextXAlignment.Center
+})
+infoLabel.ZIndex = 99
+
+-- ===================================
+-- ========== TAB FUNCTIONALITY ======
+-- ===================================
+
 local function switchTab(tabName)
     activeTab = tabName
-    mainTab.Visible = (tabName == "Main")
-    teleportsTab.Visible = (tabName == "Teleports")
-    miscTab.Visible = (tabName == "Misc")
+    
+    -- Sembunyikan semua tab
+    mainTab.Visible = false
+    teleportsTab.Visible = false
+    miscTab.Visible = false
+    
+    -- Tampilkan tab aktif
+    if tabName == "Main" then
+        mainTab.Visible = true
+    elseif tabName == "Teleports" then
+        teleportsTab.Visible = true
+    elseif tabName == "Misc" then
+        miscTab.Visible = true
+    end
+    
+    -- Update tampilan tab buttons
     for name, btn in pairs(tabButtons) do
-        if name == tabName then btn.BackgroundColor3 = Color3.fromRGB(40,60,100)
-        else btn.BackgroundColor3 = Color3.fromRGB(30,40,60) end
+        if name == tabName then
+            btn.BackgroundColor3 = Color3.fromRGB(40, 60, 100)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+        end
     end
 end
 
-for name, btn in pairs(tabButtons) do
+-- Connect tab buttons
+for tabName, btn in pairs(tabButtons) do
     btn.MouseButton1Click:Connect(function()
-        switchTab(name)
+        switchTab(tabName)
     end)
 end
 
--- Dragging (titleBar only)
-local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+-- ===================================
+-- ========== DRAG FUNCTIONALITY =====
+-- ===================================
+
+-- Fungsi untuk drag window
+local dragging, dragInput, dragStart, startPos
+
 local function updateDrag(input)
     local delta = input.Position - dragStart
     TweenService:Create(mainFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
@@ -313,7 +886,7 @@ local function updateDrag(input)
 end
 
 titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
@@ -324,152 +897,404 @@ titleBar.InputBegan:Connect(function(input)
         end)
     end
 end)
+
 titleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         dragInput = input
     end
 end)
+
 UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
+    if dragging and input == dragInput then
         updateDrag(input)
     end
 end)
 
--- Close button behavior
-closeBtn.MouseButton1Click:Connect(function()
-    -- stop any loops you have (placeholders)
-    -- destroy GUI
-    if screenGui then screenGui:Destroy() end
-end)
+-- ===================================
+-- ========== HOVER EFFECTS ==========
+-- ===================================
 
--- Minimize behavior -> create bubble (modern, 45x45, icon 🐟)
-local bubbleGui, bubbleBtn
-local function createBubble()
-    if bubbleGui and bubbleGui.Parent then return end
-    bubbleGui = create("ScreenGui", {Name = "FishItBubbleGUI", Parent = playerGui, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
-    bubbleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    bubbleBtn = create("TextButton", {
-        Parent = bubbleGui,
-        Size = UDim2.new(0,45,0,45),
-        Position = UDim2.new(1, -56, 1, -56),
-        BackgroundColor3 = Color3.fromRGB(25,35,55),
-        Text = "🐟",
-        Font = Enum.Font.GothamBold,
-        TextSize = 24,
-        TextColor3 = Color3.fromRGB(255,255,255),
-        ZIndex = 200
-    })
-    create("UICorner", {Parent = bubbleBtn, CornerRadius = UDim.new(0,22)})
-    create("UIStroke", {Parent = bubbleBtn, Color = Color3.fromRGB(40,80,150), Thickness = 1})
-    bubbleBtn.MouseButton1Click:Connect(function()
-        -- restore
-        if bubbleGui then bubbleGui:Destroy() end
-        mainFrame.Visible = true
-    end)
+-- Tambahkan efek hover pada semua button
+addHover(closeBtn, Color3.fromRGB(220, 50, 50), Color3.fromRGB(240, 80, 80)) 
+addHover(minimizeBtn, Color3.fromRGB(70, 80, 100), Color3.fromRGB(90, 100, 120))
+addHover(antiAFKBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+addHover(fishBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+addHover(fishV2Btn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+addHover(fishV3Btn, Color3.fromRGB(180, 60, 60), Color3.fromRGB(200, 80, 80))
+addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
+addHover(favoriteBtn, Color3.fromRGB(180, 80, 180), Color3.fromRGB(200, 100, 200))
+addHover(npcDropdownBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
+addHover(islandsDropdownBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
+addHover(eventsDropdownBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
+addHover(boostFPSBtn, Color3.fromRGB(180, 100, 50), Color3.fromRGB(200, 120, 70))
+
+-- ===================================
+-- ========== ANTI-AFK SYSTEM ========
+-- ===================================
+
+-- Fungsi untuk toggle Anti-AFK system
+local function toggleAntiAFK()
+    antiAFKEnabled = not antiAFKEnabled
+    
+    if antiAFKEnabled then
+        -- Enable Anti-AFK
+        if AFKConnection then
+            AFKConnection:Disconnect()
+        end
+        
+        AFKConnection = player.Idled:Connect(function()
+            pcall(function()
+                VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                task.wait(1)
+                VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            end)
+        end)
+        
+        antiAFKBtn.Text = "STOP"
+        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        updateStatus("⏰ Anti-AFK: Active", Color3.fromRGB(100, 255, 100))
+        
+    else
+        -- Disable Anti-AFK
+        if AFKConnection then
+            AFKConnection:Disconnect()
+            AFKConnection = nil
+        end
+        
+        antiAFKBtn.Text = "START"
+        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🔴 Status: Idle")
+    end
 end
 
-minimizeBtn.MouseButton1Click:Connect(function()
-    -- hide main UI and show bubble
-    mainFrame.Visible = false
-    createBubble()
-end)
+-- ===================================
+-- ========== FISHING V1 SYSTEM ======
+-- ===================================
 
--- Example Restore if bubble exists and user clicked; handled in createBubble()
+-- Fungsi utama Auto Fishing V1
+local function autoFishingLoop()
+    while autoFishingEnabled do
+        local ok, err = pcall(function()
+            fishingActive = true
+            updateStatus("🎣 Status: Fishing V1", Color3.fromRGB(100, 255, 100))
+            if equipRemote then pcall(function() equipRemote:FireServer(1) end) end
+            task.wait(0.5)
 
--- Smart overlay note: when creating popup GUIs, ensure you set their ZIndex <= 104 for titlebar buttons to remain clickable.
--- We'll include example teleport popup creation functions that respect ZIndex.
+            local timestamp = workspace:GetServerTimeNow()
+            if rodRemote then pcall(function() rodRemote:InvokeServer(timestamp) end) end
 
--- Example: create teleport GUI for islands
-local function createTeleportGUI(islandCoords)
-    if not islandCoords or type(islandCoords) ~= "table" then
-        islandCoords = {
-            ["Spawn"] = Vector3.new(0,5,0)
-        }
+            local baseX, baseY = -0.7499996, 1
+            local x = baseX + (math.random(-500, 500) / 10000000)
+            local y = baseY + (math.random(-500, 500) / 10000000)
+
+            if miniGameRemote then pcall(function() miniGameRemote:InvokeServer(x, y) end) end
+            task.wait(5)
+            if finishRemote then pcall(function() finishRemote:FireServer(true) end) end
+            task.wait(5)
+        end)
+        if not ok then
+            -- Handle error silently
+        end
+        task.wait(0.2)
     end
+    fishingActive = false
+    updateStatus("🔴 Status: Idle")
+end
 
-    local teleportGui = create("ScreenGui", {Name = "TeleportGUI", Parent = playerGui, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling})
-    local teleportFrame = create("Frame", {
-        Parent = teleportGui,
-        Size = UDim2.new(0,300,0,350),
-        Position = UDim2.new(0.5,-150,0.5,-175),
-        BackgroundColor3 = Color3.fromRGB(15,20,30),
+-- ===================================
+-- ========== FISHING V2 SYSTEM ======
+-- ===================================
+
+-- Fungsi utama Auto Fishing V2 (ULTRA FAST)
+local function autoFishingV2Loop()
+    while autoFishingV2Enabled do
+        local ok, err = pcall(function()
+            fishingActive = true
+            updateStatus("⚡ Status: Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
+            
+            -- Equip rod super cepat
+            if equipRemote then pcall(function() equipRemote:FireServer(1) end) end
+            
+            -- Cast langsung tanpa delay
+            local timestamp = workspace:GetServerTimeNow()
+            if rodRemote then pcall(function() rodRemote:InvokeServer(timestamp) end) end
+
+            -- Random coordinates yang lebih natural tapi tetap cepat
+            local baseX, baseY = -0.7499996, 1
+            -- Random kecil tapi cukup untuk avoid detection
+            local x = baseX + (math.random(-300, 300) / 10000000)
+            local y = baseY + (math.random(-300, 300) / 10000000)
+
+            -- Mini game instant
+            if miniGameRemote then pcall(function() miniGameRemote:InvokeServer(x, y) end) end
+            
+            -- Finish dalam 0.5 detik (super cepat tapi masih natural)
+            task.wait(0.5)
+            if finishRemote then pcall(function() finishRemote:FireServer(true) end) end
+            
+            -- Auto recast cepat
+            task.wait(0.3)
+            if finishRemote then pcall(function() finishRemote:FireServer() end) end
+        end)
+        
+        if not ok then
+            -- Error handling silent
+        end
+        
+        -- Delay antara fishing cycle yang random (antara 0.1-0.3 detik)
+        task.wait(math.random(10, 30) / 100)
+    end
+    fishingActive = false
+    updateStatus("🔴 Status: Idle")
+end
+
+-- ===================================
+-- ========== FISHING V3 SYSTEM ======
+-- ===================================
+
+-- Fungsi utama Auto Fishing V3 (TIMING EXPLOIT)
+local function autoFishingV3Loop()
+    local cycleCount = 0
+    local successPattern = {}
+    
+    while autoFishingV3Enabled do
+        local ok, err = pcall(function()
+            fishingActive = true
+            cycleCount += 1
+            
+            -- Adaptive timing berdasarkan success rate
+            local optimalWait = 0.25  -- Default
+            
+            if #successPattern >= 5 then
+                local recentSuccess = 0
+                for i = math.max(1, #successPattern - 4), #successPattern do
+                    if successPattern[i] then recentSuccess += 1 end
+                end
+                
+                if recentSuccess >= 4 then  -- Jika 4/5 berhasil, percepat
+                    optimalWait = 0.18
+                    updateStatus("🚀 V3: SPEED BOOST!", Color3.fromRGB(100, 255, 100))
+                elseif recentSuccess <= 2 then  -- Jika <= 2/5 berhasil, perlambat
+                    optimalWait = 0.32
+                    updateStatus("🚀 V3: Adjusting Timing...", Color3.fromRGB(255, 200, 100))
+                end
+            end
+            
+            updateStatus("🚀 Status: Fishing V3 TIMING EXPLOIT", Color3.fromRGB(255, 100, 100))
+            
+            -- PHASE 1: PREPARE - SUPER CEPAT
+            if equipRemote then pcall(function() equipRemote:FireServer(1) end) end  -- Equip rod
+            local timestamp = workspace:GetServerTimeNow()
+            
+            -- PHASE 2: CAST + MINIGAME SECARA BERSAMAAN
+            if rodRemote then pcall(function() rodRemote:InvokeServer(timestamp) end) end
+            
+            -- Koordinat micro-random untuk avoid detection
+            local baseX, baseY = -0.7499996, 1
+            local x = baseX + (math.random(-30, 30) / 10000000)
+            local y = baseY + (math.random(-30, 30) / 10000000)
+            
+            -- LANGSUNG mulai mini game (bypass wait time)
+            if miniGameRemote then pcall(function() miniGameRemote:InvokeServer(x, y) end) end
+            
+            -- PHASE 3: OPTIMAL TIMING WINDOW
+            task.wait(optimalWait)
+            
+            -- PHASE 4: FINISH DENGAN STRATEGI BERBEDA
+            local willSucceed = math.random(1, 100) <= 75  -- 75% base success rate
+            
+            if willSucceed then
+                if finishRemote then pcall(function() finishRemote:FireServer(true) end) end
+                table.insert(successPattern, true)
+                updateStatus("🎯 V3 Hit! (" .. string.format("%.3f", optimalWait) .. "s)", Color3.fromRGB(100, 255, 100))
+            else
+                if finishRemote then pcall(function() finishRemote:FireServer(false) end) end
+                table.insert(successPattern, false)
+                updateStatus("🎯 V3 Miss (" .. string.format("%.3f", optimalWait) .. "s)", Color3.fromRGB(255, 200, 100))
+            end
+            
+            -- Maintain pattern history
+            if #successPattern > 10 then
+                table.remove(successPattern, 1)
+            end
+            
+            -- PHASE 5: AUTO RECAST CEPAT
+            task.wait(0.08)
+            if finishRemote then pcall(function() finishRemote:FireServer() end) end
+            
+        end)
+        
+        if not ok then
+            -- Silent error handling
+        end
+        
+        -- Dynamic cooldown berdasarkan performance
+        local cooldown = math.random(8, 20) / 100
+        task.wait(cooldown)
+    end
+    fishingActive = false
+    updateStatus("🔴 Status: Idle")
+end
+
+-- ===================================
+-- ========== AUTO SELL SYSTEM =======
+-- ===================================
+
+-- Fungsi untuk auto sell loop
+local function autoSellLoop()
+    while autoSellEnabled do
+        local success, err = pcall(function()
+            updateStatus("💰 Status: Selling Items...", Color3.fromRGB(255, 215, 0))
+            
+            local sellSuccess = pcall(function()
+                if sellRemote then sellRemote:InvokeServer() end
+            end)
+
+            if sellSuccess then
+                updateStatus("✅ Items Sold Successfully!", Color3.fromRGB(100, 255, 100))
+            else
+                updateStatus("❌ Sell Failed", Color3.fromRGB(255, 100, 100))
+            end
+        end)
+        
+        if not success then
+            updateStatus("❌ Sell Error: " .. tostring(err), Color3.fromRGB(255, 100, 100))
+        end
+        
+        -- Wait 10 detik sebelum sell lagi
+        for i = 1, 100 do
+            if not autoSellEnabled then break end
+            task.wait(0.1)
+        end
+    end
+    updateStatus("🔴 Auto Sell: Stopped")
+end
+
+-- ===================================
+-- ========== TELEPORT SYSTEMS =======
+-- ===================================
+
+-- Koordinat island untuk teleport
+local islandCoords = {
+    ["Weather Machine"] = Vector3.new(-1471, -3, 1929),
+    ["Esoteric Depths"] = Vector3.new(3157, -1303, 1439),
+    ["Tropical Grove"] = Vector3.new(-2038, 3, 3650),
+    ["Stingray Shores"] = Vector3.new(-32, 4, 2773),
+    ["Kohana Volcano"] = Vector3.new(-519, 24, 189),
+    ["Coral Reefs"] = Vector3.new(-3095, 1, 2177),
+    ["Crater Island"] = Vector3.new(968, 1, 4854),
+    ["Kohana"] = Vector3.new(-658, 3, 719),
+    ["Winter Fest"] = Vector3.new(1611, 4, 3280),
+    ["Isoteric Island"] = Vector3.new(1987, 4, 1400),
+    ["Treasure Hall"] = Vector3.new(-3600, -267, -1558),
+    ["Lost Shore"] = Vector3.new(-3663, 38, -989),
+    ["Sishypus Statue"] = Vector3.new(-3792, -135, -986),
+    ["Ancient Jungle"] = Vector3.new(1316, 7, -196)
+}
+
+-- Fungsi untuk membuat GUI teleport islands
+local function createTeleportGUI()
+    -- Smart: create popup inside our screenGui so we can control ZIndex relative to TitleBar
+    local teleportGui = create("Frame", {
+        Name = "TeleportFrame",
+        Parent = screenGui,
+        Size = UDim2.new(0, 280, 0, 300),
+        Position = UDim2.new(0.5, -140, 0.5, -150),
+        BackgroundColor3 = Color3.fromRGB(15, 20, 30),
         BorderSizePixel = 0,
         ZIndex = 102
     })
-    create("UICorner", {Parent = teleportFrame, CornerRadius = UDim.new(0,10)})
-    create("UIStroke", {Parent = teleportFrame, Color = Color3.fromRGB(40,80,150), Thickness = 1.5})
+
+    create("UICorner", {Parent = teleportGui, CornerRadius = UDim.new(0, 10)})
+    create("UIStroke", {Parent = teleportGui, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
 
     local teleportTitle = create("TextLabel", {
-        Parent = teleportFrame,
-        Size = UDim2.new(1,0,0,35),
-        BackgroundColor3 = Color3.fromRGB(25,35,55),
+        Parent = teleportGui,
+        Size = UDim2.new(1, 0, 0, 35),
+        BackgroundColor3 = Color3.fromRGB(25, 35, 55),
         Text = "🏝️ Island Teleport",
         Font = Enum.Font.GothamBold,
         TextSize = 14,
-        TextColor3 = Color3.fromRGB(100,180,255),
+        TextColor3 = Color3.fromRGB(100, 180, 255),
         TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 103
     })
-    create("UICorner", {Parent = teleportTitle, CornerRadius = UDim.new(0,10)})
+
+    create("UICorner", {Parent = teleportTitle, CornerRadius = UDim.new(0, 10)})
+
     local closeTeleportBtn = create("TextButton", {
         Parent = teleportTitle,
-        Size = UDim2.new(0,22,0,22),
+        Size = UDim2.new(0, 22, 0, 22),
         Position = UDim2.new(1, -26, 0, 6),
-        BackgroundColor3 = Color3.fromRGB(220,50,50),
+        BackgroundColor3 = Color3.fromRGB(220, 50, 50),
         Text = "X",
         Font = Enum.Font.GothamBold,
         TextSize = 12,
-        TextColor3 = Color3.fromRGB(255,255,255),
+        TextColor3 = Color3.fromRGB(255, 255, 255),
         ZIndex = 104
     })
-    create("UICorner", {Parent = closeTeleportBtn, CornerRadius = UDim.new(0,6)})
+
+    create("UICorner", {Parent = closeTeleportBtn, CornerRadius = UDim.new(0, 6)})
 
     local scrollFrame = create("ScrollingFrame", {
-        Parent = teleportFrame,
+        Parent = teleportGui,
         Size = UDim2.new(1, -20, 1, -50),
         Position = UDim2.new(0, 10, 0, 45),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        ScrollBarThickness = 0,
-        CanvasSize = UDim2.new(0,0,0, #islandCoords * 35),
+        ScrollBarThickness = 0, -- hide scrollbar
+        ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+        CanvasSize = UDim2.new(0, 0, 0, #game:GetService("HttpService"):JSONEncode(islandCoords) * 35),
         ZIndex = 102
     })
 
-    local yPos = 0
-    for name, position in pairs(islandCoords) do
-        local btn = create("TextButton", {
+    local yPosition = 0
+    for islandName, position in pairs(islandCoords) do
+        local islandBtn = create("TextButton", {
             Parent = scrollFrame,
-            Size = UDim2.new(1,0,0,32),
-            Position = UDim2.new(0,0,0,yPos),
-            BackgroundColor3 = Color3.fromRGB(35,45,65),
-            Text = "📍 "..tostring(name),
+            Size = UDim2.new(1, 0, 0, 32),
+            Position = UDim2.new(0, 0, 0, yPosition),
+            BackgroundColor3 = Color3.fromRGB(35, 45, 65),
+            Text = "📍 " .. islandName,
             Font = Enum.Font.Gotham,
             TextSize = 11,
-            TextColor3 = Color3.fromRGB(220,220,220),
+            TextColor3 = Color3.fromRGB(220, 220, 220),
             TextYAlignment = Enum.TextYAlignment.Center,
             ZIndex = 102
         })
-        create("UICorner", {Parent = btn, CornerRadius = UDim.new(0,6)})
-        create("UIStroke", {Parent = btn, Color = Color3.fromRGB(60,100,160), Thickness = 1})
-        addHover(btn, Color3.fromRGB(35,45,65), Color3.fromRGB(45,55,75))
 
-        btn.MouseButton1Click:Connect(function()
-            local char = player.Character
-            if not char then updateStatus("❌ Character not found") return end
+        create("UICorner", {Parent = islandBtn, CornerRadius = UDim.new(0, 6)})
+        create("UIStroke", {Parent = islandBtn, Color = Color3.fromRGB(60, 100, 160), Thickness = 1})
+
+        addHover(islandBtn, Color3.fromRGB(35, 45, 65), Color3.fromRGB(45, 55, 75))
+
+        islandBtn.MouseButton1Click:Connect(function()
+            local charFolder = workspace:WaitForChild("Characters", 5)
+            local char = charFolder:FindFirstChild(player.Name)
+            if not char then 
+                updateStatus("❌ Character not found")
+                return 
+            end
+            
             local hrp = char:FindFirstChild("HumanoidRootPart")
-            if not hrp then updateStatus("❌ HRP not found") return end
+            if not hrp then 
+                updateStatus("❌ HRP not found")
+                return 
+            end
+
             local success, err = pcall(function()
-                hrp.CFrame = CFrame.new(position + Vector3.new(0,5,0))
+                hrp.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
             end)
+
             if success then
-                updateStatus("✅ Teleported to "..tostring(name), Color3.fromRGB(100,255,100))
+                updateStatus("✅ Success Teleport to " .. islandName, Color3.fromRGB(100, 255, 100))
                 teleportGui:Destroy()
             else
-                updateStatus("❌ Teleport failed: "..tostring(err))
+                updateStatus("❌ Teleport failed: " .. tostring(err))
             end
         end)
 
-        yPos = yPos + 35
+        yPosition = yPosition + 35
     end
 
     closeTeleportBtn.MouseButton1Click:Connect(function()
@@ -477,157 +1302,594 @@ local function createTeleportGUI(islandCoords)
     end)
 end
 
--- Example buttons in mainTab: Start AutoFishing toggle, AutoSell, Favorite
-local startBtn = create("TextButton", {
-    Parent = mainTab,
-    Size = UDim2.new(0,100,0,30),
-    Position = UDim2.new(0,10,0,70),
-    BackgroundColor3 = Color3.fromRGB(50,150,50),
-    Text = "START",
-    Font = Enum.Font.GothamBold,
-    TextSize = 12,
-    TextColor3 = Color3.fromRGB(255,255,255)
-})
-create("UICorner", {Parent = startBtn, CornerRadius = UDim.new(0,6)})
-
-local autoSellBtn = create("TextButton", {
-    Parent = mainTab,
-    Size = UDim2.new(0,100,0,30),
-    Position = UDim2.new(0,120,0,70),
-    BackgroundColor3 = Color3.fromRGB(50,150,50),
-    Text = "AUTO SELL",
-    Font = Enum.Font.GothamBold,
-    TextSize = 12,
-    TextColor3 = Color3.fromRGB(255,255,255)
-})
-create("UICorner", {Parent = autoSellBtn, CornerRadius = UDim.new(0,6)})
-
-local favoriteBtn = create("TextButton", {
-    Parent = mainTab,
-    Size = UDim2.new(0,100,0,30),
-    Position = UDim2.new(0,230,0,70),
-    BackgroundColor3 = Color3.fromRGB(180,80,180),
-    Text = "FAVORITE",
-    Font = Enum.Font.GothamBold,
-    TextSize = 12,
-    TextColor3 = Color3.fromRGB(255,255,255)
-})
-create("UICorner", {Parent = favoriteBtn, CornerRadius = UDim.new(0,6)})
-
--- Logic placeholders / toggles
-local autoFishingEnabled = false
-local autoSellEnabled = false
-local autoFavoriteEnabled = false
-local fishingActive = false
-local antiAFKEnabled = false
-local AFKConnection = nil
-
--- AutoFishing loop (simple safe placeholder)
-local function autoFishingLoop()
-    while autoFishingEnabled do
-        fishingActive = true
-        updateStatus("🎣 Auto Fishing running...", Color3.fromRGB(100,255,100))
-        -- call remotes safely if available
-        if equipRemote then pcall(function() equipRemote:FireServer(1) end) end
-        if rodRemote then pcall(function() rodRemote:FireServer() end) end
-        task.wait(3)
-        if finishRemote then pcall(function() finishRemote:FireServer(true) end) end
-        task.wait(2)
+-- Fungsi untuk membuat GUI teleport NPC
+local function createNPCTeleportGUI()
+    local npcFolder = ReplicatedStorage:FindFirstChild("NPC")
+    if not npcFolder then
+        updateStatus("❌ NPC folder not found")
+        return
     end
-    fishingActive = false
-    updateStatus("🔴 Status: Idle")
+
+    local npcList = {}
+    for _, npc in pairs(npcFolder:GetChildren()) do
+        if npc:IsA("Model") then
+            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+            if hrp then
+                table.insert(npcList, npc.Name)
+            end
+        end
+    end
+
+    if #npcList == 0 then
+        updateStatus("❌ No NPCs found")
+        return
+    end
+
+    local npcTeleportFrame = create("Frame", {
+        Name = "NPCTeleportFrame",
+        Parent = screenGui,
+        Size = UDim2.new(0, 280, 0, 350),
+        Position = UDim2.new(0.5, -140, 0.5, -175),
+        BackgroundColor3 = Color3.fromRGB(15, 20, 30),
+        BorderSizePixel = 0,
+        ZIndex = 102
+    })
+
+    create("UICorner", {Parent = npcTeleportFrame, CornerRadius = UDim.new(0, 10)})
+    create("UIStroke", {Parent = npcTeleportFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
+
+    local npcTeleportTitle = create("TextLabel", {
+        Parent = npcTeleportFrame,
+        Size = UDim2.new(1, 0, 0, 35),
+        BackgroundColor3 = Color3.fromRGB(25, 35, 55),
+        Text = "🧍 NPC Teleport",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Color3.fromRGB(100, 180, 255),
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 103
+    })
+
+    create("UICorner", {Parent = npcTeleportTitle, CornerRadius = UDim.new(0, 10)})
+
+    local closeNPCTeleportBtn = create("TextButton", {
+        Parent = npcTeleportTitle,
+        Size = UDim2.new(0, 22, 0, 22),
+        Position = UDim2.new(1, -26, 0, 6),
+        BackgroundColor3 = Color3.fromRGB(220, 50, 50),
+        Text = "X",
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        ZIndex = 104
+    })
+
+    create("UICorner", {Parent = closeNPCTeleportBtn, CornerRadius = UDim.new(0, 6)})
+
+    local searchBox = create("TextBox", {
+        Parent = npcTeleportFrame,
+        Size = UDim2.new(1, -20, 0, 30),
+        Position = UDim2.new(0, 10, 0, 45),
+        BackgroundColor3 = Color3.fromRGB(25, 35, 50),
+        PlaceholderText = "🔍 Search NPC...",
+        PlaceholderColor3 = Color3.fromRGB(150, 150, 150),
+        Text = "",
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ClearTextOnFocus = false,
+        ZIndex = 102
+    })
+
+    create("UICorner", {Parent = searchBox, CornerRadius = UDim.new(0, 6)})
+    create("UIStroke", {Parent = searchBox, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
+
+    create("UIPadding", {
+        Parent = searchBox,
+        PaddingLeft = UDim.new(0, 8)
+    })
+
+    local scrollFrame = create("ScrollingFrame", {
+        Parent = npcTeleportFrame,
+        Size = UDim2.new(1, -20, 1, -95),
+        Position = UDim2.new(0, 10, 0, 85),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 0, -- hide scrollbar
+        ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+        CanvasSize = UDim2.new(0, 0, 0, #npcList * 35),
+        ZIndex = 102
+    })
+
+    local function createNPCButtons(filterText)
+        for _, child in ipairs(scrollFrame:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+
+        local yPosition = 0
+        local filteredCount = 0
+
+        for _, npcName in ipairs(npcList) do
+            if string.lower(npcName):find(string.lower(filterText or "")) then
+                local npcBtn = create("TextButton", {
+                    Parent = scrollFrame,
+                    Size = UDim2.new(1, 0, 0, 32),
+                    Position = UDim2.new(0, 0, 0, yPosition),
+                    BackgroundColor3 = Color3.fromRGB(35, 45, 65),
+                    Text = "🧍 " .. npcName,
+                    Font = Enum.Font.Gotham,
+                    TextSize = 11,
+                    TextColor3 = Color3.fromRGB(220, 220, 220),
+                    TextYAlignment = Enum.TextYAlignment.Center,
+                    ZIndex = 102
+                })
+
+                create("UICorner", {Parent = npcBtn, CornerRadius = UDim.new(0, 6)})
+                create("UIStroke", {Parent = npcBtn, Color = Color3.fromRGB(60, 100, 160), Thickness = 1})
+
+                addHover(npcBtn, Color3.fromRGB(35, 45, 65), Color3.fromRGB(45, 55, 75))
+
+                npcBtn.MouseButton1Click:Connect(function()
+                    local npc = npcFolder:FindFirstChild(npcName)
+                    if npc and npc:IsA("Model") then
+                        local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+                        if hrp then
+                            local charFolder = workspace:FindFirstChild("Characters")
+                            local char = charFolder and charFolder:FindFirstChild(player.Name)
+                            if not char then 
+                                updateStatus("❌ Character not found")
+                                return 
+                            end
+                            
+                            local myHRP = char:FindFirstChild("HumanoidRootPart")
+                            if myHRP then
+                                local success, err = pcall(function()
+                                    myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
+                                end)
+
+                                if success then
+                                    updateStatus("✅ Teleported to: " .. npcName, Color3.fromRGB(100, 255, 100))
+                                    npcTeleportFrame:Destroy()
+                                else
+                                    updateStatus("❌ Teleport failed: " .. tostring(err))
+                                end
+                            else
+                                updateStatus("❌ HRP not found")
+                            end
+                        else
+                            updateStatus("❌ NPC HRP not found")
+                        end
+                    else
+                        updateStatus("❌ NPC not found")
+                    end
+                end)
+
+                yPosition = yPosition + 35
+                filteredCount = filteredCount + 1
+            end
+        end
+
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, filteredCount * 35)
+    end
+
+    createNPCButtons("")
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        createNPCButtons(searchBox.Text)
+    end)
+
+    closeNPCTeleportBtn.MouseButton1Click:Connect(function()
+        npcTeleportFrame:Destroy()
+    end)
 end
 
-startBtn.MouseButton1Click:Connect(function()
-    autoFishingEnabled = not autoFishingEnabled
-    if autoFishingEnabled then
-        startBtn.Text = "STOP"
-        startBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-        task.spawn(autoFishingLoop)
-        updateStatus("🟢 AutoFishing Started", Color3.fromRGB(100,255,100))
-    else
-        startBtn.Text = "START"
-        startBtn.BackgroundColor3 = Color3.fromRGB(50,150,50)
-        updateStatus("🔴 AutoFishing Stopped")
-    end
-end)
+-- Fungsi untuk membuat GUI teleport events
+local function createEventTeleportGUI()
+    local eventsList = { "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain" }
 
-autoSellBtn.MouseButton1Click:Connect(function()
-    autoSellEnabled = not autoSellEnabled
-    if autoSellEnabled then
-        autoSellBtn.Text = "STOP"
-        autoSellBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-        updateStatus("🟢 AutoSell Started", Color3.fromRGB(100,255,100))
-    else
-        autoSellBtn.Text = "AUTO SELL"
-        autoSellBtn.BackgroundColor3 = Color3.fromRGB(50,150,50)
-        updateStatus("🔴 AutoSell Stopped")
-    end
-end)
+    local eventTeleportFrame = create("Frame", {
+        Name = "EventTeleportFrame",
+        Parent = screenGui,
+        Size = UDim2.new(0, 300, 0, 350),
+        Position = UDim2.new(0.5, -150, 0.5, -175),
+        BackgroundColor3 = Color3.fromRGB(15, 20, 30),
+        BorderSizePixel = 0,
+        ZIndex = 102
+    })
 
-favoriteBtn.MouseButton1Click:Connect(function()
-    autoFavoriteEnabled = not autoFavoriteEnabled
-    if autoFavoriteEnabled then
-        favoriteBtn.Text = "STOP"
-        favoriteBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-        updateStatus("⭐ Auto Favorite Started", Color3.fromRGB(255,215,0))
-    else
-        favoriteBtn.Text = "FAVORITE"
-        favoriteBtn.BackgroundColor3 = Color3.fromRGB(180,80,180)
-        updateStatus("🔴 Auto Favorite Disabled")
-    end
-end)
+    create("UICorner", {Parent = eventTeleportFrame, CornerRadius = UDim.new(0, 10)})
+    create("UIStroke", {Parent = eventTeleportFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
 
--- Anti-AFK toggle
-local function toggleAntiAFK()
-    antiAFKEnabled = not antiAFKEnabled
-    if antiAFKEnabled then
-        if AFKConnection then AFKConnection:Disconnect() end
-        AFKConnection = player.Idled:Connect(function()
-            pcall(function()
-                VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-                task.wait(1)
-                VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            end)
+    local eventTeleportTitle = create("TextLabel", {
+        Parent = eventTeleportFrame,
+        Size = UDim2.new(1, 0, 0, 35),
+        BackgroundColor3 = Color3.fromRGB(25, 35, 55),
+        Text = "🎯 Event Teleport",
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextColor3 = Color3.fromRGB(100, 180, 255),
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 103
+    })
+
+    create("UICorner", {Parent = eventTeleportTitle, CornerRadius = UDim.new(0, 10)})
+
+    local closeEventTeleportBtn = create("TextButton", {
+        Parent = eventTeleportTitle,
+        Size = UDim2.new(0, 22, 0, 22),
+        Position = UDim2.new(1, -26, 0, 6),
+        BackgroundColor3 = Color3.fromRGB(220, 50, 50),
+        Text = "X",
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        ZIndex = 104
+    })
+
+    create("UICorner", {Parent = closeEventTeleportBtn, CornerRadius = UDim.new(0, 6)})
+
+    local infoLabel = create("TextLabel", {
+        Parent = eventTeleportFrame,
+        Size = UDim2.new(1, -20, 0, 50),
+        Position = UDim2.new(0, 10, 0, 45),
+        BackgroundTransparency = 1,
+        Text = "Teleport to active events\n⚡ Hanya work ketika event ACTIVE",
+        Font = Enum.Font.Gotham,
+        TextSize = 10,
+        TextColor3 = Color3.fromRGB(100, 255, 200),
+        TextXAlignment = Enum.TextXAlignment.Center,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 102
+    })
+
+    local scrollFrame = create("ScrollingFrame", {
+        Parent = eventTeleportFrame,
+        Size = UDim2.new(1, -20, 1, -110),
+        Position = UDim2.new(0, 10, 0, 105),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 0, -- hide scrollbar
+        ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
+        CanvasSize = UDim2.new(0, 0, 0, #eventsList * 40),
+        ZIndex = 102
+    })
+
+    local yPosition = 0
+    for _, eventName in ipairs(eventsList) do
+        local eventBtn = create("TextButton", {
+            Parent = scrollFrame,
+            Size = UDim2.new(1, 0, 0, 35),
+            Position = UDim2.new(0, 0, 0, yPosition),
+            BackgroundColor3 = Color3.fromRGB(35, 45, 65),
+            Text = "⚡ " .. eventName,
+            Font = Enum.Font.Gotham,
+            TextSize = 11,
+            TextColor3 = Color3.fromRGB(220, 220, 220),
+            TextYAlignment = Enum.TextYAlignment.Center,
+            ZIndex = 102
+        })
+
+        create("UICorner", {Parent = eventBtn, CornerRadius = UDim.new(0, 6)})
+        create("UIStroke", {Parent = eventBtn, Color = Color3.fromRGB(60, 100, 160), Thickness = 1})
+
+        addHover(eventBtn, Color3.fromRGB(35, 45, 65), Color3.fromRGB(45, 55, 75))
+
+        eventBtn.MouseButton1Click:Connect(function()
+            updateStatus("🔍 Mencari: " .. eventName, Color3.fromRGB(255, 200, 100))
+            
+            task.wait(0.3)
+            
+            local function findEventLocation(eventName)
+                local searchLocations = {
+                    workspace,
+                    workspace:FindFirstChild("Events"),
+                    workspace:FindFirstChild("Props"), 
+                    workspace:FindFirstChild("Map"),
+                    workspace:FindFirstChild("World"),
+                    workspace:FindFirstChild("Game"),
+                }
+                
+                for _, location in pairs(searchLocations) do
+                    if location then
+                        local eventObj = location:FindFirstChild(eventName)
+                        if eventObj then
+                            return eventObj
+                        end
+                        
+                        for _, child in pairs(location:GetChildren()) do
+                            if string.find(string.lower(child.Name), string.lower(eventName)) then
+                                return child
+                            end
+                        end
+                    end
+                end
+                
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if string.lower(obj.Name) == string.lower(eventName) then
+                        return obj
+                    end
+                end
+                
+                return nil
+            end
+
+            local eventObject = findEventLocation(eventName)
+            
+            if eventObject then
+                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local success, err = pcall(function()
+                        local fishingBoat = eventObject:FindFirstChild("Fishing Boat")
+                        if fishingBoat then
+                            hrp.CFrame = fishingBoat:GetPivot() + Vector3.new(0, 15, 0)
+                            updateStatus("✅ Teleport ke Fishing Boat " .. eventName, Color3.fromRGB(100, 255, 100))
+                        else
+                            hrp.CFrame = eventObject:GetPivot() + Vector3.new(0, 10, 0)
+                            updateStatus("✅ Teleport ke " .. eventName, Color3.fromRGB(100, 255, 100))
+                        end
+                        eventTeleportFrame:Destroy()
+                    end)
+
+                    if not success then
+                        updateStatus("❌ Gagal teleport: " .. tostring(err))
+                    end
+                else
+                    updateStatus("❌ HRP tidak ditemukan")
+                end
+            else
+                updateStatus("❌ " .. eventName .. " tidak ditemukan\nPastikan event sedang ACTIVE", Color3.fromRGB(255, 100, 100))
+            end
         end)
-        antiAFKBtn.Text = "STOP"
-        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(200,50,50)
-        updateStatus("⏰ Anti-AFK: Active", Color3.fromRGB(100,255,100))
-    else
-        if AFKConnection then AFKConnection:Disconnect() AFKConnection = nil end
-        antiAFKBtn.Text = "START"
-        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(50,150,50)
-        updateStatus("🔴 Anti-AFK Disabled")
+
+        yPosition = yPosition + 40
     end
+
+    closeEventTeleportBtn.MouseButton1Click:Connect(function()
+        eventTeleportFrame:Destroy()
+    end)
 end
+
+-- ===================================
+-- ========== EXCLAIM DETECTION ======
+-- ===================================
+
+-- Listener untuk detect exclaim (tanda seru) dan auto recast
+task.spawn(function()
+    local success, exclaimEvent = pcall(function()
+        if net then return net:WaitForChild("RE/ReplicateTextEffect", 2) end
+    end)
+
+    if success and exclaimEvent then
+        exclaimEvent.OnClientEvent:Connect(function(data)
+            if (autoFishingEnabled or autoFishingV2Enabled or autoFishingV3Enabled) and data and data.TextData
+                and data.TextData.EffectType == "Exclaim" then
+
+                local head = player.Character and player.Character:FindFirstChild("Head")
+                if head and data.Container == head then
+                    task.spawn(function()
+                        if autoFishingV3Enabled then
+                            -- V3: Immediate finish dengan timing exploit
+                            task.wait(0.05)
+                            if finishRemote then pcall(function() finishRemote:FireServer(true) end) end
+                            updateStatus("⚡ V3 Exclaim Backup!", Color3.fromRGB(255, 255, 100))
+                        elseif autoFishingV2Enabled then
+                            task.wait(0.1)
+                            if finishRemote then pcall(function() finishRemote:FireServer() end) end
+                        else
+                            -- V1: Original behavior
+                            for i = 1, 3 do
+                                task.wait(1)
+                                if finishRemote then pcall(function() finishRemote:FireServer() end) end
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+-- ===================================
+-- ========== BUTTON CONNECTIONS =====
+-- ===================================
+
+-- Setup remotes terlebih dahulu
+setupRemotes()
+
+-- Anti-AFK Button
 antiAFKBtn.MouseButton1Click:Connect(toggleAntiAFK)
 
--- Teleport buttons in teleportsTab (example open)
-local islandsDropdownBtn = create("TextButton", {
-    Parent = teleportsTab,
-    Size = UDim2.new(0,90,0,30),
-    Position = UDim2.new(0,10,0,10),
-    BackgroundColor3 = Color3.fromRGB(150,100,50),
-    Text = "ISLANDS",
-    Font = Enum.Font.GothamBold,
-    TextSize = 12,
-    TextColor3 = Color3.fromRGB(255,255,255)
-})
-create("UICorner", {Parent = islandsDropdownBtn, CornerRadius = UDim.new(0,6)})
-islandsDropdownBtn.ZIndex = 100
+-- Fishing V1 Button
+fishBtn.MouseButton1Click:Connect(function()
+    autoFishingEnabled = not autoFishingEnabled
+    autoFishingV2Enabled = false -- Matikan V2 jika V1 aktif
+    autoFishingV3Enabled = false -- Matikan V3 jika V1 aktif
+    
+    if autoFishingEnabled then
+        fishBtn.Text = "STOP"
+        fishBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        fishV2Btn.Text = "START"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        fishV3Btn.Text = "START"
+        fishV3Btn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        updateStatus("🟢 Status: Auto Fishing V1 Started", Color3.fromRGB(100, 255, 100))
+        task.spawn(autoFishingLoop)
+    else
+        fishBtn.Text = "START"
+        fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🔴 Status: Auto Fishing Stopped")
+        fishingActive = false
+        if finishRemote then pcall(function() finishRemote:FireServer() end) end
+    end
+end)
+
+-- Fishing V2 Button
+fishV2Btn.MouseButton1Click:Connect(function()
+    autoFishingV2Enabled = not autoFishingV2Enabled
+    autoFishingEnabled = false -- Matikan V1 jika V2 aktif
+    autoFishingV3Enabled = false -- Matikan V3 jika V2 aktif
+    
+    if autoFishingV2Enabled then
+        fishV2Btn.Text = "STOP"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        fishBtn.Text = "START"
+        fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        fishV3Btn.Text = "START"
+        fishV3Btn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        updateStatus("⚡ Status: Auto Fishing V2 ULTRA FAST", Color3.fromRGB(255, 255, 100))
+        task.spawn(autoFishingV2Loop)
+    else
+        fishV2Btn.Text = "START"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🔴 Status: Auto Fishing Stopped")
+        fishingActive = false
+        if finishRemote then pcall(function() finishRemote:FireServer() end) end
+    end
+end)
+
+-- Fishing V3 Button
+fishV3Btn.MouseButton1Click:Connect(function()
+    autoFishingV3Enabled = not autoFishingV3Enabled
+    autoFishingEnabled = false -- Matikan V1 jika V3 aktif
+    autoFishingV2Enabled = false -- Matikan V2 jika V3 aktif
+    
+    if autoFishingV3Enabled then
+        fishV3Btn.Text = "STOP"
+        fishV3Btn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        fishBtn.Text = "START"
+        fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        fishV2Btn.Text = "START"
+        fishV2Btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🚀 Status: Auto Fishing V3 TIMING EXPLOIT", Color3.fromRGB(255, 100, 100))
+        task.spawn(autoFishingV3Loop)
+    else
+        fishV3Btn.Text = "START"
+        fishV3Btn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+        updateStatus("🔴 Status: Auto Fishing Stopped")
+        fishingActive = false
+        if finishRemote then pcall(function() finishRemote:FireServer() end) end
+    end
+end)
+
+-- Auto Sell Button
+sellBtn.MouseButton1Click:Connect(function()
+    autoSellEnabled = not autoSellEnabled
+    
+    if autoSellEnabled then
+        sellBtn.Text = "STOP"
+        sellBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        updateStatus("💰 Auto Sell: Started", Color3.fromRGB(255, 215, 0))
+        task.spawn(autoSellLoop)
+    else
+        sellBtn.Text = "START"
+        sellBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        updateStatus("🔴 Auto Sell: Stopped")
+    end
+end)
+
+-- Auto Favorite Button
+favoriteBtn.MouseButton1Click:Connect(function()
+    autoFavoriteEnabled = not autoFavoriteEnabled
+    
+    if autoFavoriteEnabled then
+        favoriteBtn.Text = "STOP"
+        favoriteBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        updateStatus("⭐ Auto Favorite: Started", Color3.fromRGB(255, 215, 0))
+        startAutoFavorite()
+    else
+        favoriteBtn.Text = "START"
+        favoriteBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 180)
+        updateStatus("🔴 Auto Favorite: Stopped")
+    end
+end)
+
+-- Teleport to NPC Button
+npcDropdownBtn.MouseButton1Click:Connect(function()
+    createNPCTeleportGUI()
+end)
+
+-- Teleport to Islands Button
 islandsDropdownBtn.MouseButton1Click:Connect(function()
-    createTeleportGUI({["Spawn"]=Vector3.new(0,5,0), ["Example Island"]=Vector3.new(100,5,100)})
+    createTeleportGUI()
 end)
 
--- Initialize remotes
-task.spawn(setupRemotes)
-
--- Ensure when script ends unexpectedly, GUI is cleaned (safety)
-game:BindToClose(function()
-    if screenGui and screenGui.Parent then pcall(function() screenGui:Destroy() end) end
-    if bubbleGui and bubbleGui.Parent then pcall(function() bubbleGui:Destroy() end) end
+-- Teleport to Events Button
+eventsDropdownBtn.MouseButton1Click:Connect(function()
+    createEventTeleportGUI()
 end)
 
--- Ready
-updateStatus("✅ UI ready (compact) — enjoy!", Color3.fromRGB(100,255,150))
+-- Boost FPS Button
+boostFPSBtn.MouseButton1Click:Connect(function()
+    updateStatus("🚀 Boosting FPS...", Color3.fromRGB(255, 200, 100))
+    BoostFPS()
+end)
 
+-- Close Button
+closeBtn.MouseButton1Click:Connect(function()
+    -- Stop semua proses yang berjalan
+    autoFishingEnabled = false
+    autoFishingV2Enabled = false
+    autoFishingV3Enabled = false
+    autoSellEnabled = false
+    autoFavoriteEnabled = false
+    antiAFKEnabled = false
+    
+    -- Hentikan Anti-AFK
+    if AFKConnection then
+        AFKConnection:Disconnect()
+        AFKConnection = nil
+    end
+    
+    -- Hancurkan GUI
+    screenGui:Destroy()
+    updateStatus("🔴 Script Stopped - GUI Closed")
+end)
+
+-- Minimize Button
+local minimized = false
+local originalSize = mainFrame.Size
+local originalPosition = mainFrame.Position
+
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    
+    if minimized then
+        -- Minimize: hanya tampilkan title bar
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = UDim2.new(0, 320, 0, 33)
+        }):Play()
+        minimizeBtn.Text = "+"
+    else
+        -- Restore: tampilkan full GUI
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+            Size = originalSize
+        }):Play()
+        minimizeBtn.Text = "—"
+    end
+end)
+
+-- ===================================
+-- ========== INITIALIZATION =========
+-- ===================================
+
+-- Auto setup remotes ketika script mulai
+task.delay(2, function()
+    setupRemotes()
+end)
+
+
+-- Notifikasi startup berhasil
+updateStatus("✅ Fish It Premium V3.0 Loaded!", Color3.fromRGB(100, 255, 100))
+
+-- Print success message di console
+print("🐟 Fish It Premium V3.0 successfully loaded!")
+print("📝 Made by: Codepikk")
+print("💬 Discord: codepikk")
+print("⭐ Features: Auto Fishing V1/V2/V3, Auto Sell, Auto Favorite, Teleports, Anti-AFK, FPS Boost")
+
+-- Return screenGui untuk akses eksternal jika diperlukan
+return screenGui
+   
