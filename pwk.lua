@@ -556,7 +556,7 @@ local statusLabel = create("TextLabel", {
 -- Fungsi untuk update status dengan format yang dipertahankan
 local function updateStatus(newStatus, color)
     local baseText = "Script: V.2.5\nNote: Donate me if you happy using this script :)"
-    statusLabel.Text = newStatus .. "\n" .. baseText6
+    statusLabel.Text = newStatus .. "\n" .. baseText
     statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
 end
 
