@@ -6,10 +6,10 @@ local KeySystemHttpService = game:GetService("HttpService")
 local KeySystemPlayer = KeySystemPlayers.LocalPlayer
 local KeySystemPlayerGui = KeySystemPlayer:WaitForChild("PlayerGui")
 
--- Keys permanent (tanpa expiry) - TETAP SAMA
+-- Keys permanent (tanpa expiry)
 local KeySystemValidKeys = {
     "CPK-ALPHA-7392-BETA",
-    "CPK-GAMMA-4856-DELTA",
+    "CPK-GAMMA-4856-DELTA", 
     "CPK-OMEGA-1274-SIGMA",
     "CPK-ZETA-6621-THETA",
     "CPK-NOVA-8843-STAR",
@@ -27,37 +27,7 @@ local KeySystemValidKeys = {
     "CPK-POSEID-2235-SEA",
     "CPK-HADES-8841-UNDER",
     "CPK-ARES-5567-WAR",
-    "CPK-ATHENA-7723-WISDOM",
-    "CPK-APOLLO-1198-MUSIC",
-    "CPK-ARTEMIS-6634-MOON",
-    "CPK-HERMES-2255-SPEED",
-    "CPK-DIONYS-9947-WINE",
-    "CPK-PERSEUS-3376-HERO",
-    "CPK-HERCULES-5582-STR",
-    "CPK-THOR-7721-HAMMER",
-    "CPK-LOKI-4469-TRICK",
-    "CPK-ODIN-8832-ALLFATHER",
-    "CPK-FREYA-1145-LOVE",
-    "CPK-VALKYRIE-6673-WAR",
-    "CPK-DRAGON-9921-FIRE",
-    "CPK-PHOENIX-3388-RISE",
-    "CPK-GRIFFIN-5546-GUARD",
-    "CPK-UNICORN-7788-MAGIC",
-    "CPK-CYBER-1123-TECH",
-    "CPK-NINJA-4456-SHADOW",
-    "CPK-SAMURAI-8897-HONOR",
-    "CPK-VIKING-2234-RAID",
-    "CPK-WIZARD-6675-SPELL",
-    "CPK-ROGUE-9912-STEALTH",
-    "CPK-PALADIN-3347-LIGHT",
-    "CPK-BERSERK-5588-RAGE",
-    "CPK-ARCHER-7722-AIM",
-    "CPK-MAGE-1167-POWER",
-    "CPK-KNIGHT-4433-SHIELD",
-    "CPK-PIRATE-8867-SEA",
-    "CPK-ROYAL-2298-CROWN",
-    "CPK-LEGEND-5544-MYTH",
-    "CPK-EPIC-8876-STORY"
+    "CPK-ATHENA-7723-WISDOM"
 }
 
 -- Keys expired 7 hari (RANDOM seperti premium keys)
@@ -93,238 +63,126 @@ for _, key in ipairs(KeySystemExpiredKeys) do
     table.insert(KeySystemAllKeys, key)
 end
 
--- Advanced Hardware ID
-local function KeySystemGetAdvancedHardwareID()
+-- Simple Hardware ID (CEPAT)
+local function KeySystemGetHardwareID()
     local identifiers = {}
     
-    -- Player-based identifiers
     pcall(function()
         table.insert(identifiers, tostring(KeySystemPlayer.UserId))
-        table.insert(identifiers, tostring(KeySystemPlayer.AccountAge))
     end)
     
-    -- Game-based identifiers
     pcall(function()
-        local clientId = game:GetService("RbxAnalyticsService"):GetClientId()
-        if clientId then
-            table.insert(identifiers, clientId)
-        end
-    end)
-    
-    -- System-based identifiers
-    pcall(function()
-        if syn and syn.crypt.hash then
-            table.insert(identifiers, "SYN_" .. tostring(math.random(10000,99999)))
+        if syn then
+            table.insert(identifiers, "SYN")
         elseif getexecutorname then
-            table.insert(identifiers, "EXEC_" .. tostring(math.random(10000,99999)))
+            table.insert(identifiers, "EXEC")
         else
-            table.insert(identifiers, "VANILLA_" .. tostring(math.random(10000,99999)))
+            table.insert(identifiers, "VANILLA")
         end
     end)
     
-    -- Hardware-specific
-    pcall(function()
-        if get_hwid then
-            table.insert(identifiers, get_hwid())
-        end
-    end)
-    
-    -- Gabungkan semua identifiers
     local combined = table.concat(identifiers, "_")
-    
-    -- Hash sederhana
     local hash = ""
-    for i = 1, #combined do
+    for i = 1, math.min(#combined, 8) do
         local char = string.sub(combined, i, i)
         local byte = string.byte(char)
-        hash = hash .. string.format("%02x", byte)
+        hash = hash .. string.format("%x", byte % 16)
     end
     
-    return string.sub(hash, 1, 20)
+    return string.sub(hash, 1, 10)
 end
 
-local KeySystemCurrentHWID = KeySystemGetAdvancedHardwareID()
+local KeySystemCurrentHWID = KeySystemGetHardwareID()
 
 -- ===================================
--- ========== COMMERCIAL ENCRYPTION ==
+-- ========== SUPER SIMPLE ENCRYPTION 
 -- ===================================
 
--- Generate encryption key berdasarkan HWID
-local function generateEncryptionKey()
-    local key = ""
-    for i = 1, #KeySystemCurrentHWID do
-        local byte = string.byte(KeySystemCurrentHWID, i)
-        key = key .. string.format("%02x", byte)
-    end
-    return string.sub(key, 1, 32) -- 32 character key
-end
-
-local encryptionKey = generateEncryptionKey()
-
--- Advanced XOR Encryption dengan key rotation
-local function commercialEncrypt(data)
+local function superSimpleEncrypt(data)
     local json = KeySystemHttpService:JSONEncode(data)
     local encrypted = ""
-    local keyIndex = 1
     
+    -- XOR dengan fixed key + HWID (SIMPLE TAPI EFFECTIVE)
     for i = 1, #json do
-        local charByte = string.byte(json, i)
-        local keyByte = string.byte(encryptionKey, keyIndex)
-        
-        -- XOR encryption dengan salt
-        local encryptedByte = bit32.bxor(charByte, keyByte)
-        encryptedByte = bit32.bxor(encryptedByte, i % 256) -- Salt berdasarkan position
-        
+        local key = (i * 13 + string.byte(KeySystemCurrentHWID, (i % #KeySystemCurrentHWID) + 1)) % 256
+        local encryptedByte = string.byte(json, i) ~ key
         encrypted = encrypted .. string.char(encryptedByte)
-        
-        -- Rotate key index
-        keyIndex = (keyIndex % #encryptionKey) + 1
     end
     
     return encrypted
 end
 
-local function commercialDecrypt(encrypted)
+local function superSimpleDecrypt(encrypted)
     local decrypted = ""
-    local keyIndex = 1
     
     for i = 1, #encrypted do
-        local encryptedByte = string.byte(encrypted, i)
-        local keyByte = string.byte(encryptionKey, keyIndex)
-        
-        -- Reverse XOR dengan salt
-        local decryptedByte = bit32.bxor(encryptedByte, i % 256)
-        decryptedByte = bit32.bxor(decryptedByte, keyByte)
-        
+        local key = (i * 13 + string.byte(KeySystemCurrentHWID, (i % #KeySystemCurrentHWID) + 1)) % 256
+        local decryptedByte = string.byte(encrypted, i) ~ key
         decrypted = decrypted .. string.char(decryptedByte)
-        
-        -- Rotate key index
-        keyIndex = (keyIndex % #encryptionKey) + 1
     end
     
-    return KeySystemHttpService:JSONDecode(decrypted)
-end
-
--- Checksum validation untuk anti-tamper
-local function calculateChecksum(data)
-    local str = KeySystemHttpService:JSONEncode(data)
-    local hash = 0
-    for i = 1, #str do
-        hash = bit32.bxor(hash, string.byte(str, i) * i)
-        hash = bit32.ror(hash, 3) -- Rotate right
-    end
-    return hash
-end
-
--- Signature system
-local function generateSignature(data)
-    local timestamp = tostring(os.time())
-    local signatureData = KeySystemCurrentHWID .. timestamp .. KeySystemHttpService:JSONEncode(data)
+    local success, result = pcall(function()
+        return KeySystemHttpService:JSONDecode(decrypted)
+    end)
     
-    local signature = 0
-    for i = 1, #signatureData do
-        signature = bit32.bxor(signature, string.byte(signatureData, i) * (i % 7 + 1))
-        signature = bit32.rol(signature, 5) -- Rotate left
-    end
-    
-    return signature, timestamp
-end
-
-local function verifySignature(data, signature, timestamp)
-    local expectedSignature, _ = generateSignature(data)
-    return signature == expectedSignature
+    return success and result or {}
 end
 
 -- ===================================
--- ========== FILE MANAGEMENT ========
+-- ========== SIMPLE FILE SYSTEM =====
 -- ===================================
 
 local function KeySystemEnsureFolder()
-    if makefolder and not isfolder then
-        pcall(function()
-            makefolder("codepik")
-        end)
-        return
-    end
-    
-    if makefolder and isfolder then
-        if not isfolder("codepik") then
-            pcall(function()
-                makefolder("codepik")
-            end)
-        end
-    end
-end
-
--- Save data dengan encryption dan checksum
-local function KeySystemSaveToFile(data)
-    KeySystemEnsureFolder()
-    
-    if writefile then
-        -- Add security features
-        data._checksum = calculateChecksum(data)
-        data._signature, data._timestamp = generateSignature(data)
-        data._hwid = KeySystemCurrentHWID -- Embed HWID dalam data
-        
-        local encryptedData = commercialEncrypt(data)
+    if makefolder then
         local success, err = pcall(function()
-            writefile("codepik/codepik_keys.dat", encryptedData) -- Ganti extension ke .dat
+            if isfile then
+                if not isfolder("codepik") then
+                    makefolder("codepik")
+                end
+            else
+                makefolder("codepik")
+            end
         end)
         return success
     end
     return false
 end
 
--- Load data dengan verification
-local function KeySystemLoadFromFile()
+local function KeySystemSaveToFile(data)
+    if not writefile then return false end
+    
     KeySystemEnsureFolder()
     
-    if readfile and isfile then
-        if isfile("codepik/codepik_keys.dat") then
-            local success, encryptedData = pcall(function()
-                return readfile("codepik/codepik_keys.dat")
-            end)
-            
-            if success and encryptedData then
-                local success2, decryptedData = pcall(function()
-                    return commercialDecrypt(encryptedData)
+    local success, err = pcall(function()
+        local encryptedData = superSimpleEncrypt(data)
+        writefile("codepik/codepik.dat", encryptedData)
+    end)
+    
+    return success
+end
+
+local function KeySystemLoadFromFile()
+    if not readfile or not isfile then return {} end
+    
+    KeySystemEnsureFolder()
+    
+    if isfile("codepik/codepik.dat") then
+        local success, encryptedData = pcall(function()
+            return readfile("codepik/codepik.dat")
+        end)
+        
+        if success and encryptedData then
+            local decryptedData = superSimpleDecrypt(encryptedData)
+            if next(decryptedData) ~= nil then
+                return decryptedData
+            else
+                pcall(function()
+                    delfile("codepik/codepik.dat")
                 end)
-                
-                if success2 and decryptedData then
-                    -- Verify checksum
-                    local storedChecksum = decryptedData._checksum
-                    decryptedData._checksum = nil
-                    local calculatedChecksum = calculateChecksum(decryptedData)
-                    
-                    -- Verify signature
-                    local signatureValid = verifySignature(
-                        decryptedData, 
-                        decryptedData._signature, 
-                        decryptedData._timestamp
-                    )
-                    
-                    -- Verify HWID
-                    local hwidValid = decryptedData._hwid == KeySystemCurrentHWID
-                    
-                    if storedChecksum == calculatedChecksum and signatureValid and hwidValid then
-                        -- Clean security fields
-                        decryptedData._checksum = nil
-                        decryptedData._signature = nil
-                        decryptedData._timestamp = nil
-                        decryptedData._hwid = nil
-                        
-                        return decryptedData
-                    else
-                        warn("⚠️ Data tampering detected! Resetting key system.")
-                        -- Hapus file corrupted
-                        pcall(function()
-                            delfile("codepik/codepik_keys.dat")
-                        end)
-                    end
-                end
             end
         end
     end
+    
     return {}
 end
 
@@ -332,12 +190,12 @@ end
 local KeySystemActivations = KeySystemLoadFromFile()
 
 -- ===================================
--- ========== KEY VALIDATION =========
+-- ========== FAST VALIDATION ========
 -- ===================================
 
 local function KeySystemIsPermanentKey(key)
-    for _, validKey in ipairs(KeySystemValidKeys) do
-        if validKey == key then
+    for i = 1, #KeySystemValidKeys do
+        if KeySystemValidKeys[i] == key then
             return true
         end
     end
@@ -345,27 +203,24 @@ local function KeySystemIsPermanentKey(key)
 end
 
 local function KeySystemIsExpiredKey(key)
-    for _, expiredKey in ipairs(KeySystemExpiredKeys) do
-        if expiredKey == key then
+    for i = 1, #KeySystemExpiredKeys do
+        if KeySystemExpiredKeys[i] == key then
             return true
         end
     end
     return false
 end
 
--- Validasi key dengan sistem expiry
 local function KeySystemValidateKey(key)
     local normalizedKey = string.upper(string.gsub(key, "%s+", ""))
     
-    -- Cek format key
     if not string.match(normalizedKey, "^CPK%-[A-Z]+%-%d+%-[A-Z]+$") then
         return false, "❌ Invalid key format"
     end
     
-    -- Cek apakah key valid di semua keys
     local keyValid = false
-    for _, validKey in ipairs(KeySystemAllKeys) do
-        if validKey == normalizedKey then
+    for i = 1, #KeySystemAllKeys do
+        if KeySystemAllKeys[i] == normalizedKey then
             keyValid = true
             break
         end
@@ -375,88 +230,71 @@ local function KeySystemValidateKey(key)
         return false, "❌ Key not found"
     end
     
-    -- Cek di activation data
     local activationData = KeySystemActivations[normalizedKey]
     
     if activationData then
-        -- Key sudah diaktivasi
         if activationData.hwid == KeySystemCurrentHWID then
-            -- Cek expiry untuk expired keys
             if KeySystemIsExpiredKey(normalizedKey) then
                 local currentTime = os.time()
-                local expiryTime = activationData.activated + (7 * 24 * 60 * 60) -- 7 hari
+                local expiryTime = activationData.activated + (7 * 24 * 60 * 60)
                 
                 if currentTime > expiryTime then
-                    -- Auto hapus key expired
                     KeySystemActivations[normalizedKey] = nil
                     KeySystemSaveToFile(KeySystemActivations)
-                    return false, "❌ Key expired! Please use premium key"
+                    return false, "❌ Trial expired! Use premium key"
                 else
                     local daysLeft = math.floor((expiryTime - currentTime) / (24 * 60 * 60))
-                    local hoursLeft = math.floor((expiryTime - currentTime) / (60 * 60)) % 24
-                    return true, "✅ Trial Key (" .. daysLeft .. "d " .. hoursLeft .. "h left)"
+                    return true, "✅ Trial Key (" .. daysLeft .. " days left)"
                 end
             else
-                -- Permanent key
                 return true, "✅ Premium Key (Permanent)"
             end
         else
             return false, "❌ Key used on different device"
         end
     else
-        -- Key belum diaktivasi, cek apakah device sudah pakai key lain
         for k, data in pairs(KeySystemActivations) do
             if data.hwid == KeySystemCurrentHWID then
-                return false, "❌ Device already registered with key"
+                return false, "❌ Device already has a key"
             end
         end
         
-        -- Aktivasi key baru
-        local currentTime = os.time()
         KeySystemActivations[normalizedKey] = {
             hwid = KeySystemCurrentHWID,
-            activated = currentTime,
+            activated = os.time(),
             player = KeySystemPlayer.UserId,
             permanent = KeySystemIsPermanentKey(normalizedKey)
         }
         
-        -- Save ke file
         local saveSuccess = KeySystemSaveToFile(KeySystemActivations)
         if not saveSuccess then
             return false, "❌ Failed to save activation"
         end
         
         if KeySystemIsPermanentKey(normalizedKey) then
-            return true, "✅ Premium Key Activated! (Permanent)"
+            return true, "✅ Premium Key Activated!"
         else
-            local expiryTime = currentTime + (7 * 24 * 60 * 60)
-            local expiryDate = os.date("%Y-%m-%d", expiryTime)
-            return true, "✅ Trial Key Activated! (Expires: " .. expiryDate .. ")"
+            return true, "✅ Trial Key Activated! (7 days)"
         end
     end
 end
 
--- Cek existing activation dengan pengecekan expiry
 local function KeySystemCheckActivation()
     for key, activationData in pairs(KeySystemActivations) do
         if activationData.hwid == KeySystemCurrentHWID then
-            -- Cek jika key expired
             if KeySystemIsExpiredKey(key) then
                 local currentTime = os.time()
                 local expiryTime = activationData.activated + (7 * 24 * 60 * 60)
                 
                 if currentTime > expiryTime then
-                    -- Key expired, hapus dari activation data
                     KeySystemActivations[key] = nil
                     KeySystemSaveToFile(KeySystemActivations)
                     return false, nil, "expired"
                 else
                     local daysLeft = math.floor((expiryTime - currentTime) / (24 * 60 * 60))
-                    local hoursLeft = math.floor((expiryTime - currentTime) / (60 * 60)) % 24
-                    return true, key, daysLeft .. "d " .. hoursLeft .. "h"
+                    return true, key, daysLeft .. " days"
                 end
             else
-                -- Permanent key
                 return true, key, "permanent"
             end
         end
@@ -465,7 +303,7 @@ local function KeySystemCheckActivation()
 end
 
 -- ===================================
--- ========== GUI COMMERCIAL =========
+-- ========== FAST GUI ===============
 -- ===================================
 
 local KeySystemGui = Instance.new("ScreenGui")
@@ -473,8 +311,8 @@ KeySystemGui.Name = "KeySystemInputGUI"
 KeySystemGui.Parent = KeySystemPlayerGui
 
 local KeySystemMainFrame = Instance.new("Frame")
-KeySystemMainFrame.Size = UDim2.new(0, 450, 0, 400)
-KeySystemMainFrame.Position = UDim2.new(0.5, -225, 0.5, -200)
+KeySystemMainFrame.Size = UDim2.new(0, 400, 0, 350)
+KeySystemMainFrame.Position = UDim2.new(0.5, -200, 0.5, -175)
 KeySystemMainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
 KeySystemMainFrame.Parent = KeySystemGui
 
@@ -483,42 +321,42 @@ KeySystemCorner.CornerRadius = UDim.new(0, 12)
 KeySystemCorner.Parent = KeySystemMainFrame
 
 local KeySystemTitle = Instance.new("TextLabel")
-KeySystemTitle.Size = UDim2.new(1, 0, 0, 60)
+KeySystemTitle.Size = UDim2.new(1, 0, 0, 50)
 KeySystemTitle.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-KeySystemTitle.Text = "🔑 Codepik Premium - Key System"
+KeySystemTitle.Text = "🔑 Codepik Premium"
 KeySystemTitle.Font = Enum.Font.GothamBold
 KeySystemTitle.TextColor3 = Color3.fromRGB(100, 180, 255)
-KeySystemTitle.TextSize = 18
+KeySystemTitle.TextSize = 16
 KeySystemTitle.Parent = KeySystemMainFrame
 
 local KeySystemHWIDLabel = Instance.new("TextLabel")
-KeySystemHWIDLabel.Size = UDim2.new(0.9, 0, 0, 25)
-KeySystemHWIDLabel.Position = UDim2.new(0.05, 0, 0.15, 0)
+KeySystemHWIDLabel.Size = UDim2.new(0.9, 0, 0, 20)
+KeySystemHWIDLabel.Position = UDim2.new(0.05, 0, 0.16, 0)
 KeySystemHWIDLabel.BackgroundTransparency = 1
 KeySystemHWIDLabel.Text = "Version Info: " .. KeySystemCurrentHWID
 KeySystemHWIDLabel.Font = Enum.Font.Gotham
 KeySystemHWIDLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-KeySystemHWIDLabel.TextSize = 10
+KeySystemHWIDLabel.TextSize = 9
 KeySystemHWIDLabel.TextXAlignment = Enum.TextXAlignment.Left
 KeySystemHWIDLabel.Parent = KeySystemMainFrame
 
 local KeySystemInfoLabel = Instance.new("TextLabel")
-KeySystemInfoLabel.Size = UDim2.new(0.9, 0, 0, 50)
+KeySystemInfoLabel.Size = UDim2.new(0.9, 0, 0, 40)
 KeySystemInfoLabel.Position = UDim2.new(0.05, 0, 0.22, 0)
 KeySystemInfoLabel.BackgroundTransparency = 1
-KeySystemInfoLabel.Text = "🔒 1 Device = 1 Key Only\n⭐ Premium License (Permanent)\n⏰ Trial License (7 Days)"
+KeySystemInfoLabel.Text = "⭐ Premium (Permanent)\n⏰ Trial (7 Days)"
 KeySystemInfoLabel.Font = Enum.Font.Gotham
 KeySystemInfoLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-KeySystemInfoLabel.TextSize = 11
+KeySystemInfoLabel.TextSize = 10
 KeySystemInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 KeySystemInfoLabel.TextWrapped = true
 KeySystemInfoLabel.Parent = KeySystemMainFrame
 
 local KeySystemKeyBox = Instance.new("TextBox")
 KeySystemKeyBox.Size = UDim2.new(0.8, 0, 0, 40)
-KeySystemKeyBox.Position = UDim2.new(0.1, 0, 0.45, 0)
+KeySystemKeyBox.Position = UDim2.new(0.1, 0, 0.42, 0)
 KeySystemKeyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
-KeySystemKeyBox.PlaceholderText = "Enter key: CPK-XXXX-XXXX-XXXX"
+KeySystemKeyBox.PlaceholderText = "Enter CPK-XXXX-XXXX-XXXX"
 KeySystemKeyBox.Text = ""
 KeySystemKeyBox.Font = Enum.Font.Gotham
 KeySystemKeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -529,22 +367,25 @@ local KeySystemSubmitBtn = Instance.new("TextButton")
 KeySystemSubmitBtn.Size = UDim2.new(0.6, 0, 0, 40)
 KeySystemSubmitBtn.Position = UDim2.new(0.2, 0, 0.58, 0)
 KeySystemSubmitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-KeySystemSubmitBtn.Text = "Activate License"
+KeySystemSubmitBtn.Text = "Activate Key"
 KeySystemSubmitBtn.Font = Enum.Font.GothamBold
 KeySystemSubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 KeySystemSubmitBtn.TextSize = 14
 KeySystemSubmitBtn.Parent = KeySystemMainFrame
 
 local KeySystemStatusMsg = Instance.new("TextLabel")
-KeySystemStatusMsg.Size = UDim2.new(0.8, 0, 0, 80)
+KeySystemStatusMsg.Size = UDim2.new(0.8, 0, 0, 70)
 KeySystemStatusMsg.Position = UDim2.new(0.1, 0, 0.75, 0)
 KeySystemStatusMsg.BackgroundTransparency = 1
-KeySystemStatusMsg.Text = "Enter your license key to continue"
+KeySystemStatusMsg.Text = "Enter your license key"
 KeySystemStatusMsg.Font = Enum.Font.Gotham
 KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
 KeySystemStatusMsg.TextSize = 12
 KeySystemStatusMsg.TextWrapped = true
 KeySystemStatusMsg.Parent = KeySystemMainFrame
+
+-- Anti-spam mechanism
+local isChecking = false
 
 -- Fungsi untuk load script utama
 local function KeySystemLoadMainScript()
@@ -557,8 +398,8 @@ local function KeySystemLoadMainScript()
     
     wait(0.3)
     
-    -- [SCRIPT UTAMA AKAN DIMASUKKAN DI SINI OLEH USER]
-    print("✅ Commercial License Validated! Loading main script...")
+    -- [SCRIPT UTAMA DI SINI - USER AKAN MENGISI]
+    print("✅ License Validated! Loading main script...")
     -- User akan memasukkan script utama mereka di sini
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -2223,60 +2064,64 @@ end)
 updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
 end
 
--- Button events
+-- Button events dengan anti-spam
 KeySystemSubmitBtn.MouseButton1Click:Connect(function()
+    if isChecking then return end
+    isChecking = true
+    
     local key = KeySystemKeyBox.Text
     
     if string.len(key) < 5 then
         KeySystemStatusMsg.Text = "❌ Please enter a valid key"
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        isChecking = false
         return
     end
     
-    KeySystemStatusMsg.Text = "⏳ Validating license..."
+    KeySystemStatusMsg.Text = "⏳ Validating..."
     KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
+    
+    wait(0.1) -- Delay kecil untuk UI feedback
     
     local isValid, message = KeySystemValidateKey(key)
     
     if isValid then
         KeySystemStatusMsg.Text = message
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-        wait(2)
+        wait(1.5)
         KeySystemLoadMainScript()
     else
         KeySystemStatusMsg.Text = message
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
-        
-        -- Auto clear setelah error
-        task.wait(3)
-        KeySystemKeyBox.Text = ""
     end
+    
+    isChecking = false
 end)
 
 -- Auto check existing activation
 local KeySystemHasActivation, KeySystemActivatedKey, KeySystemStatus = KeySystemCheckActivation()
 if KeySystemHasActivation then
     if KeySystemStatus == "permanent" then
-        KeySystemStatusMsg.Text = "✅ Premium License Active!\nKey: " .. string.sub(KeySystemActivatedKey, 1, 12) .. "...\n💎 Permanent • No Expiry"
+        KeySystemStatusMsg.Text = "✅ Premium Active!\nKey: " .. string.sub(KeySystemActivatedKey, 1, 10) .. "..."
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
     else
-        KeySystemStatusMsg.Text = "✅ Trial License Active!\nKey: " .. string.sub(KeySystemActivatedKey, 1, 12) .. "...\n⏰ " .. KeySystemStatus .. " remaining"
+        KeySystemStatusMsg.Text = "✅ Trial Active!\n" .. KeySystemStatus .. " left"
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
     end
-    wait(3)
+    wait(2)
     KeySystemLoadMainScript()
 else
     if KeySystemStatus == "expired" then
-        KeySystemStatusMsg.Text = "❌ Trial license expired!\n💎 Please use a premium key\n🔑 Contact for purchase"
+        KeySystemStatusMsg.Text = "❌ Trial expired!\nUse premium key"
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
     else
-        KeySystemStatusMsg.Text = "🔑 Enter license key to continue\n💎 Premium (Permanent)\n⏰ Trial (7 Days)"
+        KeySystemStatusMsg.Text = "Enter license key\n⭐ Premium • ⏰ Trial"
         KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 end
 
-warn("🔑 Codepik Commercial System Loaded")
+warn("🔑 Codepik Key System Loaded")
 warn("📱 Device ID: " .. KeySystemCurrentHWID)
-warn("💎 License Types: Premium + Trial")
-warn("🛡️ Security: Commercial Grade Encryption")
-warn("📁 Data File: codepik/codepik_keys.dat (Encrypted)")
+warn("🔒 File: codepik/codepik.dat (Encrypted)")
+warn("💎 Premium Keys: " .. #KeySystemValidKeys)
+warn("⏰ Trial Keys: " .. #KeySystemExpiredKeys)
