@@ -1,13 +1,14 @@
 -- ===================================
 -- ========== LOCAL KEY SYSTEM ==============
 -- ===================================
-local KeySystemPlayers = game:GetService("Players")
-local KeySystemHttpService = game:GetService("HttpService")
-local KeySystemPlayer = KeySystemPlayers.LocalPlayer
-local KeySystemPlayerGui = KeySystemPlayer:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
 
 -- 50 Local Keys (masing-masing untuk 1 device)
-local KeySystemValidKeys = {
+local validKeys = {
     ["CPK-ALPHA-7392-BETA"] = {used = false, hwid = nil},
     ["CPK-GAMMA-4856-DELTA"] = {used = false, hwid = nil},
     ["CPK-OMEGA-1274-SIGMA"] = {used = false, hwid = nil},
@@ -61,7 +62,7 @@ local KeySystemValidKeys = {
 }
 
 -- Fungsi untuk mendapatkan Hardware ID sederhana
-local function KeySystemGetHardwareID()
+local function getHardwareID()
     local hwid = ""
     
     -- Gabungkan beberapa identifier system
@@ -74,7 +75,7 @@ local function KeySystemGetHardwareID()
     
     pcall(function()
         -- Dari player (userid + account age)
-        hwid = hwid .. tostring(KeySystemPlayer.UserId) .. tostring(KeySystemPlayer.AccountAge)
+        hwid = hwid .. tostring(player.UserId) .. tostring(player.AccountAge)
     end)
     
     pcall(function()
@@ -89,23 +90,23 @@ local function KeySystemGetHardwareID()
         return string.sub(tostring(string.gsub(hwid, "%W", "")), 1, 16)
     end
     
-    return "DEFAULT_HWID_" .. tostring(KeySystemPlayer.UserId)
+    return "DEFAULT_HWID_" .. tostring(player.UserId)
 end
 
-local KeySystemCurrentHWID = KeySystemGetHardwareID()
+local currentHWID = getHardwareID()
 
 -- Validate key lokal
-local function KeySystemValidateLocalKey(key)
-    if not KeySystemValidKeys[key] then
+local function validateLocalKey(key)
+    if not validKeys[key] then
         return false, "❌ Invalid key"
     end
     
-    local keyData = KeySystemValidKeys[key]
+    local keyData = validKeys[key]
     
     -- Jika key sudah digunakan
     if keyData.used then
         -- Cek apakah digunakan di device yang sama
-        if keyData.hwid == KeySystemCurrentHWID then
+        if keyData.hwid == currentHWID then
             return true, "✅ Key validated (same device)"
         else
             return false, "❌ Key already used on another device"
@@ -114,99 +115,26 @@ local function KeySystemValidateLocalKey(key)
     
     -- Jika key belum digunakan, assign ke device ini
     keyData.used = true
-    keyData.hwid = KeySystemCurrentHWID
+    keyData.hwid = currentHWID
     
     return true, "✅ Key activated successfully!"
 end
 
 -- Cek apakah user sudah pernah activate key di device ini
-local function KeySystemCheckExistingActivation()
-    for key, keyData in pairs(KeySystemValidKeys) do
-        if keyData.used and keyData.hwid == KeySystemCurrentHWID then
+local function checkExistingActivation()
+    for key, keyData in pairs(validKeys) do
+        if keyData.used and keyData.hwid == currentHWID then
             return true, key
         end
     end
     return false, nil
 end
 
--- Tampilkan input key
-local KeySystemGui = Instance.new("ScreenGui")
-KeySystemGui.Name = "KeySystemInputGUI"
-KeySystemGui.Parent = KeySystemPlayerGui
-
-local KeySystemMainFrame = Instance.new("Frame")
-KeySystemMainFrame.Size = UDim2.new(0, 400, 0, 300)
-KeySystemMainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
-KeySystemMainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-KeySystemMainFrame.Parent = KeySystemGui
-
-local KeySystemCorner = Instance.new("UICorner")
-KeySystemCorner.CornerRadius = UDim.new(0, 12)
-KeySystemCorner.Parent = KeySystemMainFrame
-
-local KeySystemTitle = Instance.new("TextLabel")
-KeySystemTitle.Size = UDim2.new(1, 0, 0, 60)
-KeySystemTitle.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
-KeySystemTitle.Text = "🔑 Codepik Premium"
-KeySystemTitle.Font = Enum.Font.GothamBold
-KeySystemTitle.TextColor3 = Color3.fromRGB(100, 180, 255)
-KeySystemTitle.TextSize = 18
-KeySystemTitle.Parent = KeySystemMainFrame
-
-local KeySystemHWIDLabel = Instance.new("TextLabel")
-KeySystemHWIDLabel.Size = UDim2.new(0.9, 0, 0, 30)
-KeySystemHWIDLabel.Position = UDim2.new(0.05, 0, 0.2, 0)
-KeySystemHWIDLabel.BackgroundTransparency = 1
-KeySystemHWIDLabel.Text = "Device ID: " .. string.sub(KeySystemCurrentHWID, 1, 8) .. "..."
-KeySystemHWIDLabel.Font = Enum.Font.Gotham
-KeySystemHWIDLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-KeySystemHWIDLabel.TextSize = 11
-KeySystemHWIDLabel.Parent = KeySystemMainFrame
-
-local KeySystemKeyBox = Instance.new("TextBox")
-KeySystemKeyBox.Size = UDim2.new(0.8, 0, 0, 40)
-KeySystemKeyBox.Position = UDim2.new(0.1, 0, 0.35, 0)
-KeySystemKeyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
-KeySystemKeyBox.PlaceholderText = "Enter your premium key..."
-KeySystemKeyBox.Text = ""
-KeySystemKeyBox.Font = Enum.Font.Gotham
-KeySystemKeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-KeySystemKeyBox.TextSize = 14
-KeySystemKeyBox.Parent = KeySystemMainFrame
-
-local KeySystemSubmitBtn = Instance.new("TextButton")
-KeySystemSubmitBtn.Size = UDim2.new(0.6, 0, 0, 40)
-KeySystemSubmitBtn.Position = UDim2.new(0.2, 0, 0.55, 0)
-KeySystemSubmitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-KeySystemSubmitBtn.Text = "Activate Key"
-KeySystemSubmitBtn.Font = Enum.Font.GothamBold
-KeySystemSubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-KeySystemSubmitBtn.TextSize = 14
-KeySystemSubmitBtn.Parent = KeySystemMainFrame
-
-local KeySystemStatusMsg = Instance.new("TextLabel")
-KeySystemStatusMsg.Size = UDim2.new(0.8, 0, 0, 40)
-KeySystemStatusMsg.Position = UDim2.new(0.1, 0, 0.75, 0)
-KeySystemStatusMsg.BackgroundTransparency = 1
-KeySystemStatusMsg.Text = "Enter your premium key to continue"
-KeySystemStatusMsg.Font = Enum.Font.Gotham
-KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
-KeySystemStatusMsg.TextSize = 12
-KeySystemStatusMsg.TextWrapped = true
-KeySystemStatusMsg.Parent = KeySystemMainFrame
-
 -- Fungsi untuk load script utama
-local function KeySystemLoadMainScript()
-    KeySystemGui:Destroy()
-    
-    -- Clear hanya GUI key system, jangan clear yang lain
-    if KeySystemPlayerGui:FindFirstChild("FishItAutoGUI") then
-        KeySystemPlayerGui:FindFirstChild("FishItAutoGUI"):Destroy()
-    end
-    
-    wait(0.3)
-    
-    -- Load script utama dari Gist
+local function loadMainScript()
+    keyGui:Destroy()
+    -- LETAKKAN MAIN SCRIPT KAMU DI SINI
+    warn("✅ Loading main script...")
     local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -229,7 +157,6 @@ local autoFishingV2Enabled = false
 local autoSellEnabled = false
 local antiAFKEnabled = false
 local fishingActive = false
-local autoFavoriteEnabled = false
 
 -- Remote Variables
 local net
@@ -263,102 +190,6 @@ local function addHover(btn, normal, hover)
     end)
     btn.MouseLeave:Connect(function()
         TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = normal}):Play()
-    end)
-end
-
--- ===================================
--- ========== AUTO BOOST FPS =========
--- ===================================
-
-local function BoostFPS()
-    updateStatus("🚀 Boosting FPS...", Color3.fromRGB(255, 200, 100))
-    
-    -- Optimize parts and materials
-    for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.Material = Enum.Material.SmoothPlastic
-            v.Reflectance = 0
-        elseif v:IsA("Decal") or v:IsA("Texture") then
-            v.Transparency = 1
-        end
-    end
-
-    -- Optimize lighting
-    local Lighting = game:GetService("Lighting")
-    for _, effect in pairs(Lighting:GetChildren()) do
-        if effect:IsA("PostEffect") then
-            effect.Enabled = false
-        end
-    end
-
-    Lighting.GlobalShadows = false
-    Lighting.FogEnd = 1e10
-
-    -- Set graphics quality to lowest
-    settings().Rendering.QualityLevel = "Level01"
-    
-    updateStatus("✅ FPS Boosted Successfully", Color3.fromRGB(100, 255, 100))
-end
-
--- ===================================
--- ========== AUTO FAVORITE ==========
--- ===================================
-
-local allowedTiers = { 
-    ["Secret"] = true, 
-    ["Mythic"] = true, 
-    ["Legendary"] = true 
-}
-
-local function startAutoFavorite()
-    task.spawn(function()
-        while autoFavoriteEnabled do
-            local success, err = pcall(function()
-                -- Cari Replion service
-                local Replion
-                local success1, err1 = pcall(function()
-                    Replion = ReplicatedStorage:WaitForChild("Packages")
-                        :WaitForChild("_Index")
-                        :WaitForChild("sleitnick_knit@1.5.4")
-                        :WaitForChild("knit")
-                        :WaitForChild("Services")
-                        :WaitForChild("ReplionService")
-                        :WaitForChild("RF")
-                        :WaitForChild("GetReplion")
-                end)
-                
-                if not success1 then
-                    Replion = ReplicatedStorage:WaitForChild("Replion")
-                end
-                
-                if not Replion then return end
-                
-                -- Get inventory data
-                local inventoryData = Replion:InvokeServer("Data")
-                if inventoryData and inventoryData.Inventory and inventoryData.Inventory.Items then
-                    local items = inventoryData.Inventory.Items
-                    
-                    for _, item in ipairs(items) do
-                        if item and item.Id and allowedTiers[item.Tier] and not item.Favorited then
-                            -- Mark as favorite
-                            local favoriteSuccess = pcall(function()
-                                Replion:InvokeServer("FavoriteItem", item.Id, true)
-                            end)
-                            
-                            if favoriteSuccess then
-                                updateStatus("⭐ Favorite: " .. item.Tier .. " fish", Color3.fromRGB(255, 215, 0))
-                            end
-                        end
-                    end
-                end
-            end)
-            
-            if not success then
-                -- Silent error handling
-            end
-            
-            task.wait(5) -- Check setiap 5 detik
-        end
     end)
 end
 
@@ -528,7 +359,7 @@ local mainTab = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 250),
+    CanvasSize = UDim2.new(0, 0, 0, 200),
     Visible = true
 })
 
@@ -547,7 +378,7 @@ local statusLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🔴 Status: Idle\nScript: V.2.5\nNote: Donate me if you happy using this script  :)",
+    Text = "🔴 Status: Idle\nScript: V.2.3\nNote: found bug on script? Pm me on discord!",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(255, 100, 100),
@@ -556,8 +387,8 @@ local statusLabel = create("TextLabel", {
 
 -- Fungsi untuk update status dengan format yang dipertahankan
 local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.5\nNote: Donate me if you happy using this script :)"
-    statusLabel.Text = newStatus .. "\n" .. baseText6
+    local baseText = "Script: V.2.3\nNote: found bug on script? Pm me on discord!"
+    statusLabel.Text = newStatus .. "\n" .. baseText
     statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
 end
 
@@ -580,7 +411,7 @@ local fishTitle = create("TextLabel", {
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
-    Text = "🎣 Auto Instant Fishing V1 (perfect + delay)",
+    Text = "🎣 Auto Instant Fishing V1 (perfect)",
     Font = Enum.Font.GothamBold,
     TextSize = 9,
     TextColor3 = Color3.fromRGB(220, 220, 220),
@@ -617,7 +448,7 @@ local fishV2Title = create("TextLabel", {
     Size = UDim2.new(0.55, 0, 1, 0),
     Position = UDim2.new(0, 9, 0, 0),
     BackgroundTransparency = 1,
-    Text = "⚡ Auto Fishing V2 (FAST)",
+    Text = "⚡ Auto Fishing V2 (ULTRA FAST)",
     Font = Enum.Font.GothamBold,
     TextSize = 9,
     TextColor3 = Color3.fromRGB(100, 255, 100),
@@ -675,43 +506,6 @@ local sellBtn = create("TextButton", {
 
 create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
 
--- AUTO FAVORITE SECTION
-local favoriteSection = create("Frame", {
-    Parent = mainTab,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 202),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = favoriteSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = favoriteSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local favoriteTitle = create("TextLabel", {
-    Parent = favoriteSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "⭐ Auto Favorite (Secret/Mythic/Legendary)",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local favoriteBtn = create("TextButton", {
-    Parent = favoriteSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(180, 80, 180),
-    Text = "START",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = favoriteBtn, CornerRadius = UDim.new(0, 6)})
-
 -- Teleports Tab Content dengan Dropdown
 local teleportsTab = create("ScrollingFrame", {
     Name = "TeleportsTab",
@@ -726,6 +520,7 @@ local teleportsTab = create("ScrollingFrame", {
 })
 
 -- Dropdown untuk Teleport to NPC
+local npcDropdownOpen = false
 local npcDropdownSection = create("Frame", {
     Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
@@ -763,6 +558,7 @@ local npcDropdownBtn = create("TextButton", {
 create("UICorner", {Parent = npcDropdownBtn, CornerRadius = UDim.new(0, 6)})
 
 -- Dropdown untuk Teleport to Islands
+local islandsDropdownOpen = false
 local islandsDropdownSection = create("Frame", {
     Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
@@ -800,6 +596,7 @@ local islandsDropdownBtn = create("TextButton", {
 create("UICorner", {Parent = islandsDropdownBtn, CornerRadius = UDim.new(0, 6)})
 
 -- Dropdown untuk Teleport to Events
+local eventsDropdownOpen = false
 local eventsDropdownSection = create("Frame", {
     Parent = teleportsTab,
     Size = UDim2.new(1, 0, 0, 40),
@@ -845,7 +642,7 @@ local miscTab = create("ScrollingFrame", {
     BorderSizePixel = 0,
     ScrollBarThickness = 5,
     ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 200),
+    CanvasSize = UDim2.new(0, 0, 0, 150),
     Visible = false
 })
 
@@ -886,48 +683,11 @@ local antiAFKBtn = create("TextButton", {
 
 create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
 
--- BOOST FPS SECTION
-local boostFPSSection = create("Frame", {
-    Parent = miscTab,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 58),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = boostFPSSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = boostFPSSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local boostFPSTitle = create("TextLabel", {
-    Parent = boostFPSSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🚀 Auto Boost FPS",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local boostFPSBtn = create("TextButton", {
-    Parent = boostFPSSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(180, 100, 50),
-    Text = "BOOST",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = boostFPSBtn, CornerRadius = UDim.new(0, 6)})
-
 -- INFO SECTION
 local infoSection = create("Frame", {
     Parent = miscTab,
     Size = UDim2.new(1, 0, 0, 80),
-    Position = UDim2.new(0, 0, 0, 106),
+    Position = UDim2.new(0, 0, 0, 58),
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -939,7 +699,7 @@ local infoLabel = create("TextLabel", {
     Size = UDim2.new(1, -12, 1, -8),
     Position = UDim2.new(0, 6, 0, 4),
     BackgroundTransparency = 1,
-    Text = "🐟 Fish It Premium V2.5\n\nMade by: Codepikk\nDiscord: codepikk",
+    Text = "🐟 Fish It Premium V2.3\n\nMade by: Codepikk\nDiscord: codepikk",
     Font = Enum.Font.GothamBold,
     TextSize = 10,
     TextColor3 = Color3.fromRGB(100, 200, 255),
@@ -1034,7 +794,6 @@ addHover(antiAFKBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(fishV2Btn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
 addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
-addHover(favoriteBtn, Color3.fromRGB(180, 80, 180), Color3.fromRGB(200, 100, 200))
 addHover(npcDropdownBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
 addHover(islandsDropdownBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
 addHover(eventsDropdownBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
@@ -1090,7 +849,7 @@ local function autoFishingLoop()
             fishingActive = true
             updateStatus("🎣 Status: Fishing V1", Color3.fromRGB(100, 255, 100))
             equipRemote:FireServer(1)
-            task.wait(0.5)
+            task.wait(0.1)
 
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
@@ -1100,9 +859,9 @@ local function autoFishingLoop()
             local y = baseY + (math.random(-500, 500) / 10000000)
 
             miniGameRemote:InvokeServer(x, y)
-            task.wait(5)
+            task.wait(2)
             finishRemote:FireServer(true)
-            task.wait(5)
+            task.wait(2)
         end)
         if not ok then
             -- Handle error silently
@@ -1179,7 +938,8 @@ task.spawn(function()
                 if head and data.Container == head then
                     task.spawn(function()
                         if autoFishingV2Enabled then
-                            task.wait(0.1)
+                            -- V2: Instant recast tanpa delay 3 detik
+                            task.wait(0.2) -- Delay sangat singkat
                             finishRemote:FireServer()
                         else
                             -- V1: Original behavior
@@ -1194,7 +954,6 @@ task.spawn(function()
         end)
     end
 end)
-
 
 -- ===================================
 -- ========== AUTO SELL SYSTEM =======
@@ -1739,7 +1498,6 @@ fishBtn.MouseButton1Click:Connect(function()
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
-        rconsoleclear()
     end
 end)
 
@@ -1761,7 +1519,6 @@ fishV2Btn.MouseButton1Click:Connect(function()
         updateStatus("🔴 Status: Auto Fishing Stopped")
         fishingActive = false
         finishRemote:FireServer()
-        rconsoleclear()
     end
 end)
 
@@ -1781,27 +1538,6 @@ sellBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Auto Favorite Button
-favoriteBtn.MouseButton1Click:Connect(function()
-    autoFavoriteEnabled = not autoFavoriteEnabled
-    
-    if autoFavoriteEnabled then
-        favoriteBtn.Text = "STOP"
-        favoriteBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        updateStatus("⭐ Auto Favorite: Enabled", Color3.fromRGB(255, 215, 0))
-        startAutoFavorite()
-    else
-        favoriteBtn.Text = "START"
-        favoriteBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 180)
-        updateStatus("🔴 Auto Favorite: Disabled")
-    end
-end)
-
--- Boost FPS Button
-boostFPSBtn.MouseButton1Click:Connect(function()
-    BoostFPS()
-end)
-
 -- Teleport Dropdown Buttons
 npcDropdownBtn.MouseButton1Click:Connect(createNPCTeleportGUI)
 islandsDropdownBtn.MouseButton1Click:Connect(createTeleportGUI)
@@ -1813,8 +1549,6 @@ closeBtn.MouseButton1Click:Connect(function()
     autoFishingV2Enabled = false
     autoSellEnabled = false
     fishingActive = false
-    autoFavoriteEnabled = false
-
     if antiAFKEnabled then
         toggleAntiAFK()
     end
@@ -1862,6 +1596,11 @@ minimizeBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Boost FPS Button
+boostFPSBtn.MouseButton1Click:Connect(function()
+    BoostFPS()
+end)
+
 -- ===================================
 -- ========== SCRIPT LOADED ==========
 -- ===================================
@@ -1870,43 +1609,122 @@ end)
 updateStatus("✅ Script Loaded Successfully", Color3.fromRGB(100, 255, 100))
 end
 
+-- Tampilkan input key
+local keyGui = Instance.new("ScreenGui")
+keyGui.Name = "KeyInputGUI"
+keyGui.ResetOnSpawn = false
+keyGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 350, 0, 250)
+mainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = keyGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 50)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+title.BorderSizePixel = 0
+title.Text = "🔑 Codepik Key System"
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(100, 180, 255)
+title.TextSize = 16
+title.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = title
+
+local statusMsg = Instance.new("TextLabel")
+statusMsg.Size = UDim2.new(0.8, 0, 0, 30)
+statusMsg.Position = UDim2.new(0.1, 0, 0.25, 0)
+statusMsg.BackgroundTransparency = 1
+statusMsg.Text = "Buy Key and paste here"
+statusMsg.Font = Enum.Font.Gotham
+statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusMsg.TextSize = 12
+statusMsg.TextWrapped = true
+statusMsg.Parent = mainFrame
+
+local keyBox = Instance.new("TextBox")
+keyBox.Size = UDim2.new(0.8, 0, 0, 40)
+keyBox.Position = UDim2.new(0.1, 0, 0.45, 0)
+keyBox.BackgroundColor3 = Color3.fromRGB(25, 35, 50)
+keyBox.BorderSizePixel = 0
+keyBox.PlaceholderText = "Enter key..."
+keyBox.Text = ""
+keyBox.Font = Enum.Font.Gotham
+keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+keyBox.TextSize = 14
+keyBox.ClearTextOnFocus = false
+keyBox.Parent = mainFrame
+
+local keyBoxCorner = Instance.new("UICorner")
+keyBoxCorner.CornerRadius = UDim.new(0, 8)
+keyBoxCorner.Parent = keyBox
+
+local submitBtn = Instance.new("TextButton")
+submitBtn.Size = UDim2.new(0.6, 0, 0, 40)
+submitBtn.Position = UDim2.new(0.2, 0, 0.65, 0)
+submitBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+submitBtn.BorderSizePixel = 0
+submitBtn.Text = "Connect"
+submitBtn.Font = Enum.Font.GothamBold
+submitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+submitBtn.TextSize = 14
+submitBtn.AutoButtonColor = true
+submitBtn.Parent = mainFrame
+
+local submitCorner = Instance.new("UICorner")
+submitCorner.CornerRadius = UDim.new(0, 8)
+submitCorner.Parent = submitBtn
+
+
 -- Button events
-KeySystemSubmitBtn.MouseButton1Click:Connect(function()
-    local key = string.upper(string.gsub(KeySystemKeyBox.Text, "%s+", ""))
+submitBtn.MouseButton1Click:Connect(function()
+    local key = string.upper(string.gsub(keyBox.Text, "%s+", ""))
     
     if string.len(key) < 5 then
-        KeySystemStatusMsg.Text = "❌ Please enter a valid key"
-        KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        statusMsg.Text = "❌ Please enter a valid key"
+        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
         return
     end
     
-    KeySystemStatusMsg.Text = "⏳ Validating key..."
-    KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
+    statusMsg.Text = "⏳ Validating key..."
+    statusMsg.TextColor3 = Color3.fromRGB(255, 200, 100)
     
-    local isValid, message = KeySystemValidateLocalKey(key)
+    task.wait(0.5) -- Small delay for visual feedback
+    
+    local isValid, message = validateLocalKey(key)
     
     if isValid then
-        KeySystemStatusMsg.Text = message
-        KeySystemStatusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-        wait(1)
-        KeySystemLoadMainScript()
+        statusMsg.Text = message
+        statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+        task.wait(1)
+        loadMainScript()
     else
-        KeySystemStatusMsg.Text = message
-        KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
+        statusMsg.Text = message
+        statusMsg.TextColor3 = Color3.fromRGB(255, 100, 100)
     end
 end)
 
 -- Auto check jika sudah ada aktivasi
-local KeySystemHasActivation, KeySystemActivatedKey = KeySystemCheckExistingActivation()
-if KeySystemHasActivation then
-    KeySystemStatusMsg.Text = "✅ Already activated with key: " .. string.sub(KeySystemActivatedKey, 1, 8) .. "..."
-    KeySystemStatusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
-    wait(2)
-    KeySystemLoadMainScript()
+local hasActivation, activatedKey = checkExistingActivation()
+if hasActivation then
+    statusMsg.Text = "✅ Already activated!"
+    statusMsg.TextColor3 = Color3.fromRGB(100, 255, 100)
+    task.wait(1.5)
+    loadMainScript()
 else
-    KeySystemStatusMsg.Text = "🔑 Enter your premium key\n50 keys available • 1 key per device"
-    KeySystemStatusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusMsg.Text = "🔑 Enter your premium key\n50 keys available • 1 key per device"
+    statusMsg.TextColor3 = Color3.fromRGB(255, 255, 255)
 end
 
-warn("🔑 Local Key System Loaded - HWID: " .. KeySystemCurrentHWID)
-warn("📝 Available Keys: " .. #KeySystemValidKeys .. " keys • 1 device per key")
+warn("🔑 Local Key System Loaded - HWID: " .. currentHWID)
+warn("📝 Available Keys: 50 keys • 1 device per key")
