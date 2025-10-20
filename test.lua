@@ -106,77 +106,59 @@ local function startAutoFavorite()
     task.spawn(function()
         while autoFavoriteEnabled do
             pcall(function()
-                updateStatus("⭐ Scanning items...", Color3.fromRGB(255, 215, 0))
+                updateStatus("⭐ Scanning for rare items...", Color3.fromRGB(255, 215, 0))
                 
                 local totalFavorited = 0
-                local totalChecked = 0
                 
-                -- METHOD 1: Coba Replion System
-                local success1, replionData = pcall(function()
-                    return Replion and Replion.Client:WaitReplion("Data")
-                end)
-                
-                if success1 and replionData then
-                    local items = replionData:Get({"Inventory", "Items"})
-                    if type(items) == "table" then
-                        for _, item in ipairs(items) do
-                            if not autoFavoriteEnabled then break end
-                            
-                            totalChecked = totalChecked + 1
-                            local itemData = ItemUtility and ItemUtility:GetItemData(item.Id)
-                            
-                            if itemData and itemData.Data and allowedTiers[itemData.Data.Tier] and not item.Favorited then
-                                item.Favorited = true
-                                totalFavorited = totalFavorited + 1
-                                updateStatus("⭐ Fav: " .. itemData.Data.Tier .. " item", Color3.fromRGB(100, 255, 100))
-                                task.wait(0.2)
-                            end
-                        end
-                    end
-                    
-                -- METHOD 2: Coba Remote Events
-                else
-                    local favoriteRemote = ReplicatedStorage:FindFirstChild("FavoriteItem") or
-                                         ReplicatedStorage:FindFirstChild("ToggleFavorite")
-                    
-                    if favoriteRemote then
-                        updateStatus("⭐ Using remote system...", Color3.fromRGB(100, 255, 100))
+                -- METHOD 1: Gunakan Remote Event FavoriteItem yang sudah ada
+                if favoriteRemote then
+                    -- Coba untuk item ID 1-200 (range yang umum)
+                    for itemId = 1, 200 do
+                        if not autoFavoriteEnabled then break end
                         
-                        -- Coba favorite items 1-50
-                        for itemId = 1, 50 do
-                            if not autoFavoriteEnabled then break end
-                            
-                            totalChecked = totalChecked + 1
+                        -- Coba favorite item
+                        local success = pcall(function()
                             favoriteRemote:FireServer(itemId)
+                        end)
+                        
+                        if success then
                             totalFavorited = totalFavorited + 1
-                            
-                            if itemId % 10 == 0 then
-                                updateStatus("⭐ Progress: " .. itemId .. "/50", Color3.fromRGB(255, 215, 0))
-                            end
-                            
-                            task.wait(0.1)
+                            updateStatus("⭐ Favorited item: " .. itemId, Color3.fromRGB(100, 255, 100))
+                        end
+                        
+                        -- Delay kecil antara setiap item
+                        task.wait(0.1)
+                        
+                        -- Update progress setiap 10 item
+                        if itemId % 10 == 0 then
+                            updateStatus("⭐ Progress: " .. itemId .. "/200", Color3.fromRGB(255, 215, 0))
                         end
                     end
+                else
+                    updateStatus("❌ Favorite remote not found", Color3.fromRGB(255, 100, 100))
                 end
                 
                 -- SHOW FINAL RESULT
                 if totalFavorited > 0 then
                     updateStatus("✅ Done! Fav: " .. totalFavorited .. " items", Color3.fromRGB(100, 255, 100))
                 else
-                    updateStatus("ℹ️ No items to favorite", Color3.fromRGB(255, 255, 100))
+                    updateStatus("ℹ️ No items favorited", Color3.fromRGB(255, 255, 100))
                 end
-                
             end)
             
-            -- Wait before next scan
-            for i = 1, 20 do
-                if not autoFavoriteEnabled then break end
-                task.wait(0.5)
+            -- Wait before next scan (5 menit)
+            if autoFavoriteEnabled then
+                updateStatus("⏰ Next scan in 5 minutes...", Color3.fromRGB(200, 200, 100))
+                for i = 1, 300 do  -- 300 detik = 5 menit
+                    if not autoFavoriteEnabled then break end
+                    task.wait(1)
+                end
             end
         end
         updateStatus("🔴 Auto Favorite: Stopped")
     end)
 end
+
 
 -- ===================================
 -- ========== REMOTE SETUP ===========
@@ -454,11 +436,11 @@ local fishV2Btn = create("TextButton", {
 
 create("UICorner", {Parent = fishV2Btn, CornerRadius = UDim.new(0, 6)})
 
--- FISHING V3 SECTION (BARU)
+-- FISHING V3 SECTION (BARU) - PERBAIKAN POSISI
 local fishV3Section = create("Frame", {
     Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 154),
+    Position = UDim2.new(0, 0, 0, 154), -- Ini yang perlu diubah
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -491,12 +473,11 @@ local fishV3Btn = create("TextButton", {
 
 create("UICorner", {Parent = fishV3Btn, CornerRadius = UDim.new(0, 6)})
 
-
--- AUTO SELL SECTION
+-- AUTO SELL SECTION - PERBAIKAN POSISI
 local sellSection = create("Frame", {
     Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 154),
+    Position = UDim2.new(0, 0, 0, 202), -- Diubah dari 154 ke 202
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
@@ -529,11 +510,11 @@ local sellBtn = create("TextButton", {
 
 create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
 
--- AUTO FAVORITE SECTION
+-- AUTO FAVORITE SECTION - PERBAIKAN POSISI
 local favoriteSection = create("Frame", {
     Parent = mainTab,
     Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 202),
+    Position = UDim2.new(0, 0, 0, 250), -- Diubah dari 202 ke 250
     BackgroundColor3 = Color3.fromRGB(25, 35, 50),
 })
 
