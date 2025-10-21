@@ -24,13 +24,8 @@ local autoFishingEnabled = false
 local antiAFKEnabled = false
 local fishingActive = false
 
-local net, rodRemote, miniGameRemote, finishRemote, equipRemote
+local net, rodRemote, miniGameRemote, finishRemote, equipRemote, playVFXRemote
 local AFKConnection = nil
-
--- Fishing Animations with error handling
-local RodIdle, RodReel, RodShake
-local animator
-local RodShakeAnim, RodIdleAnim, RodReelAnim
 
 -- ===================================
 -- ========== HELPER FUNCTIONS =======
@@ -60,25 +55,10 @@ local function setupRemotes()
         miniGameRemote = net:WaitForChild("RF/RequestFishingMinigameStarted", 5)
         finishRemote = net:WaitForChild("RE/FishingCompleted", 5)
         equipRemote = net:WaitForChild("RE/EquipToolFromHotbar", 5)
+        playVFXRemote = net:WaitForChild("RE/PlayVFX", 5)
     end)
     
     return remoteSuccess
-end
-
-local function setupAnimations()
-    pcall(function()
-        local character = player.Character or player.CharacterAdded:Wait()
-        local humanoid = character:WaitForChild("Humanoid", 5)
-        animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
-        
-        RodIdle = ReplicatedStorage:WaitForChild("Modules", 5):WaitForChild("Animations", 5):WaitForChild("FishingRodReelIdle", 5)
-        RodReel = ReplicatedStorage:WaitForChild("Modules", 5):WaitForChild("Animations", 5):WaitForChild("EasyFishReelStart", 5)
-        RodShake = ReplicatedStorage:WaitForChild("Modules", 5):WaitForChild("Animations", 5):WaitForChild("CastFromFullChargePosition1Hand", 5)
-
-        RodShakeAnim = animator:LoadAnimation(RodShake)
-        RodIdleAnim = animator:LoadAnimation(RodIdle)
-        RodReelAnim = animator:LoadAnimation(RodReel)
-    end)
 end
 
 -- ===================================
@@ -136,10 +116,14 @@ local function autoFishingLoop()
                 task.wait(0.5)
             end
 
-            -- Start fishing with animation
-            if rodRemote then
+            -- Start fishing with VFX animation (Cast)
+            if rodRemote and playVFXRemote then
                 local timestamp = workspace:GetServerTimeNow()
-                if RodShakeAnim then RodShakeAnim:Play() end
+                
+                -- Play casting animation via VFX
+                playVFXRemote:FireServer("FishingRodCast", player.Character)
+                task.wait(0.1)
+                
                 rodRemote:InvokeServer(timestamp)
             end
 
@@ -149,7 +133,10 @@ local function autoFishingLoop()
             local y = baseY + (math.random(-500, 500) / 10000000)
 
             -- Play idle animation and start minigame
-            if RodIdleAnim then RodIdleAnim:Play() end
+            if playVFXRemote then
+                playVFXRemote:FireServer("FishingRodIdle", player.Character)
+            end
+            
             if miniGameRemote then
                 miniGameRemote:InvokeServer(x, y)
             end
@@ -158,7 +145,10 @@ local function autoFishingLoop()
             task.wait(5)
             
             -- Finish fishing with reel animation
-            if RodReelAnim then RodReelAnim:Play() end
+            if playVFXRemote then
+                playVFXRemote:FireServer("FishingRodReel", player.Character)
+            end
+            
             if finishRemote then
                 finishRemote:FireServer(true)
             end
@@ -176,9 +166,6 @@ local function autoFishingLoop()
         task.wait(0.2)
     end
     fishingActive = false
-    if RodIdleAnim then RodIdleAnim:Stop() end
-    if RodShakeAnim then RodShakeAnim:Stop() end
-    if RodReelAnim then RodReelAnim:Stop() end
 end
 
 -- ===================================
@@ -261,9 +248,6 @@ local FishingV1Toggle = MainTab:CreateToggle({
             })
             fishingActive = false
             if finishRemote then finishRemote:FireServer() end
-            if RodIdleAnim then RodIdleAnim:Stop() end
-            if RodShakeAnim then RodShakeAnim:Stop() end
-            if RodReelAnim then RodReelAnim:Stop() end
         end
     end,
 })
@@ -299,7 +283,7 @@ task.spawn(function()
     if remotesReady then
         Rayfield:Notify({
             Title = "Remotes Ready!",
-            Content = "All remotes loaded successfully!",
+            Content = "All remotes including VFX loaded!",
             Duration = 3,
             Image = 4483362458
         })
@@ -312,11 +296,9 @@ task.spawn(function()
         })
     end
     
-    setupAnimations()
-    
     Rayfield:Notify({
         Title = "Script Loaded!",
-        Content = "Auto Fishing V1 loaded successfully!",
+        Content = "Auto Fishing V1 with VFX loaded!",
         Duration = 5,
         Image = 4483362458
     })
