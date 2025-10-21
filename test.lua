@@ -20,11 +20,6 @@ local antiAFKEnabled = false
 local fishingActive = false
 local autoFavoriteEnabled = false
 
-local selectedIsland = nil
-local selectedNPC = nil
-local selectedEvent = nil
-
-
 local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote
 local AFKConnection = nil
 
@@ -387,111 +382,6 @@ local islandCoords = {
     ["Ancient Jungle"] = Vector3.new(1316, 7, -196)
 }
 
-local function getMyCharacter()
-    local charFolder = workspace:FindFirstChild("Characters")
-    if charFolder then
-        local char = charFolder:FindFirstChild(player.Name)
-        if char then return char end
-    end
-    -- fallback
-    return player.Character or player.CharacterAdded:Wait()
-end
-
-local function teleportToIsland(islandName)
-    local position = islandCoords[islandName]
-    if not position then return end
-    
-    local char = getMyCharacter()
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    
-    if hrp then
-        hrp.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
-        Rayfield:Notify({
-            Title = "Teleport",
-            Content = "Teleported to " .. islandName,
-            Duration = 3,
-            Image = 4483362458
-        })
-    end
-end
-
-local function teleportToNPC(npcName)
-    local npcFolder = ReplicatedStorage:FindFirstChild("NPC")
-    if not npcFolder then return end
-    
-    local npc = npcFolder:FindFirstChild(npcName)
-    if npc and npc:IsA("Model") then
-        local hrpNPC = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-        if hrpNPC then
-            local char = getMyCharacter()
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.CFrame = hrpNPC.CFrame + Vector3.new(0, 3, 0)
-                Rayfield:Notify({
-                    Title = "Teleport",
-                    Content = "Teleported to " .. npcName,
-                    Duration = 3,
-                    Image = 4483362458
-                })
-            end
-        end
-    end
-end
-
-
-local function teleportToEvent(eventName)
-    local function findEventLocation(eventName)
-        local searchLocations = {
-            workspace,
-            workspace:FindFirstChild("Events"),
-            workspace:FindFirstChild("Props"), 
-            workspace:FindFirstChild("Map"),
-        }
-        
-        for _, location in pairs(searchLocations) do
-            if location then
-                local eventObj = location:FindFirstChild(eventName)
-                if eventObj then return eventObj end
-                
-                for _, child in pairs(location:GetChildren()) do
-                    if string.find(string.lower(child.Name), string.lower(eventName)) then
-                        return child
-                    end
-                end
-            end
-        end
-        
-        return nil
-    end
-
-    local eventObject = findEventLocation(eventName)
-    
-    if eventObject then
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local fishingBoat = eventObject:FindFirstChild("Fishing Boat")
-            if fishingBoat then
-                hrp.CFrame = fishingBoat:GetPivot() + Vector3.new(0, 15, 0)
-            else
-                hrp.CFrame = eventObject:GetPivot() + Vector3.new(0, 10, 0)
-            end
-            
-            Rayfield:Notify({
-                Title = "Teleport",
-                Content = "Teleported to " .. eventName,
-                Duration = 3,
-                Image = 4483362458
-            })
-        end
-    else
-        Rayfield:Notify({
-            Title = "Error",
-            Content = eventName .. " not found! Make sure event is ACTIVE",
-            Duration = 4
-        })
-    end
-end
-
 -- ===================================
 -- ========== RAYFIELD UI ============
 -- ===================================
@@ -672,18 +562,36 @@ local IslandDropdown = TeleportTab:CreateDropdown({
     },
     CurrentOption = "Kohana",
     Flag = "IslandDropdown",
+    Callback = function(Options)
+        for code, data in pairs(islandCoords) do
+            if data.name == Options then
+                local success, err = pcall(function()
+                    local charFolder = workspace:WaitForChild("Characters", 5)
+                    local char = charFolder:FindFirstChild(LocalPlayer.Name)
+                    if not char then error("Character not found") end
+                    local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
+                    if not hrp then error("HumanoidRootPart not found") end
+                    hrp.CFrame = CFrame.new(data.position + Vector3.new(0, 5, 0))
+                end)
 
-    Callback = function(Option)
-     selectedIsland = Option
-    end,
-
-})
-
-local TeleportIslandBtn = TeleportTab:CreateButton({
-    Name = "🚀 Teleport to Island",
-    Callback = function()
-        if selectedIsland then teleportToIsland(selectedIsland) end
+                if success then
+                    Rayfield:Notify({
+                    Title = "Teleport System",
+                    Content = "You have been teleported",
+                    Duration = 3
+                    })
+                else
+                    Rayfield:Notify({
+                    Title = "Teleport System",
+                    Content = "Error",
+                    Duration = 3
+                    })
+                end
+                break
+            end
+        end
     end
+
 })
 
 
@@ -704,19 +612,30 @@ if npcFolder then
             Options = npcList,
             CurrentOption = npcList[1],
             Flag = "NPCDropdown",
-            Callback = function(Option)
-             selectedNPC = Option
-            end,
+            Callback = function(Options)
+		         local npc = npcFolder:FindFirstChild(Options)
+		         if npc and npc:IsA("Model") then
+	    	     	local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+     		    	if hrp then
+	       	  		local charFolder = workspace:FindFirstChild("Characters", 5)
+	         			local char = charFolder and charFolder:FindFirstChild(LocalPlayer.Name)
+        			 	if not char then return end
+	       	  		local myHRP = char:FindFirstChild("HumanoidRootPart")
+	         			if myHRP then
+		         			myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
+                        Rayfield:Notify({
+                          Title = "Teleport System",
+                          Content = "You have been teleported To NPC",
+                          Duration = 3
+                        })
+			         	end
+			         end
+		         end
+	         end
         })
     end
 end
 
-local TeleportNPCBtn = TeleportTab:CreateButton({
-    Name = "🚀 Teleport to NPC",
-    Callback = function()
-        if selectedNPC then teleportToNPC(selectedNPC) end
-    end
-})
 
 local EventSection = TeleportTab:CreateSection("Event Teleports")
 
@@ -728,17 +647,29 @@ local EventDropdown = TeleportTab:CreateDropdown({
     },
     CurrentOption = "Shark Hunt",
     Flag = "EventDropdown",
-    Callback = function(Option)
-     selectedEvent = Option
+    Callback = function(option)
+        local props = workspace:FindFirstChild("Props")
+        if props and props:FindFirstChild(option) and props[option]:FindFirstChild("Fishing Boat") then
+            local fishingBoat = props[option]["Fishing Boat"]
+            local boatCFrame = fishingBoat:GetPivot()
+            local hrp = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.CFrame = boatCFrame + Vector3.new(0, 15, 0)
+                Rayfield:Notify({
+                	Title = "Event Available!",
+                	Content = "Teleported To " .. option,
+                	Duration = 3
+                })
+            end
+            else
+            Rayfield:Notify({
+                Title = "Event Not Found",
+                Content = option .. " Not Found!",
+                Duration = 3
+            })
+        end
     end,
 
-})
-
-local TeleportEventsBtn = TeleportTab:CreateButton({
-    Name = "🚀 Teleport to Event",
-    Callback = function()
-        if selectedEvent then teleportToEvent(selectedEvent) end
-    end
 })
 
 -- Misc Tab
