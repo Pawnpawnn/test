@@ -15,7 +15,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local autoFishingEnabled = false
 local autoFishingV2Enabled = false
 local autoFishingV3Enabled = false
-autoSellEnabled = false
+local autoSellEnabled = false
 local antiAFKEnabled = false
 local fishingActive = false
 local autoFavoriteEnabled = false
@@ -334,6 +334,7 @@ end
 -- ========== TELEPORT FUNCTIONS =====
 -- ===================================
 
+-- PERBAIKAN: Struktur data yang benar untuk islandCoords
 local islandCoords = {
     ["Weather Machine"] = Vector3.new(-1471, -3, 1929),
     ["Esoteric Depths"] = Vector3.new(3157, -1303, 1439),
@@ -350,6 +351,88 @@ local islandCoords = {
     ["Sishypus Statue"] = Vector3.new(-3792, -135, -986),
     ["Ancient Jungle"] = Vector3.new(1316, 7, -196)
 }
+
+-- Fungsi teleport yang lebih robust
+local function teleportToPosition(position)
+    local char = player.Character
+    if not char then
+        return false, "Character not found"
+    end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        return false, "Humanoid not found"
+    end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        return false, "HumanoidRootPart not found"
+    end
+    
+    -- Validasi position
+    if not position or typeof(position) ~= "Vector3" then
+        return false, "Invalid position"
+    end
+    
+    local success, err = pcall(function()
+        hrp.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
+    end)
+    
+    return success, err
+end
+
+-- Fungsi untuk mendapatkan NPC yang valid
+local function getValidNPCs()
+    local npcFolder = ReplicatedStorage:FindFirstChild("NPC")
+    if not npcFolder then
+        return {}
+    end
+    
+    local validNPCs = {}
+    for _, npc in pairs(npcFolder:GetChildren()) do
+        if npc:IsA("Model") then
+            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+            if hrp then
+                table.insert(validNPCs, {
+                    Name = npc.Name,
+                    Model = npc,
+                    Position = hrp.Position
+                })
+            end
+        end
+    end
+    
+    return validNPCs
+end
+
+-- Fungsi untuk mendapatkan event yang aktif
+local function getActiveEvents()
+    local props = workspace:FindFirstChild("Props")
+    if not props then
+        return {}
+    end
+    
+    local activeEvents = {}
+    local eventNames = {
+        "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", 
+        "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain"
+    }
+    
+    for _, eventName in ipairs(eventNames) do
+        local eventFolder = props:FindFirstChild(eventName)
+        if eventFolder and eventFolder:FindFirstChild("Fishing Boat") then
+            local fishingBoat = eventFolder["Fishing Boat"]
+            if fishingBoat then
+                table.insert(activeEvents, {
+                    Name = eventName,
+                    Boat = fishingBoat
+                })
+            end
+        end
+    end
+    
+    return activeEvents
+end
 
 -- ===================================
 -- ========== RAYFIELD UI ============
@@ -518,14 +601,10 @@ local AutoFavoriteToggle = MainTab:CreateToggle({
 -- Teleport Tab
 local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
 
+-- Island Teleports
 local IslandSection = TeleportTab:CreateSection("Island Teleports")
 
--- Variabel untuk menyimpan pilihan dropdown
-local selectedIsland = "Kohana"
-local selectedNPC = ""
-local selectedEvent = "Shark Hunt"
-
--- Dropdown untuk pulau
+-- PERBAIKAN: Dropdown dengan callback yang benar
 local IslandDropdown = TeleportTab:CreateDropdown({
     Name = "🏝️ Select Island",
     Options = {
@@ -535,184 +614,227 @@ local IslandDropdown = TeleportTab:CreateDropdown({
         "Isoteric Island", "Treasure Hall", "Lost Shore",
         "Sishypus Statue", "Ancient Jungle"
     },
-    CurrentOption = selectedIsland,
+    CurrentOption = "Kohana",
     Flag = "IslandDropdown",
-    Callback = function(Option)
-        selectedIsland = Option
+    Callback = function(SelectedOption)
+        -- Hanya menyimpan pilihan, tidak langsung teleport
+        -- Teleport dilakukan via tombol terpisah
     end,
 })
 
--- Tombol teleport untuk pulau
+-- PERBAIKAN: Tombol teleport terpisah dengan logika yang benar
 local IslandTeleportButton = TeleportTab:CreateButton({
     Name = "🚀 Teleport to Selected Island",
     Callback = function()
-        local coords = islandCoords[selectedIsland]
-        if coords then
-            local success, err = pcall(function()
-                local charFolder = workspace:WaitForChild("Characters", 5)
-                local char = charFolder:FindFirstChild(player.Name)
-                if not char then 
-                    Rayfield:Notify({
-                        Title = "Teleport Error",
-                        Content = "Character not found!",
-                        Duration = 3
-                    })
-                    return
-                end
-                local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
-                if not hrp then 
-                    Rayfield:Notify({
-                        Title = "Teleport Error",
-                        Content = "HumanoidRootPart not found!",
-                        Duration = 3
-                    })
-                    return
-                end
-                hrp.CFrame = CFrame.new(coords + Vector3.new(0, 5, 0))
-                
-                Rayfield:Notify({
-                    Title = "Teleport Success",
-                    Content = "Teleported to " .. selectedIsland,
-                    Duration = 3,
-                    Image = 4483362458
-                })
-            end)
-
-            if not success then
-                Rayfield:Notify({
-                    Title = "Teleport Error",
-                    Content = "Failed to teleport: " .. tostring(err),
-                    Duration = 3
-                })
-            end
-        else
+        local selectedIsland = Rayfield.Flags["IslandDropdown"]
+        local position = islandCoords[selectedIsland]
+        
+        if not position then
             Rayfield:Notify({
                 Title = "Teleport Error",
-                Content = "Invalid island selected!",
+                Content = "Invalid island selection!",
+                Duration = 3
+            })
+            return
+        end
+        
+        local success, err = teleportToPosition(position)
+        
+        if success then
+            Rayfield:Notify({
+                Title = "Teleport Success",
+                Content = "Teleported to " .. selectedIsland,
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Teleport Failed",
+                Content = "Error: " .. tostring(err),
                 Duration = 3
             })
         end
     end,
 })
 
+-- NPC Teleports
 local NPCSection = TeleportTab:CreateSection("NPC Teleports")
 
--- Dropdown untuk NPC
-local npcFolder = ReplicatedStorage:FindFirstChild("NPC")
-local npcList = {}
-if npcFolder then
-    for _, npc in pairs(npcFolder:GetChildren()) do
-        if npc:IsA("Model") then
-            table.insert(npcList, npc.Name)
-        end
-    end
-end
+-- PERBAIKAN: Validasi NPC sebelum membuat dropdown
+local validNPCs = getValidNPCs()
+local npcOptions = {}
 
-if #npcList > 0 then
-    selectedNPC = npcList[1]
+if #validNPCs > 0 then
+    for _, npcData in ipairs(validNPCs) do
+        table.insert(npcOptions, npcData.Name)
+    end
     
     local NPCDropdown = TeleportTab:CreateDropdown({
         Name = "🧍 Select NPC",
-        Options = npcList,
-        CurrentOption = selectedNPC,
+        Options = npcOptions,
+        CurrentOption = npcOptions[1] or "",
         Flag = "NPCDropdown",
-        Callback = function(Option)
-            selectedNPC = Option
+        Callback = function(SelectedOption)
+            -- Hanya menyimpan pilihan
         end,
     })
 
-    -- Tombol teleport untuk NPC
     local NPCTeleportButton = TeleportTab:CreateButton({
         Name = "🚀 Teleport to Selected NPC",
         Callback = function()
-            local npc = npcFolder:FindFirstChild(selectedNPC)
-            if npc and npc:IsA("Model") then
-                local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-                if hrp then
-                    local charFolder = workspace:FindFirstChild("Characters")
-                    local char = charFolder and charFolder:FindFirstChild(player.Name)
-                    if not char then 
-                        Rayfield:Notify({
-                            Title = "Teleport Error",
-                            Content = "Character not found!",
-                            Duration = 3
-                        })
-                        return 
-                    end
-                    local myHRP = char:FindFirstChild("HumanoidRootPart")
-                    if myHRP then
-                        myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-                        Rayfield:Notify({
-                            Title = "Teleport Success",
-                            Content = "Teleported to " .. selectedNPC,
-                            Duration = 3,
-                            Image = 4483362458
-                        })
-                    end
-                else
-                    Rayfield:Notify({
-                        Title = "Teleport Error",
-                        Content = "NPC has no valid root part!",
-                        Duration = 3
-                    })
+            local selectedNPCName = Rayfield.Flags["NPCDropdown"]
+            local targetNPC = nil
+            
+            -- Cari NPC yang sesuai
+            for _, npcData in ipairs(validNPCs) do
+                if npcData.Name == selectedNPCName then
+                    targetNPC = npcData
+                    break
                 end
-            else
+            end
+            
+            if not targetNPC then
                 Rayfield:Notify({
                     Title = "Teleport Error",
-                    Content = "NPC not found!",
+                    Content = "NPC not found: " .. selectedNPCName,
+                    Duration = 3
+                })
+                return
+            end
+            
+            local hrp = targetNPC.Model:FindFirstChild("HumanoidRootPart") or targetNPC.Model.PrimaryPart
+            if not hrp then
+                Rayfield:Notify({
+                    Title = "Teleport Error",
+                    Content = "NPC has no valid root part",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local success, err = teleportToPosition(hrp.Position)
+            
+            if success then
+                Rayfield:Notify({
+                    Title = "Teleport Success",
+                    Content = "Teleported to " .. selectedNPCName,
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Teleport Failed",
+                    Content = "Error: " .. tostring(err),
                     Duration = 3
                 })
             end
         end,
     })
 else
-    TeleportTab:CreateLabel("No NPCs found in ReplicatedStorage")
+    TeleportTab:CreateLabel("❌ No NPCs found in ReplicatedStorage")
 end
 
+-- Event Teleports
 local EventSection = TeleportTab:CreateSection("Event Teleports")
 
--- Dropdown untuk event
-local EventDropdown = TeleportTab:CreateDropdown({
-    Name = "🎯 Select Event",
-    Options = {
-        "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", 
-        "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain"
-    },
-    CurrentOption = selectedEvent,
-    Flag = "EventDropdown",
-    Callback = function(Option)
-        selectedEvent = Option
-    end,
-})
+-- PERBAIKAN: Validasi event sebelum membuat dropdown
+local activeEvents = getActiveEvents()
+local eventOptions = {}
 
--- Tombol teleport untuk event
-local EventTeleportButton = TeleportTab:CreateButton({
-    Name = "🚀 Teleport to Selected Event",
-    Callback = function()
-        local props = workspace:FindFirstChild("Props")
-        if props and props:FindFirstChild(selectedEvent) and props[selectedEvent]:FindFirstChild("Fishing Boat") then
-            local fishingBoat = props[selectedEvent]["Fishing Boat"]
-            local boatCFrame = fishingBoat:GetPivot()
-            local char = player.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.CFrame = boatCFrame + Vector3.new(0, 15, 0)
-                    Rayfield:Notify({
-                        Title = "Teleport Success",
-                        Content = "Teleported to " .. selectedEvent,
-                        Duration = 3,
-                        Image = 4483362458
-                    })
+if #activeEvents > 0 then
+    for _, eventData in ipairs(activeEvents) do
+        table.insert(eventOptions, eventData.Name)
+    end
+    
+    local EventDropdown = TeleportTab:CreateDropdown({
+        Name = "🎯 Select Event",
+        Options = eventOptions,
+        CurrentOption = eventOptions[1] or "",
+        Flag = "EventDropdown",
+        Callback = function(SelectedOption)
+            -- Hanya menyimpan pilihan
+        end,
+    })
+
+    local EventTeleportButton = TeleportTab:CreateButton({
+        Name = "🚀 Teleport to Selected Event",
+        Callback = function()
+            local selectedEventName = Rayfield.Flags["EventDropdown"]
+            local targetEvent = nil
+            
+            -- Cari event yang sesuai
+            for _, eventData in ipairs(activeEvents) do
+                if eventData.Name == selectedEventName then
+                    targetEvent = eventData
+                    break
                 end
             end
-        else
-            Rayfield:Notify({
-                Title = "Event Not Found",
-                Content = selectedEvent .. " is not currently active!",
-                Duration = 3
-            })
-        end
+            
+            if not targetEvent then
+                Rayfield:Notify({
+                    Title = "Teleport Error",
+                    Content = "Event not found: " .. selectedEventName,
+                    Duration = 3
+                })
+                return
+            end
+            
+            local boatCFrame = targetEvent.Boat:GetPivot()
+            local char = player.Character
+            if not char then
+                Rayfield:Notify({
+                    Title = "Teleport Error",
+                    Content = "Character not found",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then
+                Rayfield:Notify({
+                    Title = "Teleport Error",
+                    Content = "HumanoidRootPart not found",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local success, err = pcall(function()
+                hrp.CFrame = boatCFrame + Vector3.new(0, 15, 0)
+            end)
+            
+            if success then
+                Rayfield:Notify({
+                    Title = "Teleport Success",
+                    Content = "Teleported to " .. selectedEventName,
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            else
+                Rayfield:Notify({
+                    Title = "Teleport Failed",
+                    Content = "Error: " .. tostring(err),
+                    Duration = 3
+                })
+            end
+        end,
+    })
+else
+    TeleportTab:CreateLabel("❌ No active events found")
+end
+
+-- Refresh button untuk events
+local RefreshEventsButton = TeleportTab:CreateButton({
+    Name = "🔄 Refresh Active Events",
+    Callback = function()
+        activeEvents = getActiveEvents()
+        Rayfield:Notify({
+            Title = "Events Refreshed",
+            Content = "Found " .. #activeEvents .. " active events",
+            Duration = 3,
+            Image = 4483362458
+        })
     end,
 })
 
