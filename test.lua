@@ -23,11 +23,6 @@ local autoFavoriteEnabled = false
 local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote
 local AFKConnection = nil
 
--- Variabel untuk menyimpan pilihan teleport
-local selectedIsland = "Kohana"
-local selectedNPC = ""
-local selectedEvent = "Shark Hunt"
-
 -- ===================================
 -- ========== HELPER FUNCTIONS =======
 -- ===================================
@@ -609,9 +604,9 @@ local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
 -- Island Teleports
 local IslandSection = TeleportTab:CreateSection("Island Teleports")
 
--- PERBAIKAN: Simpan pilihan langsung ke variabel
+-- PERBAIKAN: Dropdown langsung teleport ketika dipilih
 local IslandDropdown = TeleportTab:CreateDropdown({
-    Name = "🏝️ Select Island",
+    Name = "🏝️ Teleport to Island",
     Options = {
         "Weather Machine", "Esoteric Depths", "Tropical Grove", 
         "Stingray Shores", "Kohana Volcano", "Coral Reefs",
@@ -619,37 +614,34 @@ local IslandDropdown = TeleportTab:CreateDropdown({
         "Isoteric Island", "Treasure Hall", "Lost Shore",
         "Sishypus Statue", "Ancient Jungle"
     },
-    CurrentOption = selectedIsland,
+    CurrentOption = "Kohana",
     Flag = "IslandDropdown",
     Callback = function(SelectedOption)
-        selectedIsland = SelectedOption
-        print("Selected Island:", selectedIsland) -- Debug
-    end,
-})
-
--- PERBAIKAN: Tombol teleport menggunakan variabel langsung
-local IslandTeleportButton = TeleportTab:CreateButton({
-    Name = "🚀 Teleport to Selected Island",
-    Callback = function()
-        print("Attempting teleport to:", selectedIsland) -- Debug
-        
-        local position = islandCoords[selectedIsland]
+        local position = islandCoords[SelectedOption]
         
         if not position then
             Rayfield:Notify({
                 Title = "Teleport Error",
-                Content = "Invalid island selection: " .. tostring(selectedIsland),
+                Content = "Invalid island selection!",
                 Duration = 3
             })
             return
         end
+        
+        -- Tampilkan notifikasi sedang memproses
+        Rayfield:Notify({
+            Title = "Teleporting...",
+            Content = "Teleporting to " .. SelectedOption,
+            Duration = 2,
+            Image = 4483362458
+        })
         
         local success, err = teleportToPosition(position)
         
         if success then
             Rayfield:Notify({
                 Title = "Teleport Success",
-                Content = "Teleported to " .. selectedIsland,
+                Content = "Teleported to " .. SelectedOption,
                 Duration = 3,
                 Image = 4483362458
             })
@@ -675,29 +667,17 @@ if #validNPCs > 0 then
         table.insert(npcNames, npcData.Name)
     end
     
-    selectedNPC = npcNames[1] -- Set default
-    
     local NPCDropdown = TeleportTab:CreateDropdown({
-        Name = "🧍 Select NPC",
+        Name = "🧍 Teleport to NPC",
         Options = npcNames,
-        CurrentOption = selectedNPC,
+        CurrentOption = npcNames[1],
         Flag = "NPCDropdown",
         Callback = function(SelectedOption)
-            selectedNPC = SelectedOption
-            print("Selected NPC:", selectedNPC) -- Debug
-        end,
-    })
-
-    local NPCTeleportButton = TeleportTab:CreateButton({
-        Name = "🚀 Teleport to Selected NPC",
-        Callback = function()
-            print("Attempting teleport to NPC:", selectedNPC) -- Debug
-            
             local targetNPC = nil
             
             -- Cari NPC yang sesuai
             for _, npcData in ipairs(validNPCs) do
-                if npcData.Name == selectedNPC then
+                if npcData.Name == SelectedOption then
                     targetNPC = npcData
                     break
                 end
@@ -706,7 +686,7 @@ if #validNPCs > 0 then
             if not targetNPC then
                 Rayfield:Notify({
                     Title = "Teleport Error",
-                    Content = "NPC not found: " .. tostring(selectedNPC),
+                    Content = "NPC not found: " .. SelectedOption,
                     Duration = 3
                 })
                 return
@@ -722,12 +702,20 @@ if #validNPCs > 0 then
                 return
             end
             
+            -- Tampilkan notifikasi sedang memproses
+            Rayfield:Notify({
+                Title = "Teleporting...",
+                Content = "Teleporting to " .. SelectedOption,
+                Duration = 2,
+                Image = 4483362458
+            })
+            
             local success, err = teleportToPosition(hrp.Position)
             
             if success then
                 Rayfield:Notify({
                     Title = "Teleport Success",
-                    Content = "Teleported to " .. selectedNPC,
+                    Content = "Teleported to " .. SelectedOption,
                     Duration = 3,
                     Image = 4483362458
                 })
@@ -742,7 +730,6 @@ if #validNPCs > 0 then
     })
 else
     TeleportTab:CreateLabel("❌ No NPCs found in ReplicatedStorage")
-    TeleportTab:CreateLabel("Make sure you're in the correct game")
 end
 
 -- Event Teleports
@@ -757,29 +744,17 @@ if #activeEvents > 0 then
         table.insert(eventNames, eventData.Name)
     end
     
-    selectedEvent = eventNames[1] or "Shark Hunt" -- Set default
-    
     local EventDropdown = TeleportTab:CreateDropdown({
-        Name = "🎯 Select Event",
+        Name = "🎯 Teleport to Event",
         Options = eventNames,
-        CurrentOption = selectedEvent,
+        CurrentOption = eventNames[1],
         Flag = "EventDropdown",
         Callback = function(SelectedOption)
-            selectedEvent = SelectedOption
-            print("Selected Event:", selectedEvent) -- Debug
-        end,
-    })
-
-    local EventTeleportButton = TeleportTab:CreateButton({
-        Name = "🚀 Teleport to Selected Event",
-        Callback = function()
-            print("Attempting teleport to event:", selectedEvent) -- Debug
-            
             local targetEvent = nil
             
             -- Cari event yang sesuai
             for _, eventData in ipairs(activeEvents) do
-                if eventData.Name == selectedEvent then
+                if eventData.Name == SelectedOption then
                     targetEvent = eventData
                     break
                 end
@@ -788,7 +763,7 @@ if #activeEvents > 0 then
             if not targetEvent then
                 Rayfield:Notify({
                     Title = "Teleport Error",
-                    Content = "Event not found: " .. tostring(selectedEvent),
+                    Content = "Event not found: " .. SelectedOption,
                     Duration = 3
                 })
                 return
@@ -815,6 +790,14 @@ if #activeEvents > 0 then
                 return
             end
             
+            -- Tampilkan notifikasi sedang memproses
+            Rayfield:Notify({
+                Title = "Teleporting...",
+                Content = "Teleporting to " .. SelectedOption,
+                Duration = 2,
+                Image = 4483362458
+            })
+            
             local success, err = pcall(function()
                 hrp.CFrame = boatCFrame + Vector3.new(0, 15, 0)
             end)
@@ -822,7 +805,7 @@ if #activeEvents > 0 then
             if success then
                 Rayfield:Notify({
                     Title = "Teleport Success",
-                    Content = "Teleported to " .. selectedEvent,
+                    Content = "Teleported to " .. SelectedOption,
                     Duration = 3,
                     Image = 4483362458
                 })
@@ -837,7 +820,6 @@ if #activeEvents > 0 then
     })
 else
     TeleportTab:CreateLabel("❌ No active events found")
-    TeleportTab:CreateLabel("Events may not be active right now")
 end
 
 -- Refresh button untuk events dan NPC
@@ -884,15 +866,9 @@ local BoostFPSButton = MiscTab:CreateButton({
 
 setupRemotes()
 
--- Debug info
-print("=== Teleport System Initialized ===")
-print("Islands available:", #islandCoords)
-print("NPCs found:", #validNPCs)
-print("Active events:", #activeEvents)
-
 Rayfield:Notify({
     Title = "Script Loaded!",
-    Content = "Fish It Auto V2.5 loaded successfully!\nIslands: " .. #islandCoords .. " | NPCs: " .. #validNPCs .. " | Events: " .. #activeEvents,
+    Content = "Fish It Auto V2.5 loaded successfully!\nClick on dropdown to teleport instantly!",
     Duration = 5,
     Image = 4483362458
 })
