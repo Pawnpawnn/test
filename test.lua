@@ -20,6 +20,11 @@ local antiAFKEnabled = false
 local fishingActive = false
 local autoFavoriteEnabled = false
 
+local selectedIsland = nil
+local selectedNPC = nil
+local selectedEvent = nil
+
+
 local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote
 local AFKConnection = nil
 
@@ -667,10 +672,20 @@ local IslandDropdown = TeleportTab:CreateDropdown({
     },
     CurrentOption = "Kohana",
     Flag = "IslandDropdown",
+
     Callback = function(Option)
-        teleportToIsland(Option)
+     selectedIsland = Option
     end,
+
 })
+
+local TeleportIslandBtn = TeleportTab:CreateButton({
+    Name = "🚀 Teleport to Island",
+    Callback = function()
+        if selectedIsland then teleportToIsland(selectedIsland) end
+    end
+})
+
 
 local NPCSection = TeleportTab:CreateSection("NPC Teleports")
 
@@ -690,11 +705,18 @@ if npcFolder then
             CurrentOption = npcList[1],
             Flag = "NPCDropdown",
             Callback = function(Option)
-                teleportToNPC(Option)
+             selectedNPC = Option
             end,
         })
     end
 end
+
+local TeleportNPCBtn = TeleportTab:CreateButton({
+    Name = "🚀 Teleport to NPC",
+    Callback = function()
+        if selectedNPC then teleportToNPC(selectedNPC) end
+    end
+})
 
 local EventSection = TeleportTab:CreateSection("Event Teleports")
 
@@ -707,8 +729,16 @@ local EventDropdown = TeleportTab:CreateDropdown({
     CurrentOption = "Shark Hunt",
     Flag = "EventDropdown",
     Callback = function(Option)
-        teleportToEvent(Option)
+     selectedEvent = Option
     end,
+
+})
+
+local TeleportEventsBtn = TeleportTab:CreateButton({
+    Name = "🚀 Teleport to Event",
+    Callback = function()
+        if selectedEvent then teleportToEvent(selectedEvent) end
+    end
 })
 
 -- Misc Tab
