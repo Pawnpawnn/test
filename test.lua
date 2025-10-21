@@ -243,6 +243,12 @@ local AntiAFKToggle = MiscTab:CreateToggle({
     end,
 })
 
+local InfoSection = MiscTab:CreateSection("Information")
+
+local InfoLabel = MiscTab:CreateLabel("🐟 Fish It Auto Fishing V1")
+local InfoLabel2 = MiscTab:CreateLabel("Dengan Animasi + Anti AFK")
+local InfoLabel3 = MiscTab:CreateLabel("Request dari Client")
+
 -- ===================================
 -- ========== INITIALIZATION =========
 -- ===================================
