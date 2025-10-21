@@ -27,6 +27,11 @@ local fishingActive = false
 local net, rodRemote, miniGameRemote, finishRemote, equipRemote, playVFXRemote
 local AFKConnection = nil
 
+-- Variabel animasi
+local RodIdleAnim, RodReelAnim, RodShakeAnim
+local animator
+local animationsLoaded = false
+
 -- ===================================
 -- ========== HELPER FUNCTIONS =======
 -- ===================================
@@ -55,10 +60,111 @@ local function setupRemotes()
         miniGameRemote = net:WaitForChild("RF/RequestFishingMinigameStarted", 5)
         finishRemote = net:WaitForChild("RE/FishingCompleted", 5)
         equipRemote = net:WaitForChild("RE/EquipToolFromHotbar", 5)
-        playVFXRemote = net:WaitForChild("RE/PlayVFX", 5)
     end)
     
     return remoteSuccess
+end
+
+local function setupAnimations()
+    local function loadAnimations(character)
+        if not character then return end
+        
+        local success, result = pcall(function()
+            local humanoid = character:WaitForChild("Humanoid", 10)
+            if not humanoid then return false end
+            
+            animator = humanoid:FindFirstChildOfClass("Animator") 
+            if not animator then
+                animator = Instance.new("Animator")
+                animator.Parent = humanoid
+            end
+            
+            -- Cari folder animations dengan berbagai kemungkinan path
+            local animationsFolder
+            local possiblePaths = {
+                ReplicatedStorage:WaitForChild("Modules", 5):WaitForChild("Animations", 5),
+                ReplicatedStorage:WaitForChild("Animations", 5),
+                ReplicatedStorage:WaitForChild("Modules", 5),
+                game:GetService("StarterPlayer"):WaitForChild("StarterPlayerScripts", 5):WaitForChild("Modules", 5):WaitForChild("Animations", 5)
+            }
+            
+            for _, path in ipairs(possiblePaths) do
+                if path then
+                    animationsFolder = path
+                    break
+                end
+            end
+            
+            if not animationsFolder then
+                warn("Animations folder not found")
+                return false
+            end
+            
+            -- Load animation objects
+            local RodIdle = animationsFolder:FindFirstChild("FishingRodReelIdle") or animationsFolder:FindFirstChild("RodIdle")
+            local RodReel = animationsFolder:FindFirstChild("EasyFishReelStart") or animationsFolder:FindFirstChild("RodReel")
+            local RodShake = animationsFolder:FindFirstChild("CastFromFullChargePosition1Hand") or animationsFolder:FindFirstChild("RodShake")
+            
+            if RodIdle and RodReel and RodShake then
+                RodIdleAnim = animator:LoadAnimation(RodIdle)
+                RodReelAnim = animator:LoadAnimation(RodReel)
+                RodShakeAnim = animator:LoadAnimation(RodShake)
+                
+                -- Configure animation properties
+                RodIdleAnim.Looped = true
+                RodReelAnim.Looped = false
+                RodShakeAnim.Looped = false
+                
+                animationsLoaded = true
+                return true
+            else
+                warn("Some animation objects not found")
+                return false
+            end
+        end)
+        
+        if not success then
+            warn("Error loading animations: " .. tostring(result))
+            return false
+        end
+        
+        return result
+    end
+
+    -- Try to load animations for current character
+    if player.Character then
+        loadAnimations(player.Character)
+    end
+    
+    -- Listen for new characters
+    player.CharacterAdded:Connect(function(character)
+        task.wait(2) -- Wait for character to fully load
+        loadAnimations(character)
+    end)
+end
+
+local function playAnimation(animation, stopOthers)
+    if not animation then return false end
+    
+    if stopOthers then
+        if RodIdleAnim then RodIdleAnim:Stop() end
+        if RodReelAnim then RodReelAnim:Stop() end
+        if RodShakeAnim then RodShakeAnim:Stop() end
+    end
+    
+    local success = pcall(function()
+        animation:Play()
+    end)
+    
+    return success
+end
+
+local function stopAllAnimations()
+    pcall(function()
+        if RodIdleAnim then RodIdleAnim:Stop() end
+        if RodReelAnim then RodReelAnim:Stop() end
+        if RodShakeAnim then RodShakeAnim:Stop() end
+    end)
 end
 
 -- ===================================
@@ -116,25 +222,27 @@ local function autoFishingLoop()
                 task.wait(0.5)
             end
 
-            -- Start fishing with VFX animation (Cast)
-            if rodRemote and playVFXRemote then
+            -- Start fishing with animation
+            if rodRemote then
                 local timestamp = workspace:GetServerTimeNow()
                 
-                -- Play casting animation via VFX
-                playVFXRemote:FireServer("FishingRodCast", player.Character)
-                task.wait(0.1)
+                -- Play cast animation
+                if animationsLoaded then
+                    playAnimation(RodShakeAnim, true)
+                end
                 
                 rodRemote:InvokeServer(timestamp)
+                task.wait(0.5)
             end
 
-            -- Perfect cast
+            -- Perfect cast coordinates
             local baseX, baseY = -0.7499996, 1
             local x = baseX + (math.random(-500, 500) / 10000000)
             local y = baseY + (math.random(-500, 500) / 10000000)
 
             -- Play idle animation and start minigame
-            if playVFXRemote then
-                playVFXRemote:FireServer("FishingRodIdle", player.Character)
+            if animationsLoaded then
+                playAnimation(RodIdleAnim, true)
             end
             
             if miniGameRemote then
@@ -142,20 +250,27 @@ local function autoFishingLoop()
             end
             
             -- Wait for catch
-            task.wait(5)
+            local waitTime = 5
+            local startTime = tick()
+            while tick() - startTime < waitTime and autoFishingEnabled do
+                task.wait(0.1)
+            end
             
             -- Finish fishing with reel animation
-            if playVFXRemote then
-                playVFXRemote:FireServer("FishingRodReel", player.Character)
+            if animationsLoaded then
+                playAnimation(RodReelAnim, true)
             end
             
             if finishRemote then
                 finishRemote:FireServer(true)
             end
-            task.wait(5)
+            
+            -- Wait before next cycle
+            task.wait(2)
         end)
         
         if not ok then
+            warn("Fishing error: " .. tostring(err))
             Rayfield:Notify({
                 Title = "Fishing Error",
                 Content = "Error: " .. tostring(err),
@@ -163,9 +278,12 @@ local function autoFishingLoop()
             })
         end
         
-        task.wait(0.2)
+        -- Small delay between cycles
+        task.wait(0.5)
     end
+    
     fishingActive = false
+    stopAllAnimations()
 end
 
 -- ===================================
@@ -173,7 +291,7 @@ end
 -- ===================================
 
 task.spawn(function()
-    task.wait(2) -- Wait for net to be initialized
+    task.wait(3) -- Wait for net to be initialized
     
     local success, exclaimEvent = pcall(function()
         return net:WaitForChild("RE/ReplicateTextEffect", 5)
@@ -189,7 +307,7 @@ task.spawn(function()
                     task.spawn(function()
                         for i = 1, 3 do
                             task.wait(1)
-                            if finishRemote then
+                            if finishRemote and autoFishingEnabled then
                                 finishRemote:FireServer()
                             end
                         end
@@ -233,9 +351,15 @@ local FishingV1Toggle = MainTab:CreateToggle({
         autoFishingEnabled = Value
         
         if Value then
+            -- Pastikan animasi sudah di-load
+            if not animationsLoaded then
+                setupAnimations()
+                task.wait(1)
+            end
+            
             Rayfield:Notify({
                 Title = "Auto Fishing V1",
-                Content = "Auto Fishing V1 dengan Animasi Started!",
+                Content = animationsLoaded and "Auto Fishing dengan Animasi Started!" or "Auto Fishing Started (Animasi tidak tersedia)",
                 Duration = 3,
                 Image = 4483362458
             })
@@ -247,8 +371,86 @@ local FishingV1Toggle = MainTab:CreateToggle({
                 Duration = 3
             })
             fishingActive = false
+            stopAllAnimations()
             if finishRemote then finishRemote:FireServer() end
         end
+    end,
+})
+
+-- Animations Tab
+local AnimTab = Window:CreateTab("🎭 Animations", 4483362458)
+
+local AnimSection = AnimTab:CreateSection("Animation Controls")
+
+local ReloadAnimBtn = AnimTab:CreateButton({
+    Name = "🔄 Reload Animations",
+    Callback = function()
+        setupAnimations()
+        Rayfield:Notify({
+            Title = "Animations",
+            Content = animationsLoaded and "Animations reloaded successfully!" or "Failed to load animations",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end,
+})
+
+local TestAnimSection = AnimTab:CreateSection("Test Animations")
+
+local TestCastBtn = AnimTab:CreateButton({
+    Name = "🎣 Test Cast Animation",
+    Callback = function()
+        if animationsLoaded then
+            playAnimation(RodShakeAnim, true)
+        else
+            Rayfield:Notify({
+                Title = "Animation Error",
+                Content = "Animations not loaded!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+local TestIdleBtn = AnimTab:CreateButton({
+    Name = "⏸️ Test Idle Animation",
+    Callback = function()
+        if animationsLoaded then
+            playAnimation(RodIdleAnim, true)
+        else
+            Rayfield:Notify({
+                Title = "Animation Error",
+                Content = "Animations not loaded!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+local TestReelBtn = AnimTab:CreateButton({
+    Name = "🎣 Test Reel Animation",
+    Callback = function()
+        if animationsLoaded then
+            playAnimation(RodReelAnim, true)
+        else
+            Rayfield:Notify({
+                Title = "Animation Error",
+                Content = "Animations not loaded!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+local StopAnimBtn = AnimTab:CreateButton({
+    Name = "⏹️ Stop All Animations",
+    Callback = function()
+        stopAllAnimations()
+        Rayfield:Notify({
+            Title = "Animations",
+            Content = "All animations stopped!",
+            Duration = 2
+        })
     end,
 })
 
@@ -265,6 +467,24 @@ local AntiAFKToggle = MiscTab:CreateToggle({
         toggleAntiAFK()
     end,
 })
+
+local StatusSection = MiscTab:CreateSection("Status Information")
+
+local AnimStatusLabel = MiscTab:CreateLabel("Animation Status: " .. (animationsLoaded and "✅ Loaded" or "❌ Not Loaded"))
+local FishingStatusLabel = MiscTab:CreateLabel("Fishing Status: Stopped")
+
+-- Update status labels
+coroutine.wrap(function()
+    while true do
+        task.wait(1)
+        if AnimStatusLabel then
+            AnimStatusLabel:SetText("Animation Status: " .. (animationsLoaded and "✅ Loaded" or "❌ Not Loaded"))
+        end
+        if FishingStatusLabel then
+            FishingStatusLabel:SetText("Fishing Status: " .. (fishingActive and "🎣 Active" : "⏹️ Stopped"))
+        end
+    end
+end)()
 
 local InfoSection = MiscTab:CreateSection("Information")
 
@@ -283,7 +503,7 @@ task.spawn(function()
     if remotesReady then
         Rayfield:Notify({
             Title = "Remotes Ready!",
-            Content = "All remotes including VFX loaded!",
+            Content = "All remotes loaded successfully!",
             Duration = 3,
             Image = 4483362458
         })
@@ -296,9 +516,13 @@ task.spawn(function()
         })
     end
     
+    -- Load animations dengan delay
+    task.wait(2)
+    setupAnimations()
+    
     Rayfield:Notify({
         Title = "Script Loaded!",
-        Content = "Auto Fishing V1 with VFX loaded!",
+        Content = animationsLoaded and "Auto Fishing V1 dengan Animasi loaded!" or "Auto Fishing V1 loaded (no animations)",
         Duration = 5,
         Image = 4483362458
     })
