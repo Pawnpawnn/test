@@ -1,4 +1,3 @@
--- FISH IT PREMIUM - FULL FIXED VERSION
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
@@ -19,60 +18,1148 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local autoFishingEnabled = false
 local autoFishingV2Enabled = false
 local autoFishingV3Enabled = false
-local perfectCastEnabled = true
-local autoFarmEnabled = false
-local autoTPEventEnabled = false
-local floatEnabled = false
-local ijumpEnabled = false
-local universalNoclip = false
+local autoSellEnabled = false
 local antiAFKEnabled = false
+local fishingActive = false
+local autoFavoriteEnabled = false
+local autoSellAt4000Enabled = false
+local autoFarmEnabled = false
+local universalNoclip = false
+local floatEnabled = false
+local autoTPEventEnabled = false
+local perfectCastEnabled = true
+local autoSellMythicEnabled = false
+local fishWebhookEnabled = false
+local autoBuyWeatherEnabled = false
 
--- Fishing Remotes
-local net, rodRemote, miniGameRemote, finishRemote, equipRemote
+local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote, REEquipItem, RFSellItem
+local AFKConnection = nil
+local floatPlatform = nil
 
--- Auto Favorite
-local GlobalFav = {
-    AutoFavoriteEnabled = false,
-    SelectedFishIds = {},
-    SelectedVariants = {},
-    FishNames = {"Blob Shark", "Great Whale", "Ghost Shark", "King Crab", "Luminous Fish", "Hammerhead Shark", "Orca", "Giant Squid"},
-    Variants = {"Normal", "Golden", "Rainbow", "Dark", "Light"}
-}
+-- Rod Animations
+local RodIdle, RodReel, RodShake
 
--- Auto Farm
+-- Fish Threshold Variables
+local obtainedFishUUIDs = {}
+local obtainedLimit = 30
+
+-- Auto Farm Variables
 local selectedIsland = "Fisherman Island"
 local farmLocations = {
+    ["Crater Islands"] = {
+        CFrame.new(1066.1864, 57.2025681, 5045.5542, -0.682534158, 1.00865822e-08, 0.730853677, -5.8900711e-09, 1, -1.93017531e-08, -0.730853677, -1.74788859e-08, -0.682534158),
+        CFrame.new(1057.28992, 33.0884132, 5133.79883, 0.833871782, 5.44149223e-08, 0.551958203, -6.58184218e-09, 1, -8.86416984e-08, -0.551958203, 7.02829084e-08, 0.833871782),
+    },
+    ["Tropical Grove"] = {
+        CFrame.new(-2165.05469, 2.77070165, 3639.87451, -0.589090407, -3.61497356e-08, -0.808067143, -3.20645626e-08, 1, -2.13606164e-08, 0.808067143, 1.3326984e-08, -0.589090407)
+    },
     ["Fisherman Island"] = {
         CFrame.new(-75.2439423, 3.24433279, 3103.45093, -0.996514142, -3.14880424e-08, -0.0834242329, -3.84156422e-08, 1, 8.14354024e-08, 0.0834242329, 8.43563228e-08, -0.996514142),
         CFrame.new(-162.285294, 3.26205397, 2954.47412, -0.74356699, -1.93168272e-08, -0.668661416, 1.03873425e-08, 1, -4.04397653e-08, 0.668661416, -3.70152904e-08, -0.74356699),
     }
 }
 
+-- Auto Event Farm
+local savedCFrame = nil
+local alreadyTeleported = false
+local teleportTime = nil
+local eventTarget = nil
+
+-- Player Variables
+local ijumpEnabled = false
+local AntiDrown_Enabled = false
+
+-- Trade Variables
+local TradeFunction = {
+    TempTradeList = {},
+    saveTempMode = false,
+    onTrade = false,
+    targetUserId = nil,
+    tradingInProgress = false,
+    autoAcceptTrade = false,
+    AutoTrade = false
+}
+
+-- Auto Favorite Variables
+local GlobalFav = {
+    FishIdToName = {},
+    FishNameToId = {},
+    FishNames = {},
+    Variants = {},
+    SelectedFishIds = {},
+    SelectedVariants = {},
+    AutoFavoriteEnabled = false
+}
+
+-- Weather Variables
+local weatherActive = {}
+local weatherData = {
+    ["Storm"] = { duration = 900 },
+    ["Cloudy"] = { duration = 900 },
+    ["Snow"] = { duration = 900 },
+    ["Wind"] = { duration = 900 },
+    ["Radiant"] = { duration = 900 }
+}
+
+-- Fish Notification Variables
+local webhookPath = nil
+local FishCategories = {
+    ["Secret"] = {
+        "Blob Shark","Great Christmas Whale","Frostborn Shark","Great Whale","Worm Fish","Robot Kraken",
+        "Giant Squid","Ghost Worm Fish","Ghost Shark","Queen Crab","Orca","Crystal Crab","Monster Shark","Eerie Shark"
+    },
+    ["Mythic"] = {
+        "Gingerbread Shark","Loving Shark","King Crab","Blob Fish","Hermit Crab","Luminous Fish",
+        "Plasma Shark","Abyss Seahorse","Blueflame Ray","Hammerhead Shark","Hawks Turtle",
+        "Manta Rey","Loggerhead Turtle","Prismy Seahorse","Gingerbread Turtle","Lined Cardinal Fish",
+        "Strippled Seahorse","Thresher Shark","Dotted Stingray"
+    },
+    ["Legendary"] = {
+        "Yellowfin Tuna","Lake Sturgeon","Lined Cardinal Fish","Saw Fish","Slurpfish Chromis","Chrome Tuna","Lobster",
+        "Bumblebee Grouper","Lavafin Tuna","Blue Lobster","Greenbee Grouper","Starjam Tang","Magic Tang",
+        "Enchanted Angelfish","Axolotl","Deep Sea Crab"
+    },
+}
+local SelectedCategories = {"Secret"}
+local LastCatchData = {}
+
 -- ===================================
--- ========== SETUP REMOTES ==========
+-- ========== HELPER FUNCTIONS =======
 -- ===================================
 
 local function setupRemotes()
-    pcall(function()
-        net = ReplicatedStorage:WaitForChild("Packages")._Index["sleitnick_net@1.1.1"].net
+    local success, err = pcall(function()
+        net = ReplicatedStorage:WaitForChild("Packages")
+            :WaitForChild("_Index")
+            :WaitForChild("sleitnick_net@0.2.0")
+            :WaitForChild("net")
     end)
-    
-    if not net then
-        pcall(function()
-            net = ReplicatedStorage:WaitForChild("Packages")._Index["sleitnick_net@0.2.0"].net
+
+    if not success then
+        success, err = pcall(function()
+            net = ReplicatedStorage:WaitForChild("Net")
         end)
-    end
-    
-    if not net then
-        net = ReplicatedStorage:WaitForChild("Net")
+        
+        if not success then
+            warn("Failed to find net: " .. tostring(err))
+            return false
+        end
     end
 
-    rodRemote = net:WaitForChild("RF/ChargeFishingRod")
-    miniGameRemote = net:WaitForChild("RF/RequestFishingMinigameStarted")
-    finishRemote = net:WaitForChild("RE/FishingCompleted")
-    equipRemote = net:WaitForChild("RE/EquipToolFromHotbar")
+    -- Safe wait for children dengan timeout
+    local function safeWaitForChild(parent, name, timeout)
+        timeout = timeout or 5
+        local start = tick()
+        while tick() - start < timeout do
+            local child = parent:FindFirstChild(name)
+            if child then return child end
+            task.wait(0.1)
+        end
+        warn("Timeout waiting for: " .. name)
+        return nil
+    end
+
+    rodRemote = safeWaitForChild(net, "RF/ChargeFishingRod")
+    miniGameRemote = safeWaitForChild(net, "RF/RequestFishingMinigameStarted")
+    finishRemote = safeWaitForChild(net, "RE/FishingCompleted")
+    equipRemote = safeWaitForChild(net, "RE/EquipToolFromHotbar")
+    sellRemote = safeWaitForChild(net, "RF/SellAllItems")
+    favoriteRemote = safeWaitForChild(net, "RE/FavoriteItem")
+    REEquipItem = safeWaitForChild(net, "RE/EquipItem")
+    RFSellItem = safeWaitForChild(net, "RF/SellItem")
     
     return true
+end
+
+local function setupAnimations()
+    local character = player.Character
+    if not character then
+        player.CharacterAdded:Wait()
+        character = player.Character
+        task.wait(2) -- Beri waktu untuk character load sempurna
+    end
+    
+    local humanoid = character:WaitForChild("Humanoid")
+    local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+    
+    -- Load animations dengan error handling
+    local success1, rodIdleAnim = pcall(function()
+        local RodIdleModule = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("FishingRodReelIdle")
+        return animator:LoadAnimation(RodIdleModule)
+    end)
+    
+    local success2, rodReelAnim = pcall(function()
+        local RodReelModule = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("EasyFishReelStart")
+        return animator:LoadAnimation(RodReelModule)
+    end)
+    
+    local success3, rodShakeAnim = pcall(function()
+        local RodShakeModule = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Animations"):WaitForChild("CastFromFullChargePosition1Hand")
+        return animator:LoadAnimation(RodShakeModule)
+    end)
+    
+    if success1 then RodIdle = rodIdleAnim end
+    if success2 then RodReel = rodReelAnim end
+    if success3 then RodShake = rodShakeAnim end
+    
+    return success1 and success2 and success3
+end
+
+-- ===================================
+-- ========== FISH THRESHOLD =========
+-- ===================================
+
+local function monitorFishThreshold()
+    task.spawn(function()
+        while autoFishingEnabled or autoFishingV2Enabled or autoFishingV3Enabled do
+            if #obtainedFishUUIDs >= obtainedLimit then
+                Rayfield:Notify({
+                    Title = "Fish Threshold",
+                    Content = "Selling all fishes...",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+                sellRemote:InvokeServer()
+                obtainedFishUUIDs = {}
+                task.wait(0.5)
+            end
+            task.wait(0.3)
+        end
+    end)
+end
+
+-- Setup fish obtained listener
+task.spawn(function()
+    local success, remoteV2 = pcall(function()
+        return ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    end)
+    
+    if success and remoteV2 then
+        remoteV2.OnClientEvent:Connect(function(_, _, data)
+            if data and data.InventoryItem and data.InventoryItem.UUID then
+                table.insert(obtainedFishUUIDs, data.InventoryItem.UUID)
+            end
+        end)
+    end
+end)
+
+-- ===================================
+-- ========== AUTO FAVORITE SYSTEM ===
+-- ===================================
+
+local function setupAutoFavorite()
+    -- Load Fish Names
+    for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
+        local ok, data = pcall(require, item)
+        if ok and data.Data and data.Data.Type == "Fishes" then
+            local id = data.Data.Id
+            local name = data.Data.Name
+            GlobalFav.FishIdToName[id] = name
+            GlobalFav.FishNameToId[name] = id
+            table.insert(GlobalFav.FishNames, name)
+        end
+    end
+
+    -- Load Variants
+    for _, variantModule in pairs(ReplicatedStorage.Variants:GetChildren()) do
+        local ok, variantData = pcall(require, variantModule)
+        if ok and variantData.Data and variantData.Data.Name then
+            table.insert(GlobalFav.Variants, variantData.Data.Name)
+        end
+    end
+
+    -- Auto Favorite Event Handler
+    local REObtainedNewFishNotification = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, data)
+        if not GlobalFav.AutoFavoriteEnabled then return end
+
+        local uuid = data.InventoryItem and data.InventoryItem.UUID
+        local fishName = GlobalFav.FishIdToName[itemId] or "Unknown"
+        local variantId = data.InventoryItem.Metadata and data.InventoryItem.Metadata.VariantId
+
+        if not uuid then return end
+
+        local matchByName = GlobalFav.SelectedFishIds[itemId]
+        local matchByVariant = variantId and GlobalFav.SelectedVariants[variantId]
+        
+        local shouldFavorite = false
+
+        if matchByName and matchByVariant then
+            shouldFavorite = true
+        elseif matchByName and not next(GlobalFav.SelectedVariants) then
+            shouldFavorite = true
+        elseif matchByVariant and not matchByName then
+            shouldFavorite = true
+        end
+
+        if shouldFavorite then
+            favoriteRemote:FireServer(uuid)
+            local msg = "Favorited " .. fishName
+            if matchByVariant then
+                msg = msg .. " (" .. (variantId or "Variant") .. ")"
+            end
+            Rayfield:Notify({
+                Title = "Auto Favorite",
+                Content = msg,
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end)
+end
+
+-- ===================================
+-- ========== AUTO SELL MYTHIC =======
+-- ===================================
+
+local function setupAutoSellMythic()
+    local oldFireServer
+    oldFireServer = hookmetamethod(game, "__namecall", function(self, ...)
+        local args = {...}
+        local method = getnamecallmethod()
+
+        if autoSellMythicEnabled
+            and method == "FireServer"
+            and self == REEquipItem
+            and typeof(args[1]) == "string"
+            and args[2] == "Fishes" then
+
+            local uuid = args[1]
+
+            task.delay(1, function()
+                pcall(function()
+                    local result = RFSellItem:InvokeServer(uuid)
+                    if result then
+                        Rayfield:Notify({
+                            Title = "Auto Sell Mythic",
+                            Content = "Mythic item sold!",
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                    else
+                        Rayfield:Notify({
+                            Title = "Auto Sell Mythic",
+                            Content = "Failed to sell item!",
+                            Duration = 3
+                        })
+                    end
+                end)
+            end)
+        end
+
+        return oldFireServer(self, ...)
+    end)
+end
+
+-- ===================================
+-- ========== FISH NOTIFICATION ======
+-- ===================================
+
+local function validateWebhook(path)
+    if not path or not path:match("^%d+/.+") then
+        return false, "Invalid webhook format"
+    end
+
+    local url = "https://discord.com/api/webhooks/" .. path
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not success then
+        return false, "Failed to connect to Discord"
+    end
+
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(response)
+    end)
+
+    if not ok or not data or not data.channel_id then
+        return false, "Invalid webhook"
+    end
+
+    return true, data.channel_id
+end
+
+local function GetRobloxImage(assetId)
+    local url = "https://thumbnails.roblox.com/v1/assets?assetIds=" .. assetId .. "&size=420x420&format=Png&isCircular=false"
+    local success, response = pcall(game.HttpGet, game, url)
+    if success then
+        local data = HttpService:JSONDecode(response)
+        if data and data.data and data.data[1] and data.data[1].imageUrl then
+            return data.data[1].imageUrl
+        end
+    end
+    return nil
+end
+
+local function isTargetFish(fishName)
+    for _, category in pairs(SelectedCategories) do
+        local list = FishCategories[category]
+        if list then
+            for _, keyword in pairs(list) do
+                if string.find(string.lower(fishName), string.lower(keyword)) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function sendFishWebhook(fishName, rarityText, assetId)
+    if not webhookPath or webhookPath == "" or not fishWebhookEnabled then
+        return
+    end
+
+    local WebhookURL = "https://discord.com/api/webhooks/" .. webhookPath
+    local username = player.DisplayName
+    local imageUrl = GetRobloxImage(assetId)
+    if not imageUrl then return end
+
+    local caught = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Caught")
+    local rarest = player.leaderstats and player.leaderstats:FindFirstChild("Rarest Fish")
+
+    local embedDesc = string.format([[
+Hei **%s**! 🎣
+You have successfully caught a fish.
+
+====| FISH DATA |====
+🧾 Name : **%s**
+🌟 Rarity : **%s**
+
+====| ACCOUNT DATA |====
+🎯 Total Caught : **%s**
+🏆 Rarest Fish : **%s**
+]],
+        username,
+        fishName,
+        rarityText,
+        caught and caught.Value or "N/A",
+        rarest and rarest.Value or "N/A"
+    )
+
+    local data = {
+        ["username"] = "e-Fishery",
+        ["embeds"] = {{
+            ["title"] = "Fish Caught!",
+            ["description"] = embedDesc,
+            ["color"] = tonumber("0x00bfff"),
+            ["image"] = { ["url"] = imageUrl },
+            ["footer"] = { ["text"] = "Fish Notification • " .. os.date("%d %B %Y, %H:%M:%S") }
+        }}
+    }
+
+    local requestFunc = syn and syn.request or http and http.request or http_request or request or fluxus and fluxus.request
+    if requestFunc then
+        requestFunc({
+            Url = WebhookURL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode(data)
+        })
+    end
+end
+
+local function startFishDetection()
+    local guiNotif = player.PlayerGui:WaitForChild("Small Notification"):WaitForChild("Display"):WaitForChild("Container")
+    local fishText = guiNotif:WaitForChild("ItemName")
+    local rarityText = guiNotif:WaitForChild("Rarity")
+    local imageFrame = player.PlayerGui["Small Notification"]:WaitForChild("Display"):WaitForChild("VectorFrame"):WaitForChild("Vector")
+
+    fishText:GetPropertyChangedSignal("Text"):Connect(function()
+        local fishName = fishText.Text
+        if isTargetFish(fishName) then
+            local rarity = rarityText.Text
+            local assetId = string.match(imageFrame.Image, "%d+")
+            if assetId then
+                sendFishWebhook(fishName, rarity, assetId)
+            end
+        end
+    end)
+end
+
+-- Setup fish catch data listener
+task.spawn(function()
+    local REObtainedNewFishNotification = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, metadata)
+        LastCatchData.ItemId = itemId
+        LastCatchData.VariantId = metadata and metadata.VariantId
+    end)
+end)
+
+-- ===================================
+-- ========== WEATHER SYSTEM =========
+-- ===================================
+
+local function randomDelay(min, max)
+    return math.random(min * 100, max * 100) / 100
+end
+
+local function autoBuyWeather(weatherType)
+    local purchaseRemote = ReplicatedStorage:WaitForChild("Packages")
+        :WaitForChild("_Index")
+        :WaitForChild("sleitnick_net@0.2.0")
+        :WaitForChild("net")
+        :WaitForChild("RF/PurchaseWeatherEvent")
+
+    task.spawn(function()
+        while weatherActive[weatherType] do
+            pcall(function()
+                purchaseRemote:InvokeServer(weatherType)
+                Rayfield:Notify({
+                    Title = "Weather Purchased",
+                    Content = "Successfully activated " .. weatherType,
+                    Duration = 3,
+                    Image = 4483362458
+                })
+
+                task.wait(weatherData[weatherType].duration)
+
+                local randomWait = randomDelay(1, 5)
+                task.wait(randomWait)
+            end)
+        end
+    end)
+end
+
+-- ===================================
+-- ========== TRADE SYSTEM ===========
+-- ===================================
+
+local function getPlayerList()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(list, p.Name)
+        end
+    end
+    return list
+end
+
+-- Trade Metatable Hook
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+
+    if TradeFunction.saveTempMode and tostring(self) == "RE/EquipItem" and method == "FireServer" then
+        local uuid, categoryName = args[1], args[2]
+        if uuid and categoryName then
+            table.insert(TradeFunction.TempTradeList, {UUID = uuid, Category = categoryName})
+            Rayfield:Notify({
+                Title = "Save Mode",
+                Content = "Added item: " .. uuid .. " ("..categoryName..")",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+        return nil
+        
+    elseif TradeFunction.onTrade and tostring(self) == "RE/EquipItem" and method == "FireServer" then
+        local uuid = args[1]
+        if uuid and TradeFunction.targetUserId then
+            local InitiateTrade = net:WaitForChild("RF/InitiateTrade")
+            InitiateTrade:InvokeServer(TradeFunction.targetUserId, uuid)
+            Rayfield:Notify({
+                Title = "Trade Sent",
+                Content = "Trade sent to " .. TradeFunction.targetUserId,
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Invalid target or item.",
+                Duration = 3
+            })
+        end
+        return nil
+    end
+
+    return oldNamecall(self, unpack(args))
+end)
+
+setreadonly(mt, true)
+
+-- Mass Trade Function
+local function TradeAll()        
+    if TradeFunction.tradingInProgress then        
+        Rayfield:Notify({
+            Title = "Mass Trade",
+            Content = "Trade already in progress!",
+            Duration = 3
+        })
+        return        
+    end        
+    if not TradeFunction.targetUserId then        
+        Rayfield:Notify({
+            Title = "Mass Trade",
+            Content = "Set trade target first!",
+            Duration = 3
+        })
+        return        
+    end        
+    if #TradeFunction.TempTradeList == 0 then        
+        Rayfield:Notify({
+            Title = "Mass Trade",
+            Content = "No items saved!",
+            Duration = 3
+        })
+        return        
+    end        
+        
+    TradeFunction.tradingInProgress = true        
+    Rayfield:Notify({
+        Title = "Mass Trade",
+        Content = "Starting trade of "..#TradeFunction.TempTradeList.." items...",
+        Duration = 3,
+        Image = 4483362458
+    })
+        
+    task.spawn(function()        
+        for i, item in ipairs(TradeFunction.TempTradeList) do        
+            if not TradeFunction.AutoTrade then        
+                Rayfield:Notify({
+                    Title = "Mass Trade",
+                    Content = "Auto Trade stopped!",
+                    Duration = 3
+                })
+                break        
+            end        
+        
+            local uuid = item.UUID        
+            local category = item.Category        
+
+            Rayfield:Notify({
+                Title = "Mass Trade",
+                Content = "Trade item "..i.." of "..#TradeFunction.TempTradeList,
+                Duration = 3,
+                Image = 4483362458
+            })
+            
+            local InitiateTrade = net:WaitForChild("RF/InitiateTrade")
+            InitiateTrade:InvokeServer(TradeFunction.targetUserId, uuid, category)        
+
+            local tradeCompleted = false        
+            local timeout = 10        
+            local elapsed = 0        
+            local lastTrigger = 0
+            local cooldown = 0.5        
+
+            local notifGui = player:WaitForChild("PlayerGui"):WaitForChild("Text Notifications")
+            local connection
+            connection = notifGui.Frame.ChildAdded:Connect(function(child)
+                if child.Name == "TextTile" then
+                    task.wait(0.5)
+                    local header = child:FindFirstChild("Header")
+                    if header and header:IsA("TextLabel") and header.Text == "Trade completed!" then
+                        local now = tick()
+                        if now - lastTrigger > cooldown then
+                            lastTrigger = now
+                            tradeCompleted = true
+                            Rayfield:Notify({
+                                Title = "Mass Trade",
+                                Content = "Success "..i.." of "..#TradeFunction.TempTradeList,
+                                Duration = 3,
+                                Image = 4483362458
+                            })
+                        end
+                    end
+                end
+            end)        
+
+            repeat        
+                task.wait(0.2)        
+                elapsed += 0.2        
+            until tradeCompleted or elapsed >= timeout        
+
+            if connection then        
+                connection:Disconnect()        
+            end        
+
+            if not tradeCompleted then        
+                Rayfield:Notify({
+                    Title = "Mass Trade",
+                    Content = "Trade timeout for item "..i,
+                    Duration = 3
+                })
+            else        
+                task.wait(5.5)        
+            end        
+        end        
+
+        Rayfield:Notify({
+            Title = "Mass Trade",
+            Content = "Finished trading!",
+            Duration = 3,
+            Image = 4483362458
+        })
+        TradeFunction.tradingInProgress = false        
+        TradeFunction.TempTradeList = {}        
+    end)        
+end
+
+-- Auto Accept Trade Handler
+task.spawn(function()
+    local RFAwaitTradeResponse = net:WaitForChild("RF/AwaitTradeResponse")
+    RFAwaitTradeResponse.OnClientInvoke = function(fromPlayer, timeNow)
+        if TradeFunction.autoAcceptTrade then
+            return true
+        else
+            return nil
+        end
+    end
+end)
+
+-- ===================================
+-- ========== FLOATING PLATFORM ======
+-- ===================================
+
+local function toggleFloat(enabled)
+    if enabled then
+        local charFolder = workspace:WaitForChild("Characters", 5)
+        local char = charFolder:FindFirstChild(player.Name)
+        if not char then 
+            Rayfield:Notify({
+                Title = "Float Error",
+                Content = "Character not found!",
+                Duration = 3
+            })
+            return 
+        end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then 
+            Rayfield:Notify({
+                Title = "Float Error",
+                Content = "HumanoidRootPart not found!",
+                Duration = 3
+            })
+            return 
+        end
+
+        floatPlatform = Instance.new("Part")
+        floatPlatform.Anchored = true
+        floatPlatform.Size = Vector3.new(10, 1, 10)
+        floatPlatform.Transparency = 1
+        floatPlatform.CanCollide = true
+        floatPlatform.Name = "FloatPlatform"
+        floatPlatform.Parent = workspace
+
+        task.spawn(function()
+            while floatPlatform and floatPlatform.Parent do
+                pcall(function()
+                    floatPlatform.Position = hrp.Position - Vector3.new(0, 3.5, 0)
+                end)
+                task.wait(0.1)
+            end
+        end)
+
+        Rayfield:Notify({
+            Title = "Float Enabled",
+            Content = "Feature activated!",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        if floatPlatform then
+            floatPlatform:Destroy()
+            floatPlatform = nil
+        end
+        Rayfield:Notify({
+            Title = "Float Disabled",
+            Content = "Feature disabled",
+            Duration = 3
+        })
+    end
+end
+
+-- ===================================
+-- ========== AUTO EVENT FARM ========
+-- ===================================
+
+local knownEvents = {}
+
+local function updateKnownEvents()
+    knownEvents = {}
+    local props = workspace:FindFirstChild("Props")
+    if props then
+        for _, child in ipairs(props:GetChildren()) do
+            if child:IsA("Model") and child.PrimaryPart then
+                knownEvents[child.Name:lower()] = child
+            end
+        end
+    end
+end
+
+local function teleportTo(position)
+    local charFolder = workspace:FindFirstChild("Characters")
+    if not charFolder then return end
+    
+    local char = charFolder:FindFirstChild(player.Name)
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(position + Vector3.new(0, 20, 0))
+        end
+    end
+end
+
+local function saveOriginalPosition()
+    local charFolder = workspace:FindFirstChild("Characters")
+    if not charFolder then return end
+    
+    local char = charFolder:FindFirstChild(player.Name)
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        savedCFrame = char.HumanoidRootPart.CFrame
+    end
+end
+
+local function returnToOriginalPosition()
+    if savedCFrame then
+        local charFolder = workspace:FindFirstChild("Characters")
+        if not charFolder then return end
+        
+        local char = charFolder:FindFirstChild(player.Name)
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CFrame = savedCFrame
+        end
+    end
+end
+
+local function isEventStillActive(name)
+    updateKnownEvents()
+    return knownEvents[name:lower()] ~= nil
+end
+
+local function monitorAutoTP()
+    task.spawn(function()
+        while true do
+            if autoTPEventEnabled then
+                if not alreadyTeleported then
+                    updateKnownEvents()
+                    for _, eventModel in pairs(knownEvents) do
+                        saveOriginalPosition()
+                        teleportTo(eventModel:GetPivot().Position)
+                        toggleFloat(true)
+                        alreadyTeleported = true
+                        teleportTime = tick()
+                        eventTarget = eventModel.Name
+                        Rayfield:Notify({
+                            Title = "Event Farm",
+                            Content = "Teleported to: " .. eventTarget,
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                        break
+                    end
+                else
+                    if teleportTime and (tick() - teleportTime >= 900) then
+                        returnToOriginalPosition()
+                        toggleFloat(false)
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        eventTarget = nil
+                        Rayfield:Notify({
+                            Title = "Event Timeout",
+                            Content = "Returned after 15 minutes",
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                    elseif eventTarget and not isEventStillActive(eventTarget) then
+                        returnToOriginalPosition()
+                        toggleFloat(false)
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        Rayfield:Notify({
+                            Title = "Event Ended",
+                            Content = "Returned to start position",
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                    end
+                end
+            else
+                if alreadyTeleported then
+                    returnToOriginalPosition()
+                    toggleFloat(false)
+                    alreadyTeleported = false
+                    teleportTime = nil
+                    eventTarget = nil
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+-- ===================================
+-- ========== SERVER HOP =============
+-- ===================================
+
+local function Rejoin()
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+end
+
+local function QuickServerHop()
+    local placeId = game.PlaceId
+    local servers = {}
+    
+    Rayfield:Notify({
+        Title = "Quick Server Hop",
+        Content = "Finding available server...",
+        Duration = 3,
+        Image = 4483362458
+    })
+    
+    local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=25"
+    
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    
+    if success and result and result.data then
+        for _, server in pairs(result.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                table.insert(servers, server.id)
+            end
+        end
+    end
+    
+    if #servers > 0 then
+        local targetServer = servers[math.random(1, #servers)]
+        TeleportService:TeleportToPlaceInstance(placeId, targetServer, player)
+    else
+        Rayfield:Notify({
+            Title = "Server Hop Failed",
+            Content = "No servers available!",
+            Duration = 3
+        })
+    end
+end
+
+-- ===================================
+-- ========== BOOST FPS ==============
+-- ===================================
+
+local function BoostFPS()
+    Rayfield:Notify({
+        Title = "FPS Boost",
+        Content = "Boosting FPS...",
+        Duration = 3,
+        Image = 4483362458
+    })
+    
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v.Transparency = 1
+        end
+    end
+
+    local Lighting = game:GetService("Lighting")
+    for _, effect in pairs(Lighting:GetChildren()) do
+        if effect:IsA("PostEffect") then
+            effect.Enabled = false
+        end
+    end
+
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 1e10
+    settings().Rendering.QualityLevel = "Level01"
+    
+    Rayfield:Notify({
+        Title = "Success",
+        Content = "FPS Boosted Successfully!",
+        Duration = 3,
+        Image = 4483362458
+    })
+end
+
+-- ===================================
+-- ========== TELEPORT SYSTEMS =======
+-- ===================================
+
+local islandCoords = {
+    ["Weather Machine"] = Vector3.new(-1471, -3, 1929),
+    ["Esoteric Depths"] = Vector3.new(3157, -1303, 1439),
+    ["Tropical Grove"] = Vector3.new(-2038, 3, 3650),
+    ["Stingray Shores"] = Vector3.new(-32, 4, 2773),
+    ["Kohana Volcano"] = Vector3.new(-519, 24, 189),
+    ["Coral Reefs"] = Vector3.new(-3095, 1, 2177),
+    ["Crater Island"] = Vector3.new(968, 1, 4854),
+    ["Kohana"] = Vector3.new(-658, 3, 719),
+    ["Winter Fest"] = Vector3.new(1611, 4, 3280),
+    ["Isoteric Island"] = Vector3.new(1987, 4, 1400),
+    ["Treasure Hall"] = Vector3.new(-3600, -267, -1558),
+    ["Lost Shore"] = Vector3.new(-3663, 38, -989),
+    ["Sishypus Statue"] = Vector3.new(-3792, -135, -986),
+    ["Ancient Jungle"] = Vector3.new(1316, 7, -196)
+}
+
+local function teleportToIsland(islandName)
+    local pos = islandCoords[islandName]
+    if not pos then 
+        Rayfield:Notify({
+            Title = "Teleport System",
+            Content = "Island not found!",
+            Duration = 3
+        })
+        return
+    end
+    
+    local success, err = pcall(function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart", 3)
+        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+    end)
+
+    if success then
+        Rayfield:Notify({
+            Title = "Teleport System",
+            Content = "Teleported to " .. islandName,
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        Rayfield:Notify({
+            Title = "Teleport Failed",
+            Content = "Failed to teleport: " .. tostring(err),
+            Duration = 3
+        })
+    end
+end
+
+local function teleportToEvent(eventName)
+    local props = workspace:FindFirstChild("Props")
+    if props and props:FindFirstChild(eventName) and props[eventName]:FindFirstChild("Fishing Boat") then
+        local fishingBoat = props[eventName]["Fishing Boat"]
+        local boatCFrame = fishingBoat:GetPivot()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart", 3)
+        hrp.CFrame = boatCFrame + Vector3.new(0, 15, 0)
+        Rayfield:Notify({
+            Title = "Event Teleport",
+            Content = "Teleported to " .. eventName,
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        Rayfield:Notify({
+            Title = "Event Not Found",
+            Content = eventName .. " Not Available!",
+            Duration = 3
+        })
+    end
+end
+
+-- ===================================
+-- ========== AUTO SELL ==============
+-- ===================================
+
+local function sellNow()
+    local success, err = pcall(function()
+        sellRemote:InvokeServer()
+    end)
+
+    if success then
+        Rayfield:Notify({
+            Title = "Auto Sell",
+            Content = "Successfully sold all non-favorite items!",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        Rayfield:Notify({
+            Title = "Auto Sell Failed",
+            Content = "Error: " .. tostring(err),
+            Duration = 3
+        })
+    end
+end
+
+local function checkInventoryAndSell()
+    task.spawn(function()
+        while autoSellAt4000Enabled do
+            pcall(function()
+                local inventoryCount = 0
+                
+                -- Cari Replion secara dinamis
+                local Replion = Replion or game:GetService("ReplicatedStorage"):FindFirstChild("Replion")
+                if not Replion then return end
+                
+                local success, dataReplion = pcall(function()
+                    return Replion.Client:WaitReplion("Data")
+                end)
+                
+                if not success then return end
+                
+                local success2, items = pcall(function()
+                    return dataReplion:Get({"Inventory","Items"})
+                end)
+                
+                if success2 and type(items) == "table" then
+                    inventoryCount = #items
+                end
+                
+                if inventoryCount >= 4000 then
+                    Rayfield:Notify({
+                        Title = "Auto Sell",
+                        Content = "Inventory full! Selling...",
+                        Duration = 3,
+                        Image = 4483362458
+                    })
+                    sellNow()
+                end
+            end)
+            task.wait(10)
+        end
+    end)
+end
+
+-- ===================================
+-- ========== ANTI-AFK ===============
+-- ===================================
+
+local function toggleAntiAFK()
+    antiAFKEnabled = not antiAFKEnabled
+    
+    if antiAFKEnabled then
+        if AFKConnection then
+            AFKConnection:Disconnect()
+        end
+        
+        AFKConnection = player.Idled:Connect(function()
+            pcall(function()
+                VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                task.wait(1)
+                VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+            end)
+        end)
+        
+        Rayfield:Notify({
+            Title = "Anti-AFK",
+            Content = "Anti-AFK Enabled!",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        if AFKConnection then
+            AFKConnection:Disconnect()
+            AFKConnection = nil
+        end
+        
+        Rayfield:Notify({
+            Title = "Anti-AFK",
+            Content = "Anti-AFK Disabled!",
+            Duration = 3
+        })
+    end
 end
 
 -- ===================================
@@ -131,29 +1218,70 @@ local function autoFishingV2Loop()
     end
 end
 
+
 -- ===================================
--- ========== AUTO FISH V3 ===========
+-- ========== FISHING V3 (YOURS) =====
 -- ===================================
 
 local function autoFishingV3Loop()
+    local successPattern = {}
+    
     while autoFishingV3Enabled do
-        pcall(function()
-            equipRemote:FireServer(1)
-            task.wait(0.2)
+        local success, err = pcall(function()
+            fishingActive = true
             
+            local optimalWait = 0.25
+            
+            if #successPattern >= 5 then
+                local recentSuccess = 0
+                for i = math.max(1, #successPattern - 4), #successPattern do
+                    if successPattern[i] then recentSuccess += 1 end
+                end
+                
+                if recentSuccess >= 4 then
+                    optimalWait = 0.18
+                elseif recentSuccess <= 2 then
+                    optimalWait = 0.32
+                end
+            end
+            
+            -- Pastikan character ada
+            if not player.Character then
+                player.CharacterAdded:Wait()
+                task.wait(1)
+            end
+            
+            equipRemote:FireServer(1)
             local timestamp = workspace:GetServerTimeNow()
             rodRemote:InvokeServer(timestamp)
-            task.wait(0.2)
             
-            local x = -0.7499996 + (math.random(-5, 5) / 1000000)
-            local y = 1 + (math.random(-5, 5) / 1000000)
+            local baseX, baseY = -0.7499996, 1
+            local x = baseX + (math.random(-30, 30) / 10000000)
+            local y = baseY + (math.random(-30, 30) / 10000000)
             
             miniGameRemote:InvokeServer(x, y)
-            task.wait(1.2)
+            task.wait(optimalWait)
+            
+            local willSucceed = math.random(1, 100) <= 75
+            finishRemote:FireServer(willSucceed)
+            table.insert(successPattern, willSucceed)
+            
+            if #successPattern > 10 then
+                table.remove(successPattern, 1)
+            end
+            
+            task.wait(0.08)
             finishRemote:FireServer()
         end)
-        task.wait(0.2)
+        
+        if not success then
+            warn("Error in autoFishingV3Loop: " .. tostring(err))
+        end
+        
+        local cooldown = math.random(8, 20) / 100
+        task.wait(cooldown)
     end
+    fishingActive = false
 end
 
 -- ===================================
@@ -161,280 +1289,98 @@ end
 -- ===================================
 
 local function startAutoFarmLoop()
+    Rayfield:Notify({
+        Title = "Auto Farm",
+        Content = "Starting farm on " .. selectedIsland,
+        Duration = 3,
+        Image = 4483362458
+    })
+
     while autoFarmEnabled do
-        pcall(function()
+        local success, err = pcall(function()
             local islandSpots = farmLocations[selectedIsland]
-            if islandSpots and #islandSpots > 0 then
+            if type(islandSpots) == "table" and #islandSpots > 0 then
                 local location = islandSpots[math.random(1, #islandSpots)]
                 
-                local char = player.Character
+                local charFolder = workspace:FindFirstChild("Characters")
+                if not charFolder then return end
+                
+                local char = charFolder:FindFirstChild(player.Name)
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     hrp.CFrame = location
-                    task.wait(2)
+                    task.wait(1.5)
                     
-                    -- Start fishing at this spot
-                    if not autoFishingV3Enabled then
-                        autoFishingV3Enabled = true
-                        task.spawn(autoFishingV3Loop)
+                    if autoFishingV3Enabled then
+                        task.wait(60)
                     end
-                    
-                    -- Fish for 2 minutes then move
-                    task.wait(120)
                 end
             end
         end)
-        task.wait(1)
+        
+        if not success then
+            warn("Error in auto farm: " .. tostring(err))
+        end
+        
+        task.wait(0.5)
     end
 end
 
 -- ===================================
--- ========== AUTO EVENT FARM ========
+-- ========== EXCLAIM DETECTION ======
 -- ===================================
 
-local knownEvents = {}
-
-local function updateKnownEvents()
-    knownEvents = {}
-    local props = workspace:FindFirstChild("Props")
-    if props then
-        for _, child in ipairs(props:GetChildren()) do
-            if child:IsA("Model") and child.PrimaryPart then
-                table.insert(knownEvents, child)
-            end
-        end
-    end
-end
-
-local function monitorAutoTP()
-    task.spawn(function()
-        while true do
-            if autoTPEventEnabled then
-                updateKnownEvents()
-                if #knownEvents > 0 then
-                    local event = knownEvents[1]
-                    local char = player.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        char.HumanoidRootPart.CFrame = event.PrimaryPart.CFrame + Vector3.new(0, 10, 0)
-                        Rayfield:Notify({
-                            Title = "Event Farm",
-                            Content = "Teleported to event!",
-                            Duration = 3,
-                            Image = 4483362458
-                        })
-                    end
-                end
-            end
-            task.wait(10)
-        end
+-- Listener untuk detect exclaim (tanda seru) dan auto recast
+task.spawn(function()
+    local success, exclaimEvent = pcall(function()
+        return net:WaitForChild("RE/ReplicateTextEffect", 2)
     end)
-end
 
--- ===================================
--- ========== FLOATING PLATFORM ======
--- ===================================
+    if success and exclaimEvent then
+        exclaimEvent.OnClientEvent:Connect(function(data)
+            if (autoFishingEnabled or autoFishingV2Enabled or autoFishingV3Enabled) and data and data.TextData
+                and data.TextData.EffectType == "Exclaim" then
 
-local floatPlatform = nil
-
-local function toggleFloat(enabled)
-    if enabled then
-        local char = player.Character
-        if not char then return end
-
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        floatPlatform = Instance.new("Part")
-        floatPlatform.Anchored = true
-        floatPlatform.Size = Vector3.new(10, 1, 10)
-        floatPlatform.Transparency = 0.5
-        floatPlatform.BrickColor = BrickColor.new("Bright blue")
-        floatPlatform.CanCollide = true
-        floatPlatform.Name = "FloatPlatform"
-        floatPlatform.Parent = workspace
-
-        task.spawn(function()
-            while floatPlatform and floatPlatform.Parent do
-                pcall(function()
-                    floatPlatform.Position = hrp.Position - Vector3.new(0, 3.5, 0)
-                end)
-                task.wait(0.1)
+                local head = player.Character and player.Character:FindFirstChild("Head")
+                if head and data.Container == head then
+                    task.spawn(function()
+                        if autoFishingV3Enabled then
+                            -- V3: Immediate finish dengan timing exploit
+                            task.wait(0.05)
+                            finishRemote:FireServer(true)
+                            
+                        elseif autoFishingV2Enabled then
+                            task.wait(0.1)
+                            finishRemote:FireServer()
+                        else
+                            -- V1: Original behavior
+                            for i = 1, 3 do
+                                task.wait(1)
+                                finishRemote:FireServer()
+                            end
+                        end
+                    end)
+                end
             end
         end)
-
-        Rayfield:Notify({
-            Title = "Float Enabled",
-            Content = "Floating platform activated!",
-            Duration = 3,
-            Image = 4483362458
-        })
-    else
-        if floatPlatform then
-            floatPlatform:Destroy()
-            floatPlatform = nil
-        end
-        Rayfield:Notify({
-            Title = "Float Disabled",
-            Content = "Floating platform removed!",
-            Duration = 3
-        })
-    end
-end
-
--- ===================================
--- ========== INFINITY JUMP ==========
--- ===================================
-
-UserInputService.JumpRequest:Connect(function()
-    if ijumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
     end
 end)
-
--- ===================================
--- ========== ANTI-AFK ===============
--- ===================================
-
-local AFKConnection = nil
-
-local function toggleAntiAFK()
-    antiAFKEnabled = not antiAFKEnabled
-    
-    if antiAFKEnabled then
-        if AFKConnection then
-            AFKConnection:Disconnect()
-        end
-        
-        AFKConnection = player.Idled:Connect(function()
-            VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-            task.wait(1)
-            VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-        end)
-        
-        Rayfield:Notify({
-            Title = "Anti-AFK",
-            Content = "Anti-AFK Enabled!",
-            Duration = 3,
-            Image = 4483362458
-        })
-    else
-        if AFKConnection then
-            AFKConnection:Disconnect()
-            AFKConnection = nil
-        end
-        
-        Rayfield:Notify({
-            Title = "Anti-AFK",
-            Content = "Anti-AFK Disabled!",
-            Duration = 3
-        })
-    end
-end
-
--- ===================================
--- ========== NO CLIP ================
--- ===================================
-
-RunService.Stepped:Connect(function()
-    if not universalNoclip then return end
-
-    local char = player.Character
-    if char then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide == true then
-                part.CanCollide = false
-            end
-        end
-    end
-end)
-
--- ===================================
--- ========== TELEPORT SYSTEMS =======
--- ===================================
-
-local islandCoords = {
-    ["Weather Machine"] = Vector3.new(-1471, -3, 1929),
-    ["Tropical Grove"] = Vector3.new(-2038, 3, 3650),
-    ["Stingray Shores"] = Vector3.new(-32, 4, 2773),
-    ["Kohana Volcano"] = Vector3.new(-519, 24, 189),
-    ["Coral Reefs"] = Vector3.new(-3095, 1, 2177),
-    ["Crater Island"] = Vector3.new(968, 1, 4854),
-    ["Winter Fest"] = Vector3.new(1611, 4, 3280),
-    ["Fisherman Island"] = Vector3.new(-75, 3, 3103),
-}
-
-local function teleportToIsland(islandName)
-    local pos = islandCoords[islandName]
-    if not pos then return end
-    
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
-        Rayfield:Notify({
-            Title = "Teleported",
-            Content = "Teleported to " .. islandName,
-            Duration = 3,
-            Image = 4483362458
-        })
-    end
-end
-
-local function teleportToEvent(eventName)
-    local props = workspace:FindFirstChild("Props")
-    if props then
-        local event = props:FindFirstChild(eventName)
-        if event and event:FindFirstChild("Fishing Boat") then
-            local boat = event["Fishing Boat"]
-            local char = player.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                char.HumanoidRootPart.CFrame = boat.PrimaryPart.CFrame + Vector3.new(0, 10, 0)
-                Rayfield:Notify({
-                    Title = "Event Teleport",
-                    Content = "Teleported to " .. eventName,
-                    Duration = 3,
-                    Image = 4483362458
-                })
-                return
-            end
-        end
-    end
-    
-    Rayfield:Notify({
-        Title = "Event Not Found",
-        Content = eventName .. " not available!",
-        Duration = 3
-    })
-end
-
--- ===================================
--- ========== TRADE SYSTEM ===========
--- ===================================
-
-local function getPlayerList()
-    local list = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player then
-            table.insert(list, p.Name)
-        end
-    end
-    return list
-end
 
 -- ===================================
 -- ========== RAYFIELD UI ============
 -- ===================================
 
 local Window = Rayfield:CreateWindow({
-    Name = "🐟 Fish It Premium - FIXED",
+    Name = "🐟 Fish It - Codepikk Premium V3",
     LoadingTitle = "Fish It Premium Loading...",
-    LoadingSubtitle = "All Bugs Fixed!",
+    LoadingSubtitle = "by Codepikk",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = "FishItPremium",
-        FileName = "Config"
+        FolderName = "codepik",
+        FileName = "FishItConfig"
     },
     Discord = {
-        Enabled = false,
+        Enabled = true,
         Invite = "codepikk",
         RememberJoins = true
     },
@@ -444,10 +1390,10 @@ local Window = Rayfield:CreateWindow({
 -- Main Tab
 local MainTab = Window:CreateTab("🎣 Main", 4483362458)
 
-MainTab:CreateSection("Auto Fishing - FIXED")
+MainTab:CreateSection("Auto Fishing")
 
 MainTab:CreateToggle({
-    Name = "🎣 Auto Fishing V1",
+    Name = "🎣 Auto Fishing V1 (Custom Delay)",
     CurrentValue = false,
     Flag = "FishingV1Toggle",
     Callback = function(Value)
@@ -456,17 +1402,18 @@ MainTab:CreateToggle({
         autoFishingV3Enabled = false
         
         if Value then
+            monitorFishThreshold()
             task.spawn(autoFishingLoop)
             Rayfield:Notify({
                 Title = "Auto Fishing V1",
-                Content = "Started! Normal speed.",
+                Content = "Auto Fishing V1 Started!",
                 Duration = 3,
                 Image = 4483362458
             })
         else
             Rayfield:Notify({
                 Title = "Auto Fishing V1",
-                Content = "Stopped!",
+                Content = "Auto Fishing V1 Stopped!",
                 Duration = 3
             })
         end
@@ -474,7 +1421,7 @@ MainTab:CreateToggle({
 })
 
 MainTab:CreateToggle({
-    Name = "⚡ Auto Fishing V2",
+    Name = "⚡ Auto Fishing V2 (Fixed Delay)",
     CurrentValue = false,
     Flag = "FishingV2Toggle",
     Callback = function(Value)
@@ -483,17 +1430,18 @@ MainTab:CreateToggle({
         autoFishingV3Enabled = false
         
         if Value then
+            monitorFishThreshold()
             task.spawn(autoFishingV2Loop)
             Rayfield:Notify({
                 Title = "Auto Fishing V2",
-                Content = "Started! Faster speed.",
+                Content = "Auto Fishing V2 Started!",
                 Duration = 3,
                 Image = 4483362458
             })
         else
             Rayfield:Notify({
                 Title = "Auto Fishing V2",
-                Content = "Stopped!",
+                Content = "Auto Fishing V2 Stopped!",
                 Duration = 3
             })
         end
@@ -501,7 +1449,7 @@ MainTab:CreateToggle({
 })
 
 MainTab:CreateToggle({
-    Name = "🚀 Auto Fishing V3",
+    Name = "🚀 Auto Fishing V3 (X3 Speed)",
     CurrentValue = false,
     Flag = "FishingV3Toggle",
     Callback = function(Value)
@@ -510,17 +1458,18 @@ MainTab:CreateToggle({
         autoFishingV2Enabled = false
         
         if Value then
+            monitorFishThreshold()
             task.spawn(autoFishingV3Loop)
             Rayfield:Notify({
                 Title = "Auto Fishing V3",
-                Content = "Started! Maximum speed!",
+                Content = "Auto Fishing V3 Started!",
                 Duration = 3,
                 Image = 4483362458
             })
         else
             Rayfield:Notify({
                 Title = "Auto Fishing V3",
-                Content = "Stopped!",
+                Content = "Auto Fishing V3 Stopped!",
                 Duration = 3
             })
         end
@@ -533,13 +1482,115 @@ MainTab:CreateToggle({
     Flag = "PerfectCastToggle",
     Callback = function(Value)
         perfectCastEnabled = Value
+        Rayfield:Notify({
+            Title = "Perfect Cast",
+            Content = Value and "Enabled" or "Disabled",
+            Duration = 2,
+            Image = 4483362458
+        })
+    end,
+})
+
+MainTab:CreateSection("Inventory Management")
+
+MainTab:CreateButton({
+    Name = "💰 Sell Now (Non-Favorite)",
+    Callback = sellNow,
+})
+
+MainTab:CreateToggle({
+    Name = "🔄 Auto Sell at 4000 Fish",
+    CurrentValue = false,
+    Flag = "AutoSell4000Toggle",
+    Callback = function(Value)
+        autoSellAt4000Enabled = Value
+        if Value then
+            checkInventoryAndSell()
+            Rayfield:Notify({
+                Title = "Auto Sell 4000",
+                Content = "Auto Sell at 4000 Enabled!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Sell 4000",
+                Content = "Auto Sell at 4000 Disabled!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "💰 Auto Sell Mythic",
+    CurrentValue = false,
+    Flag = "AutoSellMythicToggle",
+    Callback = function(Value)
+        autoSellMythicEnabled = Value
+        if Value then
+            setupAutoSellMythic()
+            Rayfield:Notify({
+                Title = "Auto Sell Mythic",
+                Content = "Auto Sell Mythic Enabled!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Sell Mythic",
+                Content = "Auto Sell Mythic Disabled!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+MainTab:CreateInput({
+    Name = "Fish Threshold",
+    PlaceholderText = "Default: 30",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then
+            obtainedLimit = num
+            Rayfield:Notify({
+                Title = "Threshold Set",
+                Content = "Fish threshold set to " .. num,
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
     end,
 })
 
 -- Auto Favorite Tab
 local FavoriteTab = Window:CreateTab("⭐ Auto Favorite", 4483362458)
 
-FavoriteTab:CreateSection("Auto Favorite - FIXED")
+FavoriteTab:CreateSection("Auto Favorite Settings")
+
+FavoriteTab:CreateToggle({
+    Name = "⭐ Enable Auto Favorite",
+    CurrentValue = false,
+    Flag = "AutoFavoriteToggle",
+    Callback = function(Value)
+        GlobalFav.AutoFavoriteEnabled = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Favorite",
+                Content = "Auto Favorite Enabled!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Favorite",
+                Content = "Auto Favorite Disabled!",
+                Duration = 3
+            })
+        end
+    end,
+})
 
 local FishDropdown = FavoriteTab:CreateDropdown({
     Name = "Select Fish to Favorite",
@@ -550,11 +1601,14 @@ local FishDropdown = FavoriteTab:CreateDropdown({
     Callback = function(Options)
         GlobalFav.SelectedFishIds = {}
         for _, fishName in ipairs(Options) do
-            GlobalFav.SelectedFishIds[fishName] = true
+            local id = GlobalFav.FishNameToId[fishName]
+            if id then
+                GlobalFav.SelectedFishIds[id] = true
+            end
         end
         Rayfield:Notify({
-            Title = "Fish Selected",
-            Content = #Options .. " fish selected",
+            Title = "Auto Favorite",
+            Content = "Favoriting active for selected fish",
             Duration = 3,
             Image = 4483362458
         })
@@ -573,35 +1627,24 @@ local VariantDropdown = FavoriteTab:CreateDropdown({
             GlobalFav.SelectedVariants[variantName] = true
         end
         Rayfield:Notify({
-            Title = "Variants Selected",
-            Content = #Options .. " variants selected",
-            Duration = 3,
-            Image = 4483362458
-        })
-    end,
-})
-
-FavoriteTab:CreateToggle({
-    Name = "⭐ Enable Auto Favorite",
-    CurrentValue = false,
-    Flag = "AutoFavoriteToggle",
-    Callback = function(Value)
-        GlobalFav.AutoFavoriteEnabled = Value
-        Rayfield:Notify({
             Title = "Auto Favorite",
-            Content = Value and "Enabled!" or "Disabled!",
+            Content = "Favoriting active for selected variants",
             Duration = 3,
             Image = 4483362458
         })
     end,
 })
 
--- Farm Tab
+-- Auto Farm Tab
 local FarmTab = Window:CreateTab("🌾 Auto Farm", 4483362458)
 
-FarmTab:CreateSection("Auto Farm - FIXED")
+FarmTab:CreateSection("Auto Farm Settings")
 
-local islandOptions = {"Fisherman Island", "Crater Islands", "Tropical Grove"}
+local islandOptions = {
+    "Crater Islands",
+    "Tropical Grove", 
+    "Fisherman Island"
+}
 
 FarmTab:CreateDropdown({
     Name = "Select Farm Island",
@@ -612,7 +1655,7 @@ FarmTab:CreateDropdown({
         selectedIsland = Option
         Rayfield:Notify({
             Title = "Island Selected",
-            Content = "Farm location: " .. Option,
+            Content = "Farming location set to " .. Option,
             Duration = 3,
             Image = 4483362458
         })
@@ -626,10 +1669,12 @@ FarmTab:CreateToggle({
     Callback = function(Value)
         autoFarmEnabled = Value
         if Value then
+            autoFishingV3Enabled = true
             task.spawn(startAutoFarmLoop)
+            task.spawn(autoFishingV3Loop)
             Rayfield:Notify({
                 Title = "Auto Farm",
-                Content = "Started on " .. selectedIsland,
+                Content = "Auto Farm Started on " .. selectedIsland,
                 Duration = 3,
                 Image = 4483362458
             })
@@ -637,7 +1682,7 @@ FarmTab:CreateToggle({
             autoFishingV3Enabled = false
             Rayfield:Notify({
                 Title = "Auto Farm",
-                Content = "Stopped!",
+                Content = "Auto Farm Stopped!",
                 Duration = 3
             })
         end
@@ -654,60 +1699,254 @@ FarmTab:CreateToggle({
             monitorAutoTP()
             Rayfield:Notify({
                 Title = "Auto Event Farm",
-                Content = "Enabled! Auto teleport to events.",
+                Content = "Auto Event Farm Enabled!",
                 Duration = 3,
                 Image = 4483362458
             })
         else
             Rayfield:Notify({
                 Title = "Auto Event Farm",
-                Content = "Disabled!",
+                Content = "Auto Event Farm Disabled!",
                 Duration = 3
             })
         end
     end,
 })
 
+FarmTab:CreateLabel("⚠️ Auto Farm Event: DO WITH YOUR OWN RISK!")
+
 -- Trade Tab
 local TradeTab = Window:CreateTab("🤝 Trade", 4483362458)
 
-TradeTab:CreateSection("Trade System - FIXED")
+TradeTab:CreateSection("Trade Settings")
 
-local function refreshTradeList()
-    local playerList = getPlayerList()
-    TradeDropdown:Refresh(playerList)
-end
-
-local TradeDropdown = TradeTab:CreateDropdown({
+local TradeTargetDropdown = TradeTab:CreateDropdown({
     Name = "Select Trade Target",
     Options = getPlayerList(),
-    CurrentOption = nil,
+    CurrentOption = getPlayerList()[1] or nil,
     Flag = "TradeTargetDropdown",
     Callback = function(Option)
+        local username = Option:match("%((.-)%)")
+        local targetPlayer = Players:FindFirstChild(username)
+        if targetPlayer then
+            TradeFunction.targetUserId = targetPlayer.UserId
+            Rayfield:Notify({
+                Title = "Trade Target",
+                Content = "Target found: " .. targetPlayer.Name,
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Trade Target",
+                Content = "Player not found!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+TradeTab:CreateToggle({
+    Name = "💾 Mode Save Items",
+    CurrentValue = false,
+    Flag = "SaveModeToggle",
+    Callback = function(Value)
+        TradeFunction.saveTempMode = Value
+        if Value then
+            TradeFunction.TempTradeList = {}
+            Rayfield:Notify({
+                Title = "Save Mode",
+                Content = "Enabled - Click items to save",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Save Mode",
+                Content = "Disabled - "..#TradeFunction.TempTradeList.." items saved",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+TradeTab:CreateToggle({
+    Name = "🤖 Auto Trade",
+    CurrentValue = false,
+    Flag = "AutoTradeToggle",
+    Callback = function(Value)
+        TradeFunction.AutoTrade = Value
+        if TradeFunction.AutoTrade then
+            if #TradeFunction.TempTradeList == 0 then
+                Rayfield:Notify({
+                    Title = "Mass Trade",
+                    Content = "No items saved to trade!",
+                    Duration = 3
+                })
+                TradeFunction.AutoTrade = false
+                return
+            end
+            TradeAll()
+            Rayfield:Notify({
+                Title = "Mass Trade",
+                Content = "Auto Trade Enabled",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Mass Trade",
+                Content = "Auto Trade Disabled",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+TradeTab:CreateToggle({
+    Name = "🔄 Auto Accept Trade",
+    CurrentValue = false,
+    Flag = "AutoAcceptTradeToggle",
+    Callback = function(Value)
+        TradeFunction.autoAcceptTrade = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Auto Accept Trade",
+                Content = "Enabled",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Accept Trade",
+                Content = "Disabled",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+-- Player list monitoring untuk trade
+Players.PlayerAdded:Connect(function()
+    refreshTradeDropdown(TradeTargetDropdown)
+end)
+Players.PlayerRemoving:Connect(function()
+    refreshTradeDropdown(TradeTargetDropdown)
+end)
+
+-- Fish Notification Tab
+local NotifTab = Window:CreateTab("🔔 Notifications", 4483362458)
+
+NotifTab:CreateSection("Fish Notification Settings")
+
+NotifTab:CreateInput({
+    Name = "Discord Webhook Path",
+    PlaceholderText = "ID/Token",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        webhookPath = Text
+        local isValid, result = validateWebhook(webhookPath)
+        if isValid then
+            Rayfield:Notify({
+                Title = "Webhook Valid",
+                Content = "Channel ID: " .. tostring(result),
+                Duration = 5,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Webhook Invalid",
+                Content = tostring(result),
+                Duration = 5
+            })
+        end
+    end,
+})
+
+NotifTab:CreateToggle({
+    Name = "Enable Fish Notifications",
+    CurrentValue = false,
+    Flag = "FishNotifToggle",
+    Callback = function(Value)
+        fishWebhookEnabled = Value
         Rayfield:Notify({
-            Title = "Trade Target",
-            Content = "Selected: " .. Option,
+            Title = "Fish Notifications",
+            Content = Value and "Enabled" or "Disabled",
             Duration = 3,
             Image = 4483362458
         })
     end,
 })
 
-TradeTab:CreateButton({
-    Name = "🔄 Refresh Player List",
-    Callback = refreshTradeList
+local CategoryDropdown = NotifTab:CreateDropdown({
+    Name = "Select Fish Categories",
+    Options = {"Secret", "Legendary", "Mythic"},
+    CurrentOption = {"Secret"},
+    MultipleOptions = true,
+    Flag = "FishCategoryDropdown",
+    Callback = function(Options)
+        SelectedCategories = Options
+        Rayfield:Notify({
+            Title = "Fish Categories",
+            Content = "Now tracking: " .. table.concat(SelectedCategories, ", "),
+            Duration = 5,
+            Image = 4483362458
+        })
+    end,
 })
 
--- Auto refresh player list
-Players.PlayerAdded:Connect(refreshTradeList)
-Players.PlayerRemoving:Connect(refreshTradeList)
+-- Weather Tab
+local WeatherTab = Window:CreateTab("🌤️ Weather", 4483362458)
+
+WeatherTab:CreateSection("Auto Buy Weather")
+
+local WeatherDropdown = WeatherTab:CreateDropdown({
+    Name = "Auto Buy Weather",
+    Options = {"Storm", "Cloudy", "Snow", "Wind", "Radiant"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "WeatherDropdown",
+    Callback = function(Options)
+        for weatherType, active in pairs(weatherActive) do
+            if active and not table.find(Options, weatherType) then
+                weatherActive[weatherType] = false
+                Rayfield:Notify({
+                    Title = "Auto Weather",
+                    Content = "Auto buying " .. weatherType .. " stopped",
+                    Duration = 3
+                })
+            end
+        end
+        
+        for _, weatherType in pairs(Options) do
+            if not weatherActive[weatherType] then
+                weatherActive[weatherType] = true
+                Rayfield:Notify({
+                    Title = "Auto Weather",
+                    Content = "Auto buying " .. weatherType .. " started!",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+                autoBuyWeather(weatherType)
+            end
+        end
+    end,
+})
 
 -- Teleport Tab
 local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
 
-TeleportTab:CreateSection("Teleport to Islands")
+TeleportTab:CreateSection("TELEPORT TO ISLAND")
 
-for islandName, _ in pairs(islandCoords) do
+local islandList = {
+    "Weather Machine", "Esoteric Depths", "Tropical Grove", 
+    "Stingray Shores", "Kohana Volcano", "Coral Reefs",
+    "Crater Island", "Kohana", "Winter Fest",
+    "Isoteric Island", "Treasure Hall", "Lost Shore",
+    "Sishypus Statue", "Ancient Jungle"
+}
+
+for _, islandName in ipairs(islandList) do
     TeleportTab:CreateButton({
         Name = islandName,
         Callback = function()
@@ -716,7 +1955,7 @@ for islandName, _ in pairs(islandCoords) do
     })
 end
 
-TeleportTab:CreateSection("Teleport to Events")
+TeleportTab:CreateSection("TELEPORT TO EVENT")
 
 local eventOptions = {
     "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", 
@@ -743,14 +1982,36 @@ PlayerTab:CreateToggle({
     Flag = "NoClipToggle",
     Callback = function(Value)
         universalNoclip = Value
-        Rayfield:Notify({
-            Title = "No Clip",
-            Content = Value and "Enabled!" or "Disabled!",
-            Duration = 3,
-            Image = 4483362458
-        })
+        if Value then
+            Rayfield:Notify({
+                Title = "Universal Noclip",
+                Content = "You can penetrate all objects!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Universal Noclip",
+                Content = "Noclip Disabled!",
+                Duration = 3
+            })
+        end
     end,
 })
+
+-- NoClip Loop
+RunService.Stepped:Connect(function()
+    if not universalNoclip then return end
+
+    local char = player.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
 
 PlayerTab:CreateToggle({
     Name = "🎈 Enable Float",
@@ -768,12 +2029,67 @@ PlayerTab:CreateToggle({
     Flag = "InfinityJumpToggle",
     Callback = function(Value)
         ijumpEnabled = Value
-        Rayfield:Notify({
-            Title = "Infinity Jump",
-            Content = Value and "Enabled!" or "Disabled!",
-            Duration = 3,
-            Image = 4483362458
-        })
+        if Value then
+            Rayfield:Notify({
+                Title = "Infinity Jump",
+                Content = "Infinity Jump Enabled!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Infinity Jump",
+                Content = "Infinity Jump Disabled!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+-- Infinity Jump Handler
+UserInputService.JumpRequest:Connect(function()
+    if ijumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
+
+-- Anti Drown System
+local rawmt = getrawmetatable(game)
+setreadonly(rawmt, false)
+local oldNamecall = rawmt.__namecall
+
+rawmt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+
+    if tostring(self) == "URE/UpdateOxygen" and method == "FireServer" and AntiDrown_Enabled then
+        return nil
+    end
+
+    return oldNamecall(self, ...)
+end)
+
+PlayerTab:CreateToggle({
+    Name = "🌊 Anti Drown",
+    CurrentValue = false,
+    Flag = "AntiDrownToggle",
+    Callback = function(Value)
+        AntiDrown_Enabled = Value
+        
+        if Value then
+            Rayfield:Notify({
+                Title = "Anti Drown",
+                Content = "Oxygen loss blocked!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Anti Drown",
+                Content = "Anti Drown Disabled!",
+                Duration = 3
+            })
+        end
     end,
 })
 
@@ -781,7 +2097,7 @@ PlayerTab:CreateSlider({
     Name = "🏃 WalkSpeed",
     Range = {16, 200},
     Increment = 1,
-    CurrentValue = 16,
+    CurrentValue = 20,
     Flag = "WalkSpeedSlider",
     Callback = function(Value)
         local char = player.Character
@@ -789,6 +2105,12 @@ PlayerTab:CreateSlider({
             local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then 
                 hum.WalkSpeed = Value
+                Rayfield:Notify({
+                    Title = "WalkSpeed",
+                    Content = "WalkSpeed set to " .. Value,
+                    Duration = 2,
+                    Image = 4483362458
+                })
             end
         end
     end,
@@ -807,10 +2129,76 @@ PlayerTab:CreateSlider({
             if hum then
                 hum.UseJumpPower = true
                 hum.JumpPower = Value
+                Rayfield:Notify({
+                    Title = "Jump Power",
+                    Content = "Jump Power set to " .. Value,
+                    Duration = 2,
+                    Image = 4483362458
+                })
             end
         end
     end,
 })
+
+PlayerTab:CreateToggle({
+    Name = "🔭 Unlimited Zoom",
+    CurrentValue = false,
+    Flag = "UnlimitedZoomToggle",
+    Callback = function(Value)
+        if Value then
+            player.CameraMinZoomDistance = 0.5
+            player.CameraMaxZoomDistance = 9999
+            Rayfield:Notify({
+                Title = "Unlimited Zoom",
+                Content = "Unlimited Zoom Enabled!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            player.CameraMinZoomDistance = 0.5
+            player.CameraMaxZoomDistance = 400
+            Rayfield:Notify({
+                Title = "Unlimited Zoom",
+                Content = "Unlimited Zoom Disabled!",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+PlayerTab:CreateButton({
+    Name = "🚤 Access All Boats",
+    Callback = function()
+        local vehicles = workspace:FindFirstChild("Vehicles")
+        if not vehicles then
+            Rayfield:Notify({
+                Title = "Not Found",
+                Content = "Vehicles container not found.",
+                Duration = 3
+            })
+            return
+        end
+
+        local count = 0
+        for _, boat in ipairs(vehicles:GetChildren()) do
+            if boat:IsA("Model") and boat:GetAttribute("OwnerId") then
+                local currentOwner = boat:GetAttribute("OwnerId")
+                if currentOwner ~= player.UserId then
+                    boat:SetAttribute("OwnerId", player.UserId)
+                    count += 1
+                end
+            end
+        end
+
+        Rayfield:Notify({
+            Title = "Access Granted",
+            Content = "You now own " .. count .. " boat(s).",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end,
+})
+
 
 -- Misc Tab
 local MiscTab = Window:CreateTab("⚙️ Misc", 4483362458)
@@ -829,25 +2217,322 @@ MiscTab:CreateToggle({
 MiscTab:CreateButton({
     Name = "🚀 Boost FPS",
     Callback = function()
-        for _, v in pairs(game:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.Reflectance = 0
-            end
-        end
-        Rayfield:Notify({
-            Title = "FPS Boosted",
-            Content = "Game optimized for better FPS!",
-            Duration = 3,
-            Image = 4483362458
-        })
+        BoostFPS()
     end,
 })
 
 MiscTab:CreateButton({
+    Name = "✨ HDR Shader",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/unclemaggot/fishitpremi/refs/heads/main/hdr.lua"))()
+    end,
+})
+
+MiscTab:CreateSection("Server Hop")
+
+MiscTab:CreateButton({
     Name = "🔄 Rejoin Server",
     Callback = function()
-        TeleportService:Teleport(game.PlaceId, player)
+        Rayfield:Notify({
+            Title = "Rejoining",
+            Content = "Rejoining current server...",
+            Duration = 3,
+            Image = 4483362458
+        })
+        Rejoin()
+    end,
+})
+
+MiscTab:CreateButton({
+    Name = "⚡ Quick Server Hop",
+    Callback = function()
+        QuickServerHop()
+    end,
+})
+
+MiscTab:CreateLabel("📌 Quick: Fast random server")
+
+MiscTab:CreateSection("Auto Enchant Rod")
+
+MiscTab:CreateButton({
+    Name = "🔮 Auto Enchant Rod",
+    Callback = function()
+        local ENCHANT_POSITION = Vector3.new(3231, -1303, 1402)
+        local char = workspace:WaitForChild("Characters"):FindFirstChild(player.Name)
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+        if not hrp then
+            Rayfield:Notify({
+                Title = "Auto Enchant Rod",
+                Content = "Failed to get character HRP.",
+                Duration = 3
+            })
+            return
+        end
+
+        Rayfield:Notify({
+            Title = "Preparing Enchant...",
+            Content = "Please manually place Enchant Stone into slot 5 before we begin...",
+            Duration = 5,
+            Image = 4483362458
+        })
+
+        task.wait(3)
+
+        local slot5 = player.PlayerGui.Backpack.Display:GetChildren()[10]
+        local itemName = slot5 and slot5:FindFirstChild("Inner") and slot5.Inner:FindFirstChild("Tags") and slot5.Inner.Tags:FindFirstChild("ItemName")
+
+        if not itemName or not itemName.Text:lower():find("enchant") then
+            Rayfield:Notify({
+                Title = "Auto Enchant Rod",
+                Content = "Slot 5 does not contain an Enchant Stone.",
+                Duration = 3
+            })
+            return
+        end
+
+        Rayfield:Notify({
+            Title = "Enchanting...",
+            Content = "It is in the process of Enchanting, please wait until the Enchantment is complete",
+            Duration = 7,
+            Image = 4483362458
+        })
+
+        local originalPosition = hrp.Position
+        task.wait(1)
+        hrp.CFrame = CFrame.new(ENCHANT_POSITION + Vector3.new(0, 5, 0))
+        task.wait(1.2)
+
+        local equipRod = net:WaitForChild("RE/EquipToolFromHotbar")
+        local activateEnchant = net:WaitForChild("RE/ActivateEnchantingAltar")
+
+        pcall(function()
+            equipRod:FireServer(5)
+            task.wait(0.5)
+            activateEnchant:FireServer()
+            task.wait(7)
+            Rayfield:Notify({
+                Title = "Enchant",
+                Content = "Successfully Enchanted!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end)
+
+        task.wait(0.9)
+        hrp.CFrame = CFrame.new(originalPosition + Vector3.new(0, 3, 0))
+    end
+})
+
+MiscTab:CreateSection("Rod & Bait Modifiers")
+
+-- Rod Modifier System
+local lastModifiedRod = nil
+local originalRodData = {}
+local lastModifiedBait = nil
+local originalBaitData = {}
+
+local function deepCopyTable(tbl)
+    local copy = {}
+    for k, v in pairs(tbl) do
+        copy[k] = typeof(v) == "table" and deepCopyTable(v) or v
+    end
+    return copy
+end
+
+local function resetPreviousRod()
+    if lastModifiedRod and originalRodData[lastModifiedRod] then
+        local rodModule = ReplicatedStorage:WaitForChild("Items"):FindFirstChild(lastModifiedRod)
+        if rodModule and rodModule:IsA("ModuleScript") then
+            local rodData = require(rodModule)
+            local originalData = originalRodData[lastModifiedRod]
+
+            for key, value in pairs(originalData) do
+                rodData[key] = value
+            end
+            Rayfield:Notify({
+                Title = "Rod Reset",
+                Content = "Rod '" .. lastModifiedRod .. "' has been reset.",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end
+end
+
+local function modifyRodData(rodNameInput)
+    local targetModule = ReplicatedStorage:WaitForChild("Items"):FindFirstChild(rodNameInput)
+    if not targetModule then
+        Rayfield:Notify({
+            Title = "Rod Not Found",
+            Content = "No rod matched: " .. rodNameInput,
+            Duration = 3
+        })
+        return
+    end
+
+    resetPreviousRod()
+
+    local rodData = require(targetModule)
+    if rodData.Data and rodData.Data.Type == "Fishing Rods" then
+        originalRodData[rodNameInput] = deepCopyTable(rodData)
+        lastModifiedRod = rodNameInput
+
+        if rodData.RollData and rodData.RollData.BaseLuck then
+            rodData.RollData.BaseLuck *= 1.35
+        end
+        if rodData.ClickPower then
+            rodData.ClickPower *= 1.25
+        end
+        if rodData.Resilience then
+            rodData.Resilience *= 1.25
+        end
+        if typeof(rodData.Windup) == "NumberRange" then
+            local newMin = rodData.Windup.Min * 0.50
+            local newMax = rodData.Windup.Max * 0.50
+            rodData.Windup = NumberRange.new(newMin, newMax)
+        end
+        if rodData.MaxWeight then
+            rodData.MaxWeight *= 1.25
+        end
+
+        Rayfield:Notify({
+            Title = "Rod Modified",
+            Content = "Rod '" .. rodData.Data.Name .. "' successfully boosted.",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        Rayfield:Notify({
+            Title = "Invalid Rod",
+            Content = "The selected module is not a valid rod.",
+            Duration = 3
+        })
+    end
+end
+
+local function resetPreviousBait()
+    if lastModifiedBait and originalBaitData[lastModifiedBait] then
+        local bait = ReplicatedStorage:WaitForChild("Baits"):FindFirstChild(lastModifiedBait)
+        if bait and bait:IsA("ModuleScript") then
+            local baitData = require(bait)
+            local originalData = originalBaitData[lastModifiedBait]
+
+            for key, value in pairs(originalData) do
+                baitData[key] = value
+            end
+
+            Rayfield:Notify({
+                Title = "Bait Reset",
+                Content = "Bait '" .. lastModifiedBait .. "' has been reset.",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end
+end
+
+local function modifyBaitData(baitName)
+    local baitModule = ReplicatedStorage:WaitForChild("Baits"):FindFirstChild(baitName)
+    if not baitModule then
+        Rayfield:Notify({
+            Title = "Bait Not Found",
+            Content = "No bait matched: " .. baitName,
+            Duration = 3
+        })
+        return
+    end
+
+    resetPreviousBait()
+
+    local baitData = require(baitModule)
+    originalBaitData[baitName] = deepCopyTable(baitData)
+    lastModifiedBait = baitName
+
+    if baitData.Modifiers and baitData.Modifiers.BaseLuck then
+        baitData.Modifiers.BaseLuck *= 1.4
+    end
+
+    Rayfield:Notify({
+        Title = "Bait Modified",
+        Content = "Bait '" .. baitName .. "' successfully boosted.",
+        Duration = 3,
+        Image = 4483362458
+    })
+end
+
+-- Get rod options
+local rodOptions = {}
+local rodNameMap = {}
+
+for _, item in pairs(ReplicatedStorage:WaitForChild("Items"):GetChildren()) do
+    if item:IsA("ModuleScript") and item.Name:sub(1,3) == "!!!" then
+        local displayName = item.Name:gsub("^!!!", "")
+        table.insert(rodOptions, displayName)
+        rodNameMap[displayName] = item.Name
+    end
+end
+
+MiscTab:CreateDropdown({
+    Name = "Rod Modifiers",
+    Options = rodOptions,
+    CurrentOption = nil,
+    Flag = "RodModifierDropdown",
+    Callback = function(Option)
+        local actualRodName = rodNameMap[Option]
+        if actualRodName then
+            modifyRodData(actualRodName)
+        end
+    end,
+})
+
+-- Get bait options
+local baitOptions = {}
+for _, bait in pairs(ReplicatedStorage:WaitForChild("Baits"):GetChildren()) do
+    if bait:IsA("ModuleScript") then
+        table.insert(baitOptions, bait.Name)
+    end
+end
+
+MiscTab:CreateDropdown({
+    Name = "Bait Modifier",
+    Options = baitOptions,
+    CurrentOption = nil,
+    Flag = "BaitModifierDropdown",
+    Callback = function(Option)
+        modifyBaitData(Option)
+    end,
+})
+
+MiscTab:CreateButton({
+    Name = "🔄 Reset Last Modified Bait",
+    Callback = function()
+        if lastModifiedBait then
+            resetPreviousBait()
+            lastModifiedBait = nil
+        else
+            Rayfield:Notify({
+                Title = "No Bait",
+                Content = "No bait has been modified yet.",
+                Duration = 3
+            })
+        end
+    end,
+})
+
+MiscTab:CreateButton({
+    Name = "🔄 Reset Last Modified Rod",
+    Callback = function()
+        if lastModifiedRod then
+            resetPreviousRod()
+            lastModifiedRod = nil
+        else
+            Rayfield:Notify({
+                Title = "No Rod",
+                Content = "No rod has been modified yet.",
+                Duration = 3
+            })
+        end
     end,
 })
 
@@ -858,7 +2543,7 @@ SettingsTab:CreateSection("Configuration")
 
 SettingsTab:CreateKeybind({
     Name = "UI Keybind",
-    CurrentKeybind = "RightControl",
+    CurrentKeybind = "G",
     HoldToInteract = false,
     Flag = "UIKeybind",
     Callback = function(Keybind)
@@ -872,7 +2557,7 @@ SettingsTab:CreateButton({
         Rayfield:SaveConfiguration()
         Rayfield:Notify({
             Title = "Config Saved",
-            Content = "Configuration saved successfully!",
+            Content = "Configuration has been saved!",
             Duration = 3,
             Image = 4483362458
         })
@@ -885,36 +2570,112 @@ SettingsTab:CreateButton({
         Rayfield:LoadConfiguration()
         Rayfield:Notify({
             Title = "Config Loaded",
-            Content = "Configuration loaded successfully!",
+            Content = "Configuration has been loaded!",
             Duration = 3,
             Image = 4483362458
         })
     end,
 })
 
+SettingsTab:CreateSection("Credits")
+
+SettingsTab:CreateLabel("Fish It Premium V3")
+SettingsTab:CreateLabel("Developed by Codepikk")
+SettingsTab:CreateLabel("Thanks for using! 🎣")
+
 -- ===================================
 -- ========== INITIALIZATION =========
 -- ===================================
 
--- Setup remotes
-setupRemotes()
+local function safeSetup()
+    -- Setup remotes dengan error handling
+    if not setupRemotes() then
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "Failed to setup remotes! Script may not work properly.",
+            Duration = 5,
+            Image = 4483362458
+        })
+        return false
+    end
+    
+    -- Setup animations dengan error handling
+    local animSuccess = pcall(setupAnimations)
+    if not animSuccess then
+        warn("Failed to setup some animations")
+    end
+    
+    -- Setup auto favorite system
+    setupAutoFavorite()
+    
+    -- Setup fish notification
+    startFishDetection()
+    
+    return true
+end
 
--- Start event monitoring
-task.spawn(monitorAutoTP)
+-- Initialize script
+if safeSetup() then
+    updateKnownEvents()
+    
+    -- Monitor Props untuk events
+    local props = workspace:FindFirstChild("Props")
+    if props then
+        props.ChildAdded:Connect(function()
+            task.wait(0.3)
+            updateKnownEvents()
+        end)
+        props.ChildRemoved:Connect(function()
+            task.wait(0.3)
+            updateKnownEvents()
+        end)
+    end
 
-Rayfield:Notify({
-    Title = "Fish It Premium LOADED!",
-    Content = "All features ready! No bugs! 🎣",
-    Duration = 5,
-    Image = 4483362458
-})
+    Rayfield:Notify({
+        Title = "Script Loaded!",
+        Content = "Fish It Premium V3 loaded successfully!\nAll features are now available!",
+        Duration = 5,
+        Image = 4483362458
+    })
+    
+    print("Fish It Premium V3 - Fully Loaded!")
+    print("Features: Auto Fish V1/V2/V3, Auto Farm, Auto Favorite, Trade System, Fish Notifications, Weather System, and more!")
+else
+    Rayfield:Notify({
+        Title = "Warning",
+        Content = "Script loaded with some issues. Some features may not work.",
+        Duration = 5,
+        Image = 4483362458
+    })
+end
 
-print("🎣 Fish It Premium - FULLY WORKING!")
-print("✅ Auto Fish V1/V2/V3 FIXED")
-print("✅ Auto Favorite FIXED") 
-print("✅ Trade System FIXED")
-print("✅ Auto Farm FIXED")
-print("✅ All Bugs FIXED!")
-
--- Load configuration
 Rayfield:LoadConfiguration()
+
+-- Anti-AFK untuk semua connections
+for i,v in next, getconnections(game:GetService("Players").LocalPlayer.Idled) do
+    v:Disable()
+end
+
+-- Auto Reconnect System
+local PlaceId = game.PlaceId
+local function AutoReconnect()
+    while task.wait(5) do
+        if not Players.LocalPlayer or not Players.LocalPlayer:IsDescendantOf(game) then
+            TeleportService:Teleport(PlaceId)
+        end
+    end
+end
+
+Players.LocalPlayer.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Failed then
+        TeleportService:Teleport(PlaceId)
+    end
+end)
+
+task.spawn(AutoReconnect)
+
+-- Final message
+task.delay(2, function()
+    print("🎣 Fish It Premium V3 - Ready to use!")
+    print("📁 Configuration saved to: codepik/FishItConfig")
+end)
