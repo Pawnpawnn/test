@@ -1,8 +1,8 @@
 -------------------------------------------
------ =======[ Load WindUI ] =======
+----- =======[ Load Rayfield ] =======
 -------------------------------------------
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -------------------------------------------
 ----- =======[ GLOBAL FUNCTION ] =======
@@ -27,16 +27,6 @@ if not net then
     return
 end
 
-local Notifs = {
-	WBN = true,
-	FavBlockNotif = true,
-	FishBlockNotif = true,
-	DelayBlockNotif = true,
-	AFKBN = true,
-	APIBN = true
-}
-
--- State table for new features
 local state = { 
     AutoFavourite = false, 
     AutoSell = false 
@@ -88,7 +78,7 @@ end)
 
 task.spawn(AutoReconnect)
 
--- Animation Setup with error handling
+-- Animation Setup
 local RodIdle, RodReel, RodShake
 local RodShakeAnim, RodIdleAnim, RodReelAnim
 
@@ -107,7 +97,6 @@ pcall(function()
 end)
 
 local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
 
 -------------------------------------------
 ----- =======[ AUTO BOOST FPS ] =======
@@ -132,7 +121,6 @@ local function BoostFPS()
 
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 1e10
-
         settings().Rendering.QualityLevel = "Level01"
     end)
 end
@@ -140,117 +128,55 @@ end
 task.spawn(BoostFPS)
 
 -------------------------------------------
------ =======[ NOTIFY FUNCTION ] =======
--------------------------------------------
-
-local function NotifySuccess(title, message, duration)
-    pcall(function()
-        WindUI:Notify({
-            Title = title,
-            Content = message,
-            Duration = duration or 3,
-            Icon = "circle-check"
-        })
-    end)
-end
-
-local function NotifyError(title, message, duration)
-    pcall(function()
-        WindUI:Notify({
-            Title = title,
-            Content = message,
-            Duration = duration or 3,
-            Icon = "ban"
-        })
-    end)
-end
-
-local function NotifyInfo(title, message, duration)
-    pcall(function()
-        WindUI:Notify({
-            Title = title,
-            Content = message,
-            Duration = duration or 3,
-            Icon = "info"
-        })
-    end)
-end
-
-local function NotifyWarning(title, message, duration)
-    pcall(function()
-        WindUI:Notify({
-            Title = title,
-            Content = message,
-            Duration = duration or 3,
-            Icon = "triangle-alert"
-        })
-    end)
-end
-
--------------------------------------------
 ----- =======[ LOAD WINDOW ] =======
 -------------------------------------------
 
-local Window = WindUI:CreateWindow({
-    Title = "ZiaanHub - Fish It",
-    Icon = "fish",
-    Author = "by @ziaandev",
-    Folder = "ZiaanHub",
-    Size = UDim2.fromOffset(600, 450),
-    Theme = "Indigo",
+local Window = Rayfield:CreateWindow({
+    Name = "ZiaanHub - Fish It",
+    LoadingTitle = "ZiaanHub Loading...",
+    LoadingSubtitle = "by @ziaandev",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "ZiaanHub",
+        FileName = "FishItConfig"
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "",
+        RememberJoins = true
+    },
     KeySystem = false
 })
 
-Window:SetToggleKey(Enum.KeyCode.G)
-
-WindUI:SetNotificationLower(true)
-
-task.wait(0.5)
-
-WindUI:Notify({
-	Title = "ZiaanHub - Fish It",
-	Content = "All Features Loaded Successfully!",
-	Duration = 5,
-	Image = "square-check-big"
+Rayfield:Notify({
+    Title = "ZiaanHub - Fish It",
+    Content = "All Features Loaded Successfully!",
+    Duration = 5,
+    Image = 4483362458
 })
 
 -------------------------------------------
 ----- =======[ MAIN TABS ] =======
 -------------------------------------------
 
-local AutoFishTab = Window:Tab({
-	Title = "Auto Fishing",
-	Icon = "fish"
-})
-
-local UtilityTab = Window:Tab({
-    Title = "Utility",
-    Icon = "settings"
-})
-
-local SettingsTab = Window:Tab({ 
-	Title = "Settings", 
-	Icon = "user-cog" 
-})
+local AutoFishTab = Window:CreateTab("🎣 Auto Fishing", 4483362458)
+local UtilityTab = Window:CreateTab("⚙️ Utility", 4483362458)
+local SettingsTab = Window:CreateTab("🔧 Settings", 4483362458)
 
 -------------------------------------------
 ----- =======[ AUTO FISHING TAB ] =======
 -------------------------------------------
 
-local AutoFishSection = AutoFishTab:Section({
-	Title = "Fishing Automation",
-	Icon = "fish"
-})
+local AutoFishSection = AutoFishTab:CreateSection("Fishing Automation")
 
 local FuncAutoFishV2 = {
-	REReplicateTextEffectV2 = nil,
-	autofishV2 = false,
-	perfectCastV2 = true,
-	fishingActiveV2 = false,
-	delayInitializedV2 = false
+    REReplicateTextEffectV2 = nil,
+    autofishV2 = false,
+    perfectCastV2 = true,
+    fishingActiveV2 = false,
+    delayInitializedV2 = false
 }
 
--- Safe loading of text effect
 pcall(function()
     FuncAutoFishV2.REReplicateTextEffectV2 = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ReplicateTextEffect"]
 end)
@@ -302,15 +228,17 @@ local function updateDelayBasedOnRodV2(showNotify)
         BypassDelayV2 = RodDelaysV2[rodName].bypass
         FuncAutoFishV2.delayInitializedV2 = true
         if showNotify and FuncAutoFishV2.autofishV2 then
-            NotifySuccess("Rod Detected", string.format("Detected Rod: %s | Delay: %.2fs | Bypass: %.2fs", rodName, customDelayV2, BypassDelayV2))
+            Rayfield:Notify({
+                Title = "Rod Detected",
+                Content = string.format("Rod: %s | Delay: %.2fs", rodName, customDelayV2),
+                Duration = 3,
+                Image = 4483362458
+            })
         end
     else
         customDelayV2 = 10
         BypassDelayV2 = 1
         FuncAutoFishV2.delayInitializedV2 = true
-        if showNotify and FuncAutoFishV2.autofishV2 then
-            NotifyWarning("Rod Detection Failed", "No valid rod found. Default delay applied.")
-        end
     end
 end
 
@@ -333,8 +261,6 @@ local lastSellTime = 0
 local AUTO_SELL_THRESHOLD = 60
 local AUTO_SELL_DELAY = 60
 
-local function getNetFolder() return net end
-
 local function startAutoSell()
     task.spawn(function()
         while state.AutoSell do
@@ -352,12 +278,17 @@ local function startAutoSell()
                 end
 
                 if unfavoritedCount >= AUTO_SELL_THRESHOLD and os.time() - lastSellTime >= AUTO_SELL_DELAY then
-                    local netFolder = getNetFolder()
+                    local netFolder = net
                     if netFolder then
                         local sellFunc = netFolder:FindFirstChild("RF/SellAllItems")
                         if sellFunc then
                             task.spawn(sellFunc.InvokeServer, sellFunc)
-                            NotifyInfo("Auto Sell", "Selling non-favorited items...")
+                            Rayfield:Notify({
+                                Title = "Auto Sell",
+                                Content = "Selling non-favorited items...",
+                                Duration = 3,
+                                Image = 4483362458
+                            })
                             lastSellTime = os.time()
                         end
                     end
@@ -438,70 +369,78 @@ function StopAutoFishV2()
     if RodReelAnim then RodReelAnim:Stop() end
 end
 
-AutoFishSection:Input({
-	Title = "Bypass Delay",
-	Content = "Adjust delay between catches (for V2 system)",
-	Placeholder = "Example: 1.45",
-	Callback = function(value)
-		if Notifs.DelayBlockNotif then
-			Notifs.DelayBlockNotif = false
-			return
-		end
-		local number = tonumber(value)
-		if number then
-			BypassDelayV2 = number
-			NotifySuccess("Bypass Delay", "Bypass Delay set to " .. number)
-		else
-			NotifyError("Invalid Input", "Failed to convert input to number.")
-		end
-	end,
+local BypassDelayInput = AutoFishTab:CreateInput({
+    Name = "Bypass Delay",
+    PlaceholderText = "Example: 1.45",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(value)
+        local number = tonumber(value)
+        if number then
+            BypassDelayV2 = number
+            Rayfield:Notify({
+                Title = "Bypass Delay",
+                Content = "Set to " .. number,
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    end,
 })
 
-AutoFishSection:Toggle({
-    Title = "Auto Sell",
-    Content = "Automatically sells non-favorited fish when count > 60",
+local AutoSellToggle = AutoFishTab:CreateToggle({
+    Name = "Auto Sell",
+    CurrentValue = false,
+    Flag = "AutoSellToggle",
     Callback = function(value)
         state.AutoSell = value
         if value then
             startAutoSell()
-            NotifySuccess("Auto Sell", "Auto Sell Enabled.")
-        else
-            NotifyWarning("Auto Sell", "Auto Sell Disabled.")
+            Rayfield:Notify({
+                Title = "Auto Sell",
+                Content = "Enabled",
+                Duration = 2,
+                Image = 4483362458
+            })
         end
-    end
+    end,
 })
 
-AutoFishSection:Toggle({
-	Title = "Auto Fish V2 (Optimized)",
-	Content = "Advanced fishing with rod-specific timing",
-	Callback = function(value)
-		if value then
-			StartAutoFishV2()
-		else
-			StopAutoFishV2()
-		end
-	end
+local AutoFishToggle = AutoFishTab:CreateToggle({
+    Name = "Auto Fish V2 (Optimized)",
+    CurrentValue = false,
+    Flag = "AutoFishV2Toggle",
+    Callback = function(value)
+        if value then
+            StartAutoFishV2()
+            Rayfield:Notify({
+                Title = "Auto Fish",
+                Content = "Started",
+                Duration = 2,
+                Image = 4483362458
+            })
+        else
+            StopAutoFishV2()
+            Rayfield:Notify({
+                Title = "Auto Fish",
+                Content = "Stopped",
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    end,
 })
 
-AutoFishSection:Toggle({
-    Title = "Auto Perfect Cast",
-    Content = "Automatically achieve perfect casting",
-    Value = true,
+local PerfectCastToggle = AutoFishTab:CreateToggle({
+    Name = "Auto Perfect Cast",
+    CurrentValue = true,
+    Flag = "PerfectCastToggle",
     Callback = function(value)
         FuncAutoFishV2.perfectCastV2 = value
-    end
+    end,
 })
 
 -- Auto Favorite Section
-local AutoFavoriteSection = AutoFishTab:Section({
-	Title = "Auto Favorite System",
-	Icon = "star"
-})
-
-AutoFavoriteSection:Paragraph({
-	Title = "Auto Favorite Protection",
-	Content = "Automatically protects valuable fish from being sold by marking them as favorites."
-})
+AutoFishTab:CreateSection("Auto Favorite System")
 
 local allowedTiers = { 
     ["Secret"] = true, 
@@ -529,66 +468,70 @@ local function startAutoFavourite()
     end)
 end
 
-AutoFavoriteSection:Toggle({
-    Title = "Enable Auto Favorite",
-    Content = "Automatically favorites Secret, Mythic, and Legendary fish.",
-    Value = false,
+local AutoFavoriteToggle = AutoFishTab:CreateToggle({
+    Name = "Enable Auto Favorite",
+    CurrentValue = false,
+    Flag = "AutoFavoriteToggle",
     Callback = function(value)
         state.AutoFavourite = value
         if value then
             startAutoFavourite()
-            NotifySuccess("Auto Favorite", "Auto Favorite feature enabled")
-        else
-            NotifyWarning("Auto Favorite", "Auto Favorite feature disabled")
+            Rayfield:Notify({
+                Title = "Auto Favorite",
+                Content = "Enabled",
+                Duration = 2,
+                Image = 4483362458
+            })
         end
-    end
+    end,
 })
 
 -- Manual Actions Section
-local ManualSection = AutoFishTab:Section({
-	Title = "Manual Actions",
-	Icon = "hand"
-})
-
-ManualSection:Paragraph({
-	Title = "Manual Controls",
-	Content = "Manual actions for selling and enchanting rods"
-})
+AutoFishTab:CreateSection("Manual Actions")
 
 function sellAllFishes()
-	local success = pcall(function()
-		local charFolder = workspace:FindFirstChild("Characters")
-		local char = charFolder and charFolder:FindFirstChild(LocalPlayer.Name)
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		if not hrp then
-			NotifyError("Character Not Found", "HRP not found.")
-			return
-		end
+    local success = pcall(function()
+        local charFolder = workspace:FindFirstChild("Characters")
+        local char = charFolder and charFolder:FindFirstChild(LocalPlayer.Name)
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Character not found",
+                Duration = 3,
+                Image = 4483362458
+            })
+            return
+        end
 
-		local sellRemote = net:WaitForChild("RF/SellAllItems")
-		NotifyInfo("Selling...", "Selling all fish, please wait...", 3)
-		
-		task.wait(1)
-		sellRemote:InvokeServer()
-		NotifySuccess("Sold!", "All fish sold successfully.", 3)
-	end)
-	
-	if not success then
-		NotifyError("Sell Failed", "An error occurred", 3)
-	end
+        local sellRemote = net:WaitForChild("RF/SellAllItems")
+        Rayfield:Notify({
+            Title = "Selling",
+            Content = "Selling all fish...",
+            Duration = 2,
+            Image = 4483362458
+        })
+        
+        task.wait(1)
+        sellRemote:InvokeServer()
+        Rayfield:Notify({
+            Title = "Success",
+            Content = "All fish sold!",
+            Duration = 2,
+            Image = 4483362458
+        })
+    end)
 end
 
-ManualSection:Button({
-    Title = "Sell All Fishes",
-    Content = "Manually sell all non-favorited fish",
+local SellButton = AutoFishTab:CreateButton({
+    Name = "Sell All Fishes",
     Callback = function()
         sellAllFishes()
-    end
+    end,
 })
 
-ManualSection:Button({
-    Title = "Auto Enchant Rod",
-    Content = "Automatically enchant your equipped rod",
+local EnchantButton = AutoFishTab:CreateButton({
+    Name = "Auto Enchant Rod",
     Callback = function()
         pcall(function()
             local ENCHANT_POSITION = Vector3.new(3231, -1303, 1402)
@@ -596,11 +539,21 @@ ManualSection:Button({
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
             if not hrp then
-                NotifyError("Auto Enchant Rod", "Failed to get character HRP.")
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "Character not found",
+                    Duration = 3,
+                    Image = 4483362458
+                })
                 return
             end
 
-            NotifyInfo("Preparing Enchant...", "Please manually place Enchant Stone into slot 5 before we begin...", 5)
+            Rayfield:Notify({
+                Title = "Preparing",
+                Content = "Place Enchant Stone in slot 5...",
+                Duration = 3,
+                Image = 4483362458
+            })
             task.wait(3)
 
             local slot5 = LocalPlayer.PlayerGui.Backpack.Display:GetChildren()[10]
@@ -609,14 +562,16 @@ ManualSection:Button({
                             slot5.Inner.Tags:FindFirstChild("ItemName")
 
             if not itemName or not itemName.Text:lower():find("enchant") then
-                NotifyError("Auto Enchant Rod", "Slot 5 does not contain an Enchant Stone.")
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "No Enchant Stone in slot 5",
+                    Duration = 3,
+                    Image = 4483362458
+                })
                 return
             end
 
-            NotifyInfo("Enchanting...", "Enchanting in progress, please wait...", 7)
-
             local originalPosition = hrp.Position
-            task.wait(1)
             hrp.CFrame = CFrame.new(ENCHANT_POSITION + Vector3.new(0, 5, 0))
             task.wait(1.2)
 
@@ -627,82 +582,81 @@ ManualSection:Button({
             task.wait(0.5)
             activateEnchant:FireServer()
             task.wait(7)
-            NotifySuccess("Enchant", "Successfully Enchanted!", 3)
+            
+            Rayfield:Notify({
+                Title = "Success",
+                Content = "Rod enchanted!",
+                Duration = 3,
+                Image = 4483362458
+            })
 
-            task.wait(0.9)
             hrp.CFrame = CFrame.new(originalPosition + Vector3.new(0, 3, 0))
         end)
-    end
+    end,
 })
 
 -------------------------------------------
 ----- =======[ UTILITY TAB ] =======
 -------------------------------------------
 
-local TeleportSection = UtilityTab:Section({
-	Title = "Teleport Utility",
-	Icon = "map-pin"
-})
-
-TeleportSection:Paragraph({
-	Title = "Quick Teleport System",
-	Content = "Fast travel to various islands and locations"
-})
+local TeleportSection = UtilityTab:CreateSection("Teleport Utility")
 
 local islandCoords = {
-	["01"] = { name = "Weather Machine", position = Vector3.new(-1471, -3, 1929) },
-	["02"] = { name = "Esoteric Depths", position = Vector3.new(3157, -1303, 1439) },
-	["03"] = { name = "Tropical Grove", position = Vector3.new(-2038, 3, 3650) },
-	["04"] = { name = "Stingray Shores", position = Vector3.new(-32, 4, 2773) },
-	["05"] = { name = "Kohana Volcano", position = Vector3.new(-519, 24, 189) },
-	["06"] = { name = "Coral Reefs", position = Vector3.new(-3095, 1, 2177) },
-	["07"] = { name = "Crater Island", position = Vector3.new(968, 1, 4854) },
-	["08"] = { name = "Kohana", position = Vector3.new(-658, 3, 719) },
-	["09"] = { name = "Winter Fest", position = Vector3.new(1611, 4, 3280) },
-	["10"] = { name = "Isoteric Island", position = Vector3.new(1987, 4, 1400) },
-	["11"] = { name = "Treasure Hall", position = Vector3.new(-3600, -267, -1558) },
-	["12"] = { name = "Lost Shore", position = Vector3.new(-3663, 38, -989 ) },
-	["13"] = { name = "Sishypus Statue", position = Vector3.new(-3792, -135, -986) }
+    ["Weather Machine"] = Vector3.new(-1471, -3, 1929),
+    ["Esoteric Depths"] = Vector3.new(3157, -1303, 1439),
+    ["Tropical Grove"] = Vector3.new(-2038, 3, 3650),
+    ["Stingray Shores"] = Vector3.new(-32, 4, 2773),
+    ["Kohana Volcano"] = Vector3.new(-519, 24, 189),
+    ["Coral Reefs"] = Vector3.new(-3095, 1, 2177),
+    ["Crater Island"] = Vector3.new(968, 1, 4854),
+    ["Kohana"] = Vector3.new(-658, 3, 719),
+    ["Winter Fest"] = Vector3.new(1611, 4, 3280),
+    ["Isoteric Island"] = Vector3.new(1987, 4, 1400),
+    ["Treasure Hall"] = Vector3.new(-3600, -267, -1558),
+    ["Lost Shore"] = Vector3.new(-3663, 38, -989),
+    ["Sishypus Statue"] = Vector3.new(-3792, -135, -986)
 }
 
 local islandNames = {}
-for _, data in pairs(islandCoords) do
-    table.insert(islandNames, data.name)
+for name, _ in pairs(islandCoords) do
+    table.insert(islandNames, name)
 end
 
-TeleportSection:Dropdown({
-    Title = "Island Teleport",
-    Content = "Quick teleport to different islands",
-    Values = islandNames,
-    Callback = function(selectedName)
-        for code, data in pairs(islandCoords) do
-            if data.name == selectedName then
-                local success, err = pcall(function()
-                    local charFolder = workspace:WaitForChild("Characters", 5)
-                    local char = charFolder:FindFirstChild(LocalPlayer.Name)
-                    if not char then error("Character not found") end
-                    local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
-                    if not hrp then error("HumanoidRootPart not found") end
-                    hrp.CFrame = CFrame.new(data.position + Vector3.new(0, 5, 0))
-                end)
-
-                if success then
-                    NotifySuccess("Teleported!", "You are now at " .. selectedName)
-                else
-                    NotifyError("Teleport Failed", tostring(err))
+local IslandDropdown = UtilityTab:CreateDropdown({
+    Name = "Island Teleport",
+    Options = islandNames,
+    CurrentOption = islandNames[1],
+    Flag = "IslandDropdown",
+    Callback = function(option)
+        local position = islandCoords[option]
+        if position then
+            pcall(function()
+                local charFolder = workspace:WaitForChild("Characters", 5)
+                local char = charFolder:FindFirstChild(LocalPlayer.Name)
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        hrp.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
+                        Rayfield:Notify({
+                            Title = "Teleported",
+                            Content = "To " .. option,
+                            Duration = 2,
+                            Image = 4483362458
+                        })
+                    end
                 end
-                break
-            end
+            end)
         end
-    end
+    end,
 })
 
 local eventsList = { "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain" }
 
-TeleportSection:Dropdown({
-    Title = "Event Teleport",
-    Content = "Teleport to active events",
-    Values = eventsList,
+local EventDropdown = UtilityTab:CreateDropdown({
+    Name = "Event Teleport",
+    Options = eventsList,
+    CurrentOption = eventsList[1],
+    Flag = "EventDropdown",
     Callback = function(option)
         pcall(function()
             local props = workspace:FindFirstChild("Props")
@@ -712,15 +666,26 @@ TeleportSection:Dropdown({
                 local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     hrp.CFrame = boatCFrame + Vector3.new(0, 15, 0)
-                    NotifySuccess("Event Available!", "Teleported To " .. option)
+                    Rayfield:Notify({
+                        Title = "Teleported",
+                        Content = "To " .. option,
+                        Duration = 2,
+                        Image = 4483362458
+                    })
                 end
             else
-                NotifyWarning("Event Not Found", option .. " Not Found!")
+                Rayfield:Notify({
+                    Title = "Not Found",
+                    Content = option .. " event not active",
+                    Duration = 3,
+                    Image = 4483362458
+                })
             end
         end)
-    end
+    end,
 })
 
+-- NPC Teleport
 local npcList = {}
 pcall(function()
     local npcFolder = ReplicatedStorage:WaitForChild("NPC")
@@ -735,10 +700,11 @@ pcall(function()
 end)
 
 if #npcList > 0 then
-    TeleportSection:Dropdown({
-        Title = "NPC Teleport",
-        Content = "Teleport to specific NPCs",
-        Values = npcList,
+    local NPCDropdown = UtilityTab:CreateDropdown({
+        Name = "NPC Teleport",
+        Options = npcList,
+        CurrentOption = npcList[1],
+        Flag = "NPCDropdown",
         Callback = function(selectedName)
             pcall(function()
                 local npcFolder = ReplicatedStorage:WaitForChild("NPC")
@@ -746,232 +712,188 @@ if #npcList > 0 then
                 if npc and npc:IsA("Model") then
                     local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
                     if hrp then
-                        local charFolder = workspace:FindFirstChild("Characters", 5)
-                        local char = charFolder and charFolder:FindFirstChild(LocalPlayer.Name)
-                        if not char then return end
-                        local myHRP = char:FindFirstChild("HumanoidRootPart")
-                        if myHRP then
-                            myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-                            NotifySuccess("Teleported!", "You are now near: " .. selectedName)
+                        local char = workspace:FindFirstChild("Characters"):FindFirstChild(LocalPlayer.Name)
+                        if char then
+                            local myHRP = char:FindFirstChild("HumanoidRootPart")
+                            if myHRP then
+                                myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
+                                Rayfield:Notify({
+                                    Title = "Teleported",
+                                    Content = "To " .. selectedName,
+                                    Duration = 2,
+                                    Image = 4483362458
+                                })
+                            end
                         end
                     end
                 end
             end)
-        end
+        end,
     })
 end
 
 -- Server Utility Section
-local ServerSection = UtilityTab:Section({
-	Title = "Server Utility",
-	Icon = "server"
-})
-
-ServerSection:Paragraph({
-	Title = "Server Management",
-	Content = "Manage your server experience and connections"
-})
+UtilityTab:CreateSection("Server Utility")
 
 local function Rejoin()
-	local player = Players.LocalPlayer
-	if player then
-		TeleportService:Teleport(game.PlaceId, player)
-	end
+    TeleportService:Teleport(game.PlaceId, LocalPlayer)
 end
 
 local function ServerHop()
-	local placeId = game.PlaceId
-	local servers = {}
-	local cursor = ""
+    local placeId = game.PlaceId
+    local servers = {}
+    local cursor = ""
 
-	repeat
-		local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=100"
-		if cursor ~= "" then
-			url = url .. "&cursor=" .. cursor
-		end
+    repeat
+        local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=100"
+        if cursor ~= "" then
+            url = url .. "&cursor=" .. cursor
+        end
 
-		local success, result = pcall(function()
-			return HttpService:JSONDecode(game:HttpGet(url))
-		end)
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(game:HttpGet(url))
+        end)
 
-		if success and result and result.data then
-			for _, server in pairs(result.data) do
-				if server.playing < server.maxPlayers and server.id ~= game.JobId then
-					table.insert(servers, server.id)
-				end
-			end
-			cursor = result.nextPageCursor or ""
-		else
-			break
-		end
-	until not cursor or #servers > 0
+        if success and result and result.data then
+            for _, server in pairs(result.data) do
+                if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                    table.insert(servers, server.id)
+                end
+            end
+            cursor = result.nextPageCursor or ""
+        else
+            break
+        end
+    until not cursor or #servers > 0
 
-	if #servers > 0 then
-		local targetServer = servers[math.random(1, #servers)]
-		TeleportService:TeleportToPlaceInstance(placeId, targetServer, LocalPlayer)
-	else
-		NotifyError("Server Hop Failed", "No servers available or all are full!")
-	end
+    if #servers > 0 then
+        local targetServer = servers[math.random(1, #servers)]
+        TeleportService:TeleportToPlaceInstance(placeId, targetServer, LocalPlayer)
+    else
+        Rayfield:Notify({
+            Title = "Error",
+            Content = "No servers available",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end
 end
 
-ServerSection:Button({
-	Title = "Rejoin Server",
-	Content = "Rejoin current server",
-	Callback = function()
-		Rejoin()
-	end,
+local RejoinButton = UtilityTab:CreateButton({
+    Name = "Rejoin Server",
+    Callback = function()
+        Rejoin()
+    end,
 })
 
-ServerSection:Button({
-	Title = "Server Hop",
-	Content = "Join a new server",
-	Callback = function()
-		ServerHop()
-	end,
+local ServerHopButton = UtilityTab:CreateButton({
+    Name = "Server Hop",
+    Callback = function()
+        ServerHop()
+    end,
 })
 
 -- Visual Utility Section
-local VisualSection = UtilityTab:Section({
-	Title = "Visual Utility",
-	Icon = "eye"
-})
+UtilityTab:CreateSection("Visual Utility")
 
-VisualSection:Paragraph({
-	Title = "Visual Enhancements",
-	Content = "Improve your visual experience and performance"
-})
-
-VisualSection:Button({
-	Title = "HDR Shader",
-	Content = "Apply HDR visual enhancements",
-	Callback = function()
-		pcall(function()
-			loadstring(game:HttpGet("https://pastebin.com/raw/avvr1gTW"))()
-		end)
-	end,
+local HDRButton = UtilityTab:CreateButton({
+    Name = "HDR Shader",
+    Callback = function()
+        pcall(function()
+            loadstring(game:HttpGet("https://pastebin.com/raw/avvr1gTW"))()
+        end)
+    end,
 })
 
 -------------------------------------------
 ----- =======[ SETTINGS TAB ] =======
 -------------------------------------------
 
-local ConfigSection = SettingsTab:Section({
-	Title = "Configuration",
-	Icon = "save"
-})
-
-ConfigSection:Paragraph({
-	Title = "Settings Management",
-	Content = "Manage your script configuration and preferences"
-})
-
-local ConfigManager = Window.ConfigManager
-local myConfig = ConfigManager:CreateConfig("ZiaanHubConfig")
-
-ConfigSection:Button({
-    Title = "Save Settings",
-    Content = "Save current configuration",
-    Callback = function()
-        myConfig:Save()
-        NotifySuccess("Config Saved", "Configuration has been saved!")
-    end
-})
-
-ConfigSection:Button({
-    Title = "Load Settings",
-    Content = "Load saved configuration",
-    Callback = function()
-        myConfig:Load()
-        NotifySuccess("Config Loaded", "Configuration has been loaded!")
-    end
-})
-
--- Anti-AFK Section
-local AFKSection = SettingsTab:Section({
-	Title = "Anti-AFK System",
-	Icon = "user-x"
-})
-
-AFKSection:Paragraph({
-	Title = "AFK Prevention",
-	Content = "Prevent being kicked for inactivity"
-})
+SettingsTab:CreateSection("Anti-AFK System")
 
 local AntiAFKEnabled = true
 local AFKConnection = nil
 
-AFKSection:Toggle({
-	Title = "Anti-AFK",
-	Content = "Prevent automatic disconnection",
-	Value = true,
-	Callback = function(Value)
-		if Notifs.AFKBN then
-			Notifs.AFKBN = false
-			return
-		end
-  
-		AntiAFKEnabled = Value
-		if AntiAFKEnabled then
-			if AFKConnection then
-				AFKConnection:Disconnect()
-			end
-			
-			AFKConnection = LocalPlayer.Idled:Connect(function()
-				pcall(function()
-					VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-					task.wait(1)
-					VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-				end)
-			end)
+local AntiAFKToggle = SettingsTab:CreateToggle({
+    Name = "Anti-AFK",
+    CurrentValue = true,
+    Flag = "AntiAFKToggle",
+    Callback = function(value)
+        AntiAFKEnabled = value
+        if AntiAFKEnabled then
+            if AFKConnection then
+                AFKConnection:Disconnect()
+            end
+            
+            AFKConnection = LocalPlayer.Idled:Connect(function()
+                pcall(function()
+                    VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                    task.wait(1)
+                    VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+                end)
+            end)
 
-			NotifySuccess("Anti-AFK Activated", "You will now avoid being kicked.")
+            Rayfield:Notify({
+                Title = "Anti-AFK",
+                Content = "Activated",
+                Duration = 2,
+                Image = 4483362458
+            })
+        else
+            if AFKConnection then
+                AFKConnection:Disconnect()
+                AFKConnection = nil
+            end
 
-		else
-			if AFKConnection then
-				AFKConnection:Disconnect()
-				AFKConnection = nil
-			end
-
-			NotifySuccess("Anti-AFK Deactivated", "You can now go idle again.")
-		end
-	end,
+            Rayfield:Notify({
+                Title = "Anti-AFK",
+                Content = "Deactivated",
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    end,
 })
 
 -- Information Section
-local InfoSection = SettingsTab:Section({
-	Title = "Script Information",
-	Icon = "info"
-})
+SettingsTab:CreateSection("Script Information")
 
-InfoSection:Paragraph({
-	Title = "ZiaanHub - Fish It",
-	Content = "Advanced fishing automation script with comprehensive features"
-})
+SettingsTab:CreateLabel("ZiaanHub - Fish It")
+SettingsTab:CreateLabel("Version: 1.7.0 (Rayfield)")
+SettingsTab:CreateLabel("Developer: @ziaandev")
+SettingsTab:CreateLabel("Status: Operational")
 
-InfoSection:Label({
-	Title = "Version",
-	Content = "1.6.46 (Fixed)"
-})
-
-InfoSection:Label({
-	Title = "Developer",
-	Content = "@ziaandev"
-})
-
-InfoSection:Label({
-	Title = "Status",
-	Content = "Operational"
+-- Destroy UI Button
+SettingsTab:CreateButton({
+    Name = "Destroy UI",
+    Callback = function()
+        Rayfield:Destroy()
+    end,
 })
 
 -- Final notification
-task.wait(1)
-WindUI:Notify({
-	Title = "ZiaanHub - Fish It",
-	Content = "Script loaded successfully! Press G to toggle UI.",
-	Duration = 5,
-	Icon = "circle-check"
+task.wait(0.5)
+Rayfield:Notify({
+    Title = "ZiaanHub - Fish It",
+    Content = "Script loaded successfully!",
+    Duration = 5,
+    Image = 4483362458
 })
 
-print("ZiaanHub Fish It v1.6.46 - Loaded Successfully!")
-print("Press G to toggle UI")
+print("==============================================")
+print("ZiaanHub Fish It v1.7.0 - Loaded Successfully!")
+print("UI Library: Rayfield")
 print("All features initialized")
+print("==============================================")
+print("")
+print("Features:")
+print("✓ Auto Fish V2 with Rod Detection")
+print("✓ Auto Sell System")
+print("✓ Auto Favorite (Secret/Mythic/Legendary)")
+print("✓ Island & Event Teleport")
+print("✓ Auto Enchant Rod")
+print("✓ Server Hop & Rejoin")
+print("✓ Anti-AFK System")
+print("==============================================")
+print("")
+print("Press Right Shift to toggle UI")
