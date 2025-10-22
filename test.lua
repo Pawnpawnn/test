@@ -51,36 +51,6 @@ local function setupTradeRemotes()
     end)
 end
 
--- Fungsi untuk mendapatkan ikan termurah dari inventory
-local function getCheapestFish()
-    local cheapestFish = nil
-    local lowestPrice = math.huge
-    
-    pcall(function()
-        if Replion then
-            local DataReplion = Replion.Client:WaitReplion("Data")
-            local items = DataReplion and DataReplion:Get({"Inventory","Items"})
-            
-            if type(items) == "table" then
-                for _, item in ipairs(items) do
-                    if not item.Favorited then -- Skip favorited items
-                        local itemData = ItemUtility:GetItemData(item.Id)
-                        if itemData and itemData.Data and itemData.Data.Price then
-                            local price = itemData.Data.Price
-                            if price < lowestPrice then
-                                lowestPrice = price
-                                cheapestFish = item
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    
-    return cheapestFish, lowestPrice
-end
-
 -- Fungsi untuk equip ikan langsung dari inventory
 local function equipFishFromInventory(fishUUID)
     if REEquipItem then
@@ -91,13 +61,13 @@ local function equipFishFromInventory(fishUUID)
             Duration = 2,
             Image = 4483362458
         })
-        task.wait(1) -- Tunggu lebih lama untuk equip selesai
+        task.wait(1)
         return true
     end
     return false
 end
 
--- Fungsi untuk equip ikan dari hotbar (alternative)
+-- Fungsi untuk equip ikan dari hotbar
 local function equipFishFromHotbar(hotbarSlot)
     if REEquipToolFromHotbar then
         REEquipToolFromHotbar:FireServer(hotbarSlot)
@@ -124,20 +94,8 @@ local function getPlayerFromUsername(username)
     return nil
 end
 
--- Fungsi untuk menghitung jumlah ikan yang dibutuhkan
-local function calculateFishAmount(targetCoins)
-    local cheapestFish, fishPrice = getCheapestFish()
-    
-    if not cheapestFish or fishPrice == math.huge then
-        return nil, 0, 0
-    end
-    
-    local amountNeeded = math.ceil(targetCoins / fishPrice)
-    return cheapestFish, fishPrice, amountNeeded
-end
-
 -- Fungsi untuk wait trade response (simulasi)
-local function waitForTradeResponse(targetPlayer, fishData, amount)
+local function waitForTradeResponse(targetPlayer, amount)
     Rayfield:Notify({
         Title = "Trade Processing",
         Content = "Waiting for trade response...",
@@ -174,41 +132,19 @@ local function waitForTradeResponse(targetPlayer, fishData, amount)
     return true
 end
 
--- Fungsi utama untuk mengirim trade dengan coin target
-local function sendTradeByCoin(targetUsername, coinAmount)
-    if not targetUsername or targetUsername == "" or coinAmount <= 0 then
+-- Fungsi utama untuk mengirim trade
+local function sendTrade(targetUsername, fishUUID, hotbarSlot, amount)
+    if not targetUsername or targetUsername == "" then
         Rayfield:Notify({
             Title = "Trade Error",
-            Content = "Invalid username or coin amount!",
+            Content = "Please enter target username!",
             Duration = 3
         })
         return false
     end
     
     local success, err = pcall(function()
-        -- Step 1: Get cheapest fish and calculate amount
-        local cheapestFish, fishPrice, amountNeeded = calculateFishAmount(coinAmount)
-        
-        if not cheapestFish then
-            Rayfield:Notify({
-                Title = "Trade Error",
-                Content = "No fish available for trade!",
-                Duration = 3
-            })
-            return false
-        end
-        
-        local totalValue = fishPrice * amountNeeded
-        
-        Rayfield:Notify({
-            Title = "Trade Calculation",
-            Content = string.format("Need %d %s (Value: $%s) for $%s", 
-                amountNeeded, cheapestFish.Name or "fish", tostring(totalValue), tostring(coinAmount)),
-            Duration = 5,
-            Image = 4483362458
-        })
-        
-        -- Step 2: Equip the fish from inventory menggunakan UUID
+        -- Step 1: Equip the fish
         Rayfield:Notify({
             Title = "Preparing Trade",
             Content = "Equipping fish...",
@@ -216,10 +152,14 @@ local function sendTradeByCoin(targetUsername, coinAmount)
             Image = 4483362458
         })
         
-        equipFishFromInventory(cheapestFish.UUID)
+        if fishUUID then
+            equipFishFromInventory(fishUUID)
+        else
+            equipFishFromHotbar(hotbarSlot or 1)
+        end
         task.wait(1)
         
-        -- Step 3: Get target player
+        -- Step 2: Get target player
         local targetPlayer = getPlayerFromUsername(targetUsername)
         if not targetPlayer then
             Rayfield:Notify({
@@ -237,7 +177,7 @@ local function sendTradeByCoin(targetUsername, coinAmount)
             Image = 4483362458
         })
         
-        -- Step 4: Initiate trade dengan target player
+        -- Step 3: Initiate trade dengan target player
         local tradeSuccess, tradeResult = pcall(function()
             return RFInitiateTrade:InvokeServer(targetPlayer.UserId, targetPlayer.UserId)
         end)
@@ -250,17 +190,16 @@ local function sendTradeByCoin(targetUsername, coinAmount)
                 Image = 4483362458
             })
             
-            -- Step 5: Tunggu sebentar untuk trade window terbuka
+            -- Step 4: Tunggu sebentar untuk trade window terbuka
             task.wait(2)
             
-            -- Step 6: Process trade items (simulasi RFAwaitTradeResponse)
-            local tradeCompleted = waitForTradeResponse(targetPlayer, cheapestFish, amountNeeded)
+            -- Step 5: Process trade items
+            local tradeCompleted = waitForTradeResponse(targetPlayer, amount or 1)
             
             if tradeCompleted then
                 Rayfield:Notify({
                     Title = "Trade Success! 🎉",
-                    Content = string.format("Traded %d fish for ~$%s with %s", 
-                        amountNeeded, tostring(coinAmount), targetPlayer.DisplayName),
+                    Content = string.format("Trade completed with %s", targetPlayer.DisplayName),
                     Duration = 6,
                     Image = 4483362458
                 })
@@ -1147,7 +1086,7 @@ end
 
 -- Trade Tab
 local TradeTab = Window:CreateTab("💸 Trade", 4483362458)
-local TradeSection = TradeTab:CreateSection("Trade by Coin")
+local TradeSection = TradeTab:CreateSection("Trade System")
 
 local targetUsername = ""
 local Input = TradeTab:CreateInput({
@@ -1198,75 +1137,16 @@ TradeTab:CreateButton({
     end,
 })
 
--- Quick coin buttons
-local QuickCoinSection = TradeTab:CreateSection("Quick Amount")
-
-local coinAmounts = {
-    {name = "100K", value = 100000},
-    {name = "500K", value = 500000},
-    {name = "1M", value = 1000000},
-    {name = "2M", value = 2000000},
-    {name = "5M", value = 5000000},
-    {name = "10M", value = 10000000},
-}
-
-for _, coinData in ipairs(coinAmounts) do
-    TradeTab:CreateButton({
-        Name = "Send " .. coinData.name,
-        Callback = function()
-            if targetUsername == "" then
-                Rayfield:Notify({
-                    Title = "Trade Error",
-                    Content = "Please enter target username first!",
-                    Duration = 3
-                })
-                return
-            end
-            
-            local targetPlayer = checkPlayerInServer(targetUsername)
-            if not targetPlayer then
-                Rayfield:Notify({
-                    Title = "Trade Error",
-                    Content = "Player not found in this server!",
-                    Duration = 3
-                })
-                return
-            end
-            
-            sendTradeByCoin(targetUsername, coinData.value)
-        end,
-    })
-end
-
--- Custom amount
-local CustomSection = TradeTab:CreateSection("Custom Amount")
-
-local customAmount = 0
-local CustomInput = TradeTab:CreateInput({
-    Name = "Custom Coin Amount",
-    PlaceholderText = "Enter amount (e.g., 1500000)...",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        customAmount = tonumber(Text) or 0
-    end,
-})
+-- Simple Trade Buttons
+local SimpleTradeSection = TradeTab:CreateSection("Simple Trade")
 
 TradeTab:CreateButton({
-    Name = "Send Custom Amount",
+    Name = "🎣 Quick Trade (Hotbar Slot 1)",
     Callback = function()
         if targetUsername == "" then
             Rayfield:Notify({
                 Title = "Trade Error",
                 Content = "Please enter target username first!",
-                Duration = 3
-            })
-            return
-        end
-        
-        if customAmount <= 0 then
-            Rayfield:Notify({
-                Title = "Trade Error",
-                Content = "Please enter valid coin amount!",
                 Duration = 3
             })
             return
@@ -1282,7 +1162,108 @@ TradeTab:CreateButton({
             return
         end
         
-        sendTradeByCoin(targetUsername, customAmount)
+        sendTrade(targetUsername, nil, 1, 1)
+    end,
+})
+
+TradeTab:CreateButton({
+    Name = "🎣 Quick Trade (Hotbar Slot 2)",
+    Callback = function()
+        if targetUsername == "" then
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Please enter target username first!",
+                Duration = 3
+            })
+            return
+        end
+        
+        local targetPlayer = checkPlayerInServer(targetUsername)
+        if not targetPlayer then
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Player not found in this server!",
+                Duration = 3
+            })
+            return
+        end
+        
+        sendTrade(targetUsername, nil, 2, 1)
+    end,
+})
+
+TradeTab:CreateButton({
+    Name = "🎣 Quick Trade (Hotbar Slot 3)",
+    Callback = function()
+        if targetUsername == "" then
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Please enter target username first!",
+                Duration = 3
+            })
+            return
+        end
+        
+        local targetPlayer = checkPlayerInServer(targetUsername)
+        if not targetPlayer then
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Player not found in this server!",
+                Duration = 3
+            })
+            return
+        end
+        
+        sendTrade(targetUsername, nil, 3, 1)
+    end,
+})
+
+-- Custom Trade Section
+local CustomTradeSection = TradeTab:CreateSection("Custom Trade")
+
+local fishUUID = ""
+local FishUUIDInput = TradeTab:CreateInput({
+    Name = "Fish UUID (Optional)",
+    PlaceholderText = "Enter fish UUID for inventory equip...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        fishUUID = Text
+    end,
+})
+
+local tradeAmount = 1
+local AmountInput = TradeTab:CreateInput({
+    Name = "Amount of Fish",
+    PlaceholderText = "Enter amount (default: 1)...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        tradeAmount = tonumber(Text) or 1
+    end,
+})
+
+TradeTab:CreateButton({
+    Name = "🎣 Custom Trade",
+    Callback = function()
+        if targetUsername == "" then
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Please enter target username first!",
+                Duration = 3
+            })
+            return
+        end
+        
+        local targetPlayer = checkPlayerInServer(targetUsername)
+        if not targetPlayer then
+            Rayfield:Notify({
+                Title = "Trade Error",
+                Content = "Player not found in this server!",
+                Duration = 3
+            })
+            return
+        end
+        
+        sendTrade(targetUsername, fishUUID, nil, tradeAmount)
     end,
 })
 
@@ -1290,48 +1271,31 @@ TradeTab:CreateButton({
 local TestSection = TradeTab:CreateSection("Test Functions")
 
 TradeTab:CreateButton({
-    Name = "🎣 Test Fish Calculation",
+    Name = "🎣 Test Equip from Hotbar Slot 1",
     Callback = function()
-        local fish, price, amount = calculateFishAmount(1000000)
-        if fish then
-            Rayfield:Notify({
-                Title = "Test Calculation",
-                Content = string.format("Cheapest fish: $%s, Need: %d for 1M", tostring(price), amount),
-                Duration = 5,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "Test Failed",
-                Content = "No fish found in inventory!",
-                Duration = 3
-            })
-        end
+        equipFishFromHotbar(1)
     end,
 })
 
 TradeTab:CreateButton({
-    Name = "🎣 Test Equip from Inventory",
+    Name = "🎣 Test Equip from Hotbar Slot 2", 
     Callback = function()
-        local cheapestFish = getCheapestFish()
-        if cheapestFish then
-            equipFishFromInventory(cheapestFish.UUID)
-        else
-            Rayfield:Notify({
-                Title = "Test Failed",
-                Content = "No fish found in inventory!",
-                Duration = 3
-            })
-        end
+        equipFishFromHotbar(2)
+    end,
+})
+
+TradeTab:CreateButton({
+    Name = "🎣 Test Equip from Hotbar Slot 3",
+    Callback = function()
+        equipFishFromHotbar(3)
     end,
 })
 
 -- Info section
 local InfoSection = TradeTab:CreateSection("Information")
 
-TradeTab:CreateLabel("📌 Auto equip fish → Initiate trade → Add items")
-TradeTab:CreateLabel("📌 Uses RF/InitiateTrade and RFAwaitTradeResponse")
-TradeTab:CreateLabel("📌 Favorited items will NOT be sent")
+TradeTab:CreateLabel("📌 Simple: Uses hotbar slots (1,2,3)")
+TradeTab:CreateLabel("📌 Custom: Use UUID for specific fish from inventory")
 TradeTab:CreateLabel("⚠️ Target player must be in same server!")
 TradeTab:CreateLabel("🔍 Always check player first!")
 
