@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 
@@ -109,234 +108,6 @@ local islandCoords = {
     ["Sishypus Statue"] = Vector3.new(-3792, -135, -986),
     ["Ancient Jungle"] = Vector3.new(1316, 7, -196)
 }
-
--- Fungsi untuk membuat popup GUI
-local function createPopupGUI(title, options, callback)
-    -- Hapus GUI lama jika ada
-    local existingGui = player.PlayerGui:FindFirstChild("TeleportPopupGUI")
-    if existingGui then
-        existingGui:Destroy()
-    end
-
-    -- Buat GUI baru
-    local popupGui = Instance.new("ScreenGui")
-    popupGui.Name = "TeleportPopupGUI"
-    popupGui.Parent = player.PlayerGui
-    popupGui.ResetOnSpawn = false
-    popupGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    -- Background overlay
-    local overlay = Instance.new("Frame")
-    overlay.Name = "Overlay"
-    overlay.Parent = popupGui
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.3
-    overlay.BorderSizePixel = 0
-
-    -- Main frame
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Parent = popupGui
-    mainFrame.Size = UDim2.new(0, 350, 0, 450)
-    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.ClipsDescendants = true
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12)
-    corner.Parent = mainFrame
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(80, 120, 255)
-    stroke.Thickness = 2
-    stroke.Parent = mainFrame
-
-    -- Title
-    local titleFrame = Instance.new("Frame")
-    titleFrame.Name = "TitleFrame"
-    titleFrame.Parent = mainFrame
-    titleFrame.Size = UDim2.new(1, 0, 0, 50)
-    titleFrame.BackgroundColor3 = Color3.fromRGB(35, 40, 65)
-    titleFrame.BorderSizePixel = 0
-
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 12)
-    titleCorner.Parent = titleFrame
-
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Name = "TitleLabel"
-    titleLabel.Parent = titleFrame
-    titleLabel.Size = UDim2.new(1, -50, 1, 0)
-    titleLabel.Position = UDim2.new(0, 15, 0, 0)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = 18
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Close button
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CloseButton"
-    closeButton.Parent = titleFrame
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0, 10)
-    closeButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-    closeButton.Text = "×"
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.TextSize = 20
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.BorderSizePixel = 0
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 6)
-    closeCorner.Parent = closeButton
-
-    -- Search box
-    local searchBox = Instance.new("TextBox")
-    searchBox.Name = "SearchBox"
-    searchBox.Parent = mainFrame
-    searchBox.Size = UDim2.new(1, -20, 0, 40)
-    searchBox.Position = UDim2.new(0, 10, 0, 60)
-    searchBox.BackgroundColor3 = Color3.fromRGB(40, 45, 65)
-    searchBox.PlaceholderText = "🔍 Search..."
-    searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 180)
-    searchBox.Text = ""
-    searchBox.Font = Enum.Font.Gotham
-    searchBox.TextSize = 14
-    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    searchBox.TextXAlignment = Enum.TextXAlignment.Left
-    searchBox.ClearTextOnFocus = false
-
-    local searchCorner = Instance.new("UICorner")
-    searchCorner.CornerRadius = UDim.new(0, 8)
-    searchCorner.Parent = searchBox
-
-    local searchPadding = Instance.new("UIPadding")
-    searchPadding.Parent = searchBox
-    searchPadding.PaddingLeft = UDim.new(0, 12)
-
-    -- Scroll frame untuk items
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Name = "ScrollFrame"
-    scrollFrame.Parent = mainFrame
-    scrollFrame.Size = UDim2.new(1, -20, 1, -130)
-    scrollFrame.Position = UDim2.new(0, 10, 0, 110)
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 6
-    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 120, 255)
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
-    local layout = Instance.new("UIListLayout")
-    layout.Parent = scrollFrame
-    layout.Padding = UDim.new(0, 8)
-    layout.SortOrder = Enum.SortOrder.Name
-
-    local function updateButtons(filterText)
-        -- Clear existing buttons
-        for _, child in ipairs(scrollFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-
-        -- Filter options
-        local filteredOptions = {}
-        if filterText and filterText ~= "" then
-            local lowerFilter = string.lower(filterText)
-            for _, option in ipairs(options) do
-                if string.lower(option):find(lowerFilter) then
-                    table.insert(filteredOptions, option)
-                end
-            end
-        else
-            filteredOptions = options
-        end
-
-        -- Sort options
-        table.sort(filteredOptions)
-
-        -- Create buttons
-        for _, option in ipairs(filteredOptions) do
-            local button = Instance.new("TextButton")
-            button.Name = option
-            button.Parent = scrollFrame
-            button.Size = UDim2.new(1, 0, 0, 45)
-            button.BackgroundColor3 = Color3.fromRGB(50, 55, 80)
-            button.Text = ""
-            button.BorderSizePixel = 0
-            button.AutoButtonColor = false
-
-            local buttonCorner = Instance.new("UICorner")
-            buttonCorner.CornerRadius = UDim.new(0, 8)
-            buttonCorner.Parent = button
-
-            local buttonStroke = Instance.new("UIStroke")
-            buttonStroke.Color = Color3.fromRGB(70, 90, 150)
-            buttonStroke.Thickness = 1
-            buttonStroke.Parent = button
-
-            local buttonLabel = Instance.new("TextLabel")
-            buttonLabel.Name = "Label"
-            buttonLabel.Parent = button
-            buttonLabel.Size = UDim2.new(1, -10, 1, 0)
-            buttonLabel.Position = UDim2.new(0, 10, 0, 0)
-            buttonLabel.BackgroundTransparency = 1
-            buttonLabel.Text = option
-            buttonLabel.Font = Enum.Font.Gotham
-            buttonLabel.TextSize = 14
-            buttonLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            buttonLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-            -- Hover effect
-            button.MouseEnter:Connect(function()
-                TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(65, 70, 100)}):Play()
-                TweenService:Create(buttonStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(100, 140, 255)}):Play()
-            end)
-
-            button.MouseLeave:Connect(function()
-                TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 55, 80)}):Play()
-                TweenService:Create(buttonStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(70, 90, 150)}):Play()
-            end)
-
-            -- Click event
-            button.MouseButton1Click:Connect(function()
-                -- Animation on click
-                TweenService:Create(button, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(80, 120, 255)}):Play()
-                task.wait(0.1)
-                callback(option)
-                popupGui:Destroy()
-            end)
-        end
-    end
-
-    -- Initial buttons
-    updateButtons("")
-
-    -- Search functionality
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        updateButtons(searchBox.Text)
-    end)
-
-    -- Close button functionality
-    closeButton.MouseButton1Click:Connect(function()
-        popupGui:Destroy()
-    end)
-
-    overlay.MouseButton1Click:Connect(function()
-        popupGui:Destroy()
-    end)
-
-    -- Animation when opening
-    mainFrame.Position = UDim2.new(0.5, -175, 0.3, -225)
-    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, -175, 0.5, -225)
-    }):Play()
-end
 
 -- Fungsi teleport ke island
 local function teleportToIsland(islandName)
@@ -847,75 +618,87 @@ local AutoFavoriteToggle = MainTab:CreateToggle({
 -- Teleport Tab
 local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
 
-local IslandSection = TeleportTab:CreateSection("Island Teleports")
+-- TELEPORT TO ISLAND SECTION
+local IslandSection = TeleportTab:CreateSection("TELEPORT TO ISLAND")
 
--- Button untuk membuka popup island teleport
-local IslandButton = TeleportTab:CreateButton({
-    Name = "🏝️ Teleport to Island",
-    Callback = function()
-        local islandOptions = {
-            "Weather Machine", "Esoteric Depths", "Tropical Grove", 
-            "Stingray Shores", "Kohana Volcano", "Coral Reefs",
-            "Crater Island", "Kohana", "Winter Fest",
-            "Isoteric Island", "Treasure Hall", "Lost Shore",
-            "Sishypus Statue", "Ancient Jungle"
-        }
-        
-        createPopupGUI("🏝️ Select Island", islandOptions, teleportToIsland)
-    end,
-})
+-- Buat container untuk island buttons
+local islandButtonsContainer = TeleportTab:CreateSection("Islands", false)
 
-local NPCSection = TeleportTab:CreateSection("NPC Teleports")
+-- Island buttons dalam layout horizontal
+local islandOptions = {
+    "Weather Machine", "Esoteric Depths", "Tropical Grove", 
+    "Stingray Shores", "Kohana Volcano", "Coral Reefs",
+    "Crater Island", "Kohana", "Winter Fest",
+    "Isoteric Island", "Treasure Hall", "Lost Shore",
+    "Sishypus Statue", "Ancient Jungle"
+}
 
--- Button untuk membuka popup NPC teleport
-local NPCButton = TeleportTab:CreateButton({
-    Name = "🧍 Teleport to NPC",
-    Callback = function()
-        local npcFolder = workspace:FindFirstChild("NPC") or ReplicatedStorage:FindFirstChild("NPC")
-        if not npcFolder then
+-- Buat buttons untuk setiap island
+for _, islandName in ipairs(islandOptions) do
+    TeleportTab:CreateButton({
+        Name = islandName,
+        Callback = function()
+            teleportToIsland(islandName)
+        end,
+    })
+end
+
+-- TELEPORT TO NPC SECTION
+local NPCSection = TeleportTab:CreateSection("TELEPORT TO NPC")
+
+-- Dapatkan list NPC
+local npcFolder = workspace:FindFirstChild("NPC") or ReplicatedStorage:FindFirstChild("NPC")
+if npcFolder then
+    local npcList = {}
+    for _, npc in pairs(npcFolder:GetChildren()) do
+        if npc:IsA("Model") then
+            table.insert(npcList, npc.Name)
+        end
+    end
+    
+    -- Sort NPC names
+    table.sort(npcList)
+    
+    -- Buat buttons untuk setiap NPC
+    for _, npcName in ipairs(npcList) do
+        TeleportTab:CreateButton({
+            Name = npcName,
+            Callback = function()
+                teleportToNPC(npcName)
+            end,
+        })
+    end
+else
+    TeleportTab:CreateButton({
+        Name = "No NPCs Found",
+        Callback = function()
             Rayfield:Notify({
-                Title = "Teleport System",
+                Title = "NPC Teleport",
                 Content = "NPC folder not found!",
                 Duration = 3
             })
-            return
-        end
-        
-        local npcList = {}
-        for _, npc in pairs(npcFolder:GetChildren()) do
-            if npc:IsA("Model") then
-                table.insert(npcList, npc.Name)
-            end
-        end
-        
-        if #npcList == 0 then
-            Rayfield:Notify({
-                Title = "Teleport System",
-                Content = "No NPCs found!",
-                Duration = 3
-            })
-            return
-        end
-        
-        table.sort(npcList)
-        createPopupGUI("🧍 Select NPC", npcList, teleportToNPC)
-    end,
-})
+        end,
+    })
+end
 
-local EventSection = TeleportTab:CreateSection("Event Teleports")
+-- TELEPORT TO EVENT SECTION
+local EventSection = TeleportTab:CreateSection("TELEPORT TO EVENT")
 
--- Button untuk membuka popup event teleport
-local EventButton = TeleportTab:CreateButton({
-    Name = "🎯 Teleport to Event",
-    Callback = function()
-        local eventOptions = {
-            "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", 
-            "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain"
-        }
-        
-        createPopupGUI("🎯 Select Event", eventOptions, teleportToEvent)
-    end,
-})
+-- Event buttons
+local eventOptions = {
+    "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", 
+    "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain"
+}
+
+-- Buat buttons untuk setiap event
+for _, eventName in ipairs(eventOptions) do
+    TeleportTab:CreateButton({
+        Name = eventName,
+        Callback = function()
+            teleportToEvent(eventName)
+        end,
+    })
+end
 
 -- Misc Tab
 local MiscTab = Window:CreateTab("⚙️ Misc", 4483362458)
