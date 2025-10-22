@@ -19,6 +19,7 @@ local autoSellEnabled = false
 local antiAFKEnabled = false
 local fishingActive = false
 local autoFavoriteEnabled = false
+local autoSellAt4000Enabled = false
 
 local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote
 local AFKConnection = nil
@@ -143,47 +144,6 @@ local function teleportToIsland(islandName)
     end
 end
 
--- Fungsi teleport ke NPC
-local function teleportToNPC(npcName)
-    local npcFolder = workspace:FindFirstChild("NPC") or ReplicatedStorage:FindFirstChild("NPC")
-    if not npcFolder then
-        Rayfield:Notify({
-            Title = "Teleport System",
-            Content = "NPC folder not found!",
-            Duration = 3
-        })
-        return
-    end
-
-    local npc = npcFolder:FindFirstChild(npcName)
-    if npc and npc:IsA("Model") then
-        local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-        if hrp then
-            local char = player.Character or player.CharacterAdded:Wait()
-            local myHRP = char:WaitForChild("HumanoidRootPart", 3)
-            myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-            Rayfield:Notify({
-                Title = "Teleport System",
-                Content = "Teleported to NPC: " .. npcName,
-                Duration = 3,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "Teleport System",
-                Content = "NPC HRP not found!",
-                Duration = 3
-            })
-        end
-    else
-        Rayfield:Notify({
-            Title = "Teleport System",
-            Content = "NPC not found!",
-            Duration = 3
-        })
-    end
-end
-
 -- Fungsi teleport ke event
 local function teleportToEvent(eventName)
     local props = workspace:FindFirstChild("Props")
@@ -234,6 +194,76 @@ local function startAutoFavourite()
                 end
             end)
             task.wait(5)
+        end
+    end)
+end
+
+-- ===================================
+-- ========== AUTO SELL SYSTEM =======
+-- ===================================
+
+local function sellNow()
+    local success, err = pcall(function()
+        sellRemote:InvokeServer()
+    end)
+
+    if success then
+        Rayfield:Notify({
+            Title = "Auto Sell",
+            Content = "Successfully sold all non-favorite items!",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        Rayfield:Notify({
+            Title = "Auto Sell Error",
+            Content = "Failed to sell items: " .. tostring(err),
+            Duration = 3
+        })
+    end
+end
+
+local function checkInventoryAndSell()
+    task.spawn(function()
+        while autoSellAt4000Enabled do
+            pcall(function()
+                -- Cek inventory count (simulasi - perlu disesuaikan dengan game)
+                local inventoryCount = 0
+                
+                -- Method 1: Cek melalui Replion (jika ada)
+                if Replion then
+                    local DataReplion = Replion.Client:WaitReplion("Data")
+                    local items = DataReplion and DataReplion:Get({"Inventory","Items"})
+                    if type(items) == "table" then
+                        inventoryCount = #items
+                    end
+                end
+                
+                -- Method 2: Cek melalui remote atau cara lain
+                -- Tambahkan method lain sesuai kebutuhan game
+                
+                -- Jika inventory mencapai 4000, jual otomatis
+                if inventoryCount >= 4000 then
+                    Rayfield:Notify({
+                        Title = "Auto Sell",
+                        Content = "Inventory full (4000/4000)! Selling non-favorite items...",
+                        Duration = 3,
+                        Image = 4483362458
+                    })
+                    sellNow()
+                end
+                
+                -- Notifikasi progress
+                if inventoryCount % 1000 == 0 and inventoryCount > 0 then
+                    Rayfield:Notify({
+                        Title = "Inventory Status",
+                        Content = "Current inventory: " .. inventoryCount .. "/4000",
+                        Duration = 2,
+                        Image = 4483362458
+                    })
+                end
+            end)
+            task.wait(10) -- Cek setiap 10 detik
         end
     end)
 end
@@ -427,31 +457,6 @@ task.spawn(function()
 end)
 
 -- ===================================
--- ========== AUTO SELL ==============
--- ===================================
-
-local function autoSellLoop()
-    while autoSellEnabled do
-        task.wait(1)
-        
-        local success, err = pcall(function()
-            local sellSuccess = pcall(function()
-                sellRemote:InvokeServer()
-            end)
-
-            if sellSuccess then
-                Rayfield:Notify({
-                    Title = "Auto Sell",
-                    Content = "Successfully sold all items!",
-                    Duration = 2,
-                    Image = 4483362458
-                })
-            end
-        end)
-    end
-end
-
--- ===================================
 -- ========== RAYFIELD UI ============
 -- ===================================
 
@@ -565,25 +570,34 @@ local FishingV3Toggle = MainTab:CreateToggle({
 
 local InventorySection = MainTab:CreateSection("Inventory Management")
 
-local AutoSellToggle = MainTab:CreateToggle({
-    Name = "💰 Auto Sell All (Non-Favorite)",
+-- Manual Sell Button
+local SellNowButton = MainTab:CreateButton({
+    Name = "💰 Sell Now (Non-Favorite)",
+    Callback = function()
+        sellNow()
+    end,
+})
+
+-- Auto Sell at 4000 Toggle
+local AutoSell4000Toggle = MainTab:CreateToggle({
+    Name = "🔄 Auto Sell at 4000 Fish",
     CurrentValue = false,
-    Flag = "AutoSellToggle",
+    Flag = "AutoSell4000Toggle",
     Callback = function(Value)
-        autoSellEnabled = Value
+        autoSellAt4000Enabled = Value
         
         if Value then
             Rayfield:Notify({
-                Title = "Auto Sell",
-                Content = "Auto Sell Started!",
+                Title = "Auto Sell 4000",
+                Content = "Auto sell when inventory reaches 4000 enabled!",
                 Duration = 3,
                 Image = 4483362458
             })
-            task.spawn(autoSellLoop)
+            checkInventoryAndSell()
         else
             Rayfield:Notify({
-                Title = "Auto Sell",
-                Content = "Auto Sell Stopped!",
+                Title = "Auto Sell 4000",
+                Content = "Auto sell at 4000 disabled!",
                 Duration = 3
             })
         end
@@ -621,10 +635,7 @@ local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
 -- TELEPORT TO ISLAND SECTION
 local IslandSection = TeleportTab:CreateSection("TELEPORT TO ISLAND")
 
--- Buat container untuk island buttons
-local islandButtonsContainer = TeleportTab:CreateSection("Islands", false)
-
--- Island buttons dalam layout horizontal
+-- Island buttons
 local islandOptions = {
     "Weather Machine", "Esoteric Depths", "Tropical Grove", 
     "Stingray Shores", "Kohana Volcano", "Coral Reefs",
@@ -639,44 +650,6 @@ for _, islandName in ipairs(islandOptions) do
         Name = islandName,
         Callback = function()
             teleportToIsland(islandName)
-        end,
-    })
-end
-
--- TELEPORT TO NPC SECTION
-local NPCSection = TeleportTab:CreateSection("TELEPORT TO NPC")
-
--- Dapatkan list NPC
-local npcFolder = workspace:FindFirstChild("NPC") or ReplicatedStorage:FindFirstChild("NPC")
-if npcFolder then
-    local npcList = {}
-    for _, npc in pairs(npcFolder:GetChildren()) do
-        if npc:IsA("Model") then
-            table.insert(npcList, npc.Name)
-        end
-    end
-    
-    -- Sort NPC names
-    table.sort(npcList)
-    
-    -- Buat buttons untuk setiap NPC
-    for _, npcName in ipairs(npcList) do
-        TeleportTab:CreateButton({
-            Name = npcName,
-            Callback = function()
-                teleportToNPC(npcName)
-            end,
-        })
-    end
-else
-    TeleportTab:CreateButton({
-        Name = "No NPCs Found",
-        Callback = function()
-            Rayfield:Notify({
-                Title = "NPC Teleport",
-                Content = "NPC folder not found!",
-                Duration = 3
-            })
         end,
     })
 end
