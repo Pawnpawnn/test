@@ -583,7 +583,7 @@ end
 -- ===================================
 
 local function getAvailablePlayers()
-    local availablePlayers = {}
+    availablePlayers = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("Humanoid") then
             table.insert(availablePlayers, p.Name)
