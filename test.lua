@@ -132,56 +132,47 @@ local LastCatchData = {}
 
 local function buildFishPriceDatabase()
     local itemsFolder = ReplicatedStorage:FindFirstChild("Items")
-    if not itemsFolder then 
-        print("❌ Items folder not found!")
-        return 0 
-    end
+    if not itemsFolder then return 0 end
     
     local loadedCount = 0
     
-    print("🔍 Building Fish Price Database...")
+    print("🔍 Scanning ALL Items...")
     
     for _, itemModule in ipairs(itemsFolder:GetChildren()) do
         if itemModule:IsA("ModuleScript") then
             local success, itemData = pcall(require, itemModule)
             
             if success and type(itemData) == "table" then
-                local isFish = itemData.Data and itemData.Data.Type == "Fishes"
-                local fishId = itemData.Data and itemData.Data.Id
-                local sellPrice = itemData.SellPrice
+                -- Cari ID dan SellPrice di mana saja
+                local fishId, sellPrice, itemName
                 
-                if isFish and fishId and sellPrice then
+                -- Cek di Data table
+                if itemData.Data then
+                    fishId = itemData.Data.Id or itemData.Data.ID
+                    itemName = itemData.Data.Name
+                end
+                
+                -- Cek SellPrice di berbagai lokasi
+                sellPrice = itemData.SellPrice or itemData.Price or itemData.Value
+                
+                if fishId and sellPrice then
                     FishPriceDB[fishId] = {
-                        Name = itemData.Data.Name or "Unknown",
+                        Name = itemName or itemModule.Name,
                         Price = sellPrice,
-                        Tier = itemData.Data.Tier or 0
+                        Type = itemData.Data and itemData.Data.Type or "Unknown"
                     }
                     loadedCount = loadedCount + 1
                     
-                    -- Print sample
-                    if loadedCount <= 5 then
-                        print(string.format("  ✅ [%d] %s = $%s", 
-                            fishId, itemData.Data.Name, sellPrice))
+                    if loadedCount <= 10 then
+                        print(string.format("  ✅ [%d] %s = $%s (Type: %s)", 
+                            fishId, FishPriceDB[fishId].Name, sellPrice, FishPriceDB[fishId].Type))
                     end
                 end
             end
         end
     end
     
-    print(string.format("📊 Loaded %d FISH prices to database", loadedCount))
-    
-    -- Debug: Show first 10 entries
-    print("\n🔍 First 10 FishPriceDB entries:")
-    local count = 0
-    for id, data in pairs(FishPriceDB) do
-        count = count + 1
-        if count <= 10 then
-            print(string.format("  %d. ID %d: %s = $%s", count, id, data.Name, data.Price))
-        else
-            break
-        end
-    end
-    
+    print(string.format("📊 Loaded %d items to database", loadedCount))
     return loadedCount
 end
 
