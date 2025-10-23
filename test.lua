@@ -71,8 +71,8 @@ local AntiDrown_Enabled = false
 
 -- Trade Variables
 local autoTradeEnabled = false
-local selectedTradePlayer = nil
-local selectedTradeAmount = 100000
+local selectedTradePlayer = ""
+local selectedTradeAmount = 0
 local tradeSuccessCount = 0
 local tradeFailedCount = 0
 local totalCoinConverted = 0
@@ -548,8 +548,42 @@ end
 -- ========== TRADE SYSTEM FIXED =====
 -- ===================================
 
+-- PASTIKAN SEMUA VARIABEL GLOBAL DI BAWAH INI SUDAH DIDEFINISIKAN DI BAGIAN ATAS SKRIP ANDA
+-- local Players = game:GetService("Players")
+-- local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote, REEquipItem, RFSellItem
+-- local player = Players.LocalPlayer
+-- local Rayfield = ... (Pastikan Rayfield UI Library sudah dimuat)
+-- local tradeSuccessCount = 0
+-- local tradeFailedCount = 0
+-- local totalCoinConverted = 0
+-- local selectedTradePlayer = ""
+-- local selectedTradeAmount = 0
+-- local tradeInProgress = false
+-- local autoTradeEnabled = false
+-- local tradeRemote = nil
+-- local TradeProgressLabel = nil -- Asumsi ini adalah label Rayfield yang sudah didefinisikan
+
+-- Fungsi bantuan (Diasumsikan sudah ada di kode Anda)
+local function formatCurrency(amount)
+    -- Implementasi fungsi format mata uang Anda
+    local formatted = tostring(amount)
+    local k = 0
+    while true do
+        k = k + 3
+        if k >= #formatted then break end
+        formatted = formatted:sub(1, #formatted - k) .. "," .. formatted:sub(#formatted - k + 1)
+        k = k + 1
+    end
+    return formatted
+end
+
+-- ===================================
+-- ========== TRADE FUNCTIONS ========
+-- ===================================
+
 local function getAvailablePlayers()
-    availablePlayers = {}
+    local availablePlayers = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("Humanoid") then
             table.insert(availablePlayers, p.Name)
@@ -826,13 +860,18 @@ local function executeDirectTrade(fishList, targetPlayer)
         -- Prepare UUID list
         local uuidList = {}
         for _, fish in ipairs(fishList) do
-            if fish.UUID and fish.UUID ~= "" then
+            -- Perbaikan: Pastikan UUID valid sebelum dimasukkan ke daftar
+            if fish.UUID and type(fish.UUID) == "string" and fish.UUID ~= "" then
                 table.insert(uuidList, fish.UUID)
+            else
+                print("⚠️ Skipping fish due to invalid/missing UUID.")
             end
         end
         
+        -- Pengecekan krusial untuk mencegah error 'Parent'
+        -- Jika tidak ada UUID valid, batalkan trade sebelum memanggil remote.
         if #uuidList == 0 then
-            tradeError = "No valid UUIDs found"
+            tradeError = "❌ No valid UUIDs found to trade. All items might be missing UUIDs or invalid references."
             return false
         end
         
@@ -973,6 +1012,7 @@ local function tradeNow()
     
     -- Execute trade
     local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
+    -- *** LOKASI ERROR 'PARENT' TERJADI SEBELUM INI ***
     local tradeSuccess, tradeError = executeDirectTrade(fishList, targetPlayer)
     
     -- Update statistics berdasarkan hasil
@@ -1095,6 +1135,7 @@ local function autoTradeLoop()
     
     autoTradeEnabled = false
 end
+
 
 -- Function untuk refresh player list
 local function refreshPlayerList()
