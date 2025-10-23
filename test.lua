@@ -550,70 +550,121 @@ local function getInventoryValue()
     local totalValue = 0
     local fishCount = 0
     
+    print("=== DEBUG START ===")
+    
+    -- Debug 1: Cek semua children di ReplicatedStorage
+    print("ReplicatedStorage children:")
+    for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+        print("- " .. child.Name, child.ClassName)
+    end
+    
     local success = pcall(function()
-        -- Coba beberapa path untuk menemukan data inventory
-        local dataSources = {
-            ReplicatedStorage:FindFirstChild("Replion"),
-            ReplicatedStorage:FindFirstChild("Packages") and ReplicatedStorage.Packages:FindFirstChild("Replion"),
-            ReplicatedStorage:FindFirstChild("_replicationFolder")
-        }
-        
-        local Replion = nil
-        for _, source in ipairs(dataSources) do
-            if source then
-                Replion = source
-                break
-            end
-        end
+        -- Cari Replion dengan lebih teliti
+        local Replion = ReplicatedStorage:FindFirstChild("Replion", true) -- recursive search
         
         if not Replion then 
-            warn("Replion data source not found")
-            return 
+            print("❌ Replion tidak ditemukan")
+            
+            -- Coba cari dengan nama alternatif
+            local alternatives = {"ReplicationClient", "DataReplion", "ClientData"}
+            for _, name in ipairs(alternatives) do
+                Replion = ReplicatedStorage:FindFirstChild(name, true)
+                if Replion then
+                    print("✅ Found alternative:", name)
+                    break
+                end
+            end
+            
+            if not Replion then return end
+        else
+            print("✅ Replion ditemukan:", Replion:GetFullName())
         end
         
-        -- Coba berbagai method untuk mendapatkan data
-        local inventoryData = nil
+        -- Debug 2: Cek struktur Replion
+        print("\nReplion children:")
+        for _, child in ipairs(Replion:GetDescendants()) do
+            print("- " .. child:GetFullName(), child.ClassName)
+        end
         
-        -- Method 1: Direct data access
+        -- Method 1: WaitReplion (original method)
         if Replion:FindFirstChild("Client") then
+            print("\n🔍 Trying Method 1: WaitReplion")
             local success1, dataReplion = pcall(function()
-                return Replion.Client:WaitReplion("Data", 2)
+                return Replion.Client:WaitReplion("Data", 5)
             end)
             
             if success1 and dataReplion then
+                print("✅ DataReplion found")
+                
                 local success2, items = pcall(function()
                     return dataReplion:Get({"Inventory", "Items"})
                 end)
-                if success2 then
-                    inventoryData = items
+                
+                if success2 and items then
+                    print("✅ Items found:", #items, "items")
+                    
+                    for i, item in ipairs(items) do
+                        print(string.format("Item %d: Value=%s, Favorited=%s", 
+                            i, 
+                            tostring(item.Value), 
+                            tostring(item.Favorited)
+                        ))
+                        
+                        if not item.Favorited and item.Value and item.Value > 0 then
+                            totalValue = totalValue + item.Value
+                            fishCount = fishCount + 1
+                        end
+                    end
+                else
+                    print("❌ Failed to get items")
+                end
+            else
+                print("❌ Failed to get DataReplion")
+            end
+        end
+        
+        -- Method 2: Direct folder access
+        if fishCount == 0 then
+            print("\n🔍 Trying Method 2: Direct folder")
+            local inventoryFolder = Replion:FindFirstChild("Inventory", true) or
+                                   ReplicatedStorage:FindFirstChild("Inventory", true)
+            
+            if inventoryFolder then
+                print("✅ Inventory folder found")
+                for _, item in ipairs(inventoryFolder:GetChildren()) do
+                    local value = item:GetAttribute("Value") or 
+                                 (item:FindFirstChild("Value") and item.Value.Value)
+                    local favorited = item:GetAttribute("Favorited") or false
+                    
+                    if value and value > 0 and not favorited then
+                        totalValue = totalValue + value
+                        fishCount = fishCount + 1
+                    end
                 end
             end
         end
         
-        -- Method 2: Alternative data path
-        if not inventoryData and Replion:FindFirstChild("_replicationFolder") then
-            local success3, items = pcall(function()
-                return Replion._replicationFolder:GetAttribute("InventoryItems")
-            end)
-            if success3 then
-                inventoryData = items
-            end
-        end
-        
-        -- Process inventory data
-        if type(inventoryData) == "table" then
-            for _, item in ipairs(inventoryData) do
-                if not item.Favorited and item.Value and item.Value > 0 then
-                    totalValue += item.Value
-                    fishCount += 1
+        -- Method 3: LocalPlayer data
+        if fishCount == 0 then
+            print("\n🔍 Trying Method 3: LocalPlayer data")
+            local Players = game:GetService("Players")
+            local LocalPlayer = Players.LocalPlayer
+            
+            if LocalPlayer:FindFirstChild("Data") then
+                local inventory = LocalPlayer.Data:FindFirstChild("Inventory")
+                if inventory then
+                    print("✅ Player inventory found")
+                    -- Process inventory...
                 end
             end
         end
         
     end)
     
+    print(string.format("\n=== RESULT: Value=%d, Fish=%d ===", totalValue, fishCount))
+    
     if not success then
-        warn("Failed to get inventory value")
+        warn("Error in getInventoryValue")
     end
     
     return totalValue, fishCount
