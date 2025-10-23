@@ -696,87 +696,92 @@ local function getFishToTrade(targetValue)
     local fishList = {}
     local currentValue = 0
     
-    local success, allItems = pcall(function()
-        local totalVal, fishCount, items = getInventoryValue()
-        return items
-    end)
-    
-    if not success or not allItems then
-        warn("❌ Failed to get items for trade")
-        return fishList, currentValue
-    end
-    
-    -- Build price database
-    local priceDB = {}
-    local itemsFolder = ReplicatedStorage.Items
-    
-    for _, itemModule in ipairs(itemsFolder:GetDescendants()) do
-        if itemModule:IsA("ModuleScript") then
-            local success, itemData = pcall(function()
-                return require(itemModule)
-            end)
-            
-            if success and type(itemData) == "table" then
-                local id = itemData.Data and itemData.Data.Id
-                local price = itemData.SellPrice
-                local name = itemData.Data and itemData.Data.Name or "Unknown"
+    local success = pcall(function()
+        local totalVal, fishCount, allItems = getInventoryValue()
+        
+        if not allItems or #allItems == 0 then
+            warn("❌ No items found")
+            return
+        end
+        
+        -- Build price database
+        local priceDB = {}
+        local itemsFolder = ReplicatedStorage.Items
+        
+        for _, itemModule in ipairs(itemsFolder:GetDescendants()) do
+            if itemModule:IsA("ModuleScript") then
+                local itemSuccess, itemData = pcall(function()
+                    return require(itemModule)
+                end)
                 
-                if id and price and tonumber(price) then
-                    priceDB[tonumber(id)] = {
-                        value = tonumber(price),
-                        name = name
-                    }
+                if itemSuccess and type(itemData) == "table" then
+                    local id = itemData.Data and itemData.Data.Id
+                    local price = itemData.SellPrice
+                    local name = itemData.Data and itemData.Data.Name or "Unknown"
+                    
+                    if id and price and tonumber(price) then
+                        priceDB[tonumber(id)] = {
+                            value = tonumber(price),
+                            name = name
+                        }
+                    end
                 end
             end
         end
-    end
-    
-    -- Filter and sort tradable fish
-    local tradableFish = {}
-    for _, item in ipairs(allItems) do
-        local itemId = tonumber(item.Id)
-        local isFavorited = item.Favorited or false
-        local itemData = priceDB[itemId]
-        local uuid = item.UUID or item.Id
         
-        -- Pastikan UUID valid dan item tidak difavoritkan
-        if not isFavorited and itemData and itemData.value > 0 and uuid then
-            table.insert(tradableFish, {
-                UUID = tostring(uuid), -- Pastikan string
-                Value = itemData.value,
-                Id = itemId,
-                Name = itemData.name,
-                RawItem = item
-            })
+        -- Filter tradable fish
+        local tradableFish = {}
+        for _, item in ipairs(allItems) do
+            local itemId = tonumber(item.Id)
+            local isFavorited = item.Favorited or false
+            local itemData = priceDB[itemId]
+            
+            -- Validasi UUID dengan ketat
+            local uuid = item.UUID
+            if not isFavorited and itemData and itemData.value > 0 and uuid then
+                -- PENTING: Pastikan UUID adalah string
+                if type(uuid) == "number" then
+                    uuid = tostring(uuid)
+                elseif type(uuid) ~= "string" then
+                    -- Skip jika bukan string/number
+                    print("⚠️ Skipping item with invalid UUID type: " .. type(uuid))
+                    continue
+                end
+                
+                if uuid ~= "" then
+                    table.insert(tradableFish, {
+                        UUID = uuid, -- Sudah pasti string
+                        Value = itemData.value,
+                        Id = itemId,
+                        Name = itemData.name,
+                        RawItem = item
+                    })
+                end
+            end
         end
-    end
-    
-    -- Sort by value (highest first for efficiency)
-    table.sort(tradableFish, function(a, b)
-        return (a.Value or 0) > (b.Value or 0)
+        
+        -- Sort by value
+        table.sort(tradableFish, function(a, b)
+            return (a.Value or 0) > (b.Value or 0)
+        end)
+        
+        -- Select fish until target
+        for _, fish in ipairs(tradableFish) do
+            if currentValue < targetValue and fish.UUID and type(fish.UUID) == "string" then
+                table.insert(fishList, fish)
+                currentValue = currentValue + fish.Value
+                
+                if currentValue >= targetValue then
+                    break
+                end
+            end
+        end
+        
+        print(string.format("🎣 Selected %d fish worth %s", #fishList, formatCurrency(currentValue)))
     end)
     
-    -- Select fish until target value is reached
-    for _, fish in ipairs(tradableFish) do
-        if currentValue < targetValue and fish.UUID and fish.UUID ~= "" then
-            table.insert(fishList, fish)
-            currentValue = currentValue + fish.Value
-            
-            -- Stop if we've reached or exceeded target
-            if currentValue >= targetValue then
-                break
-            end
-        else
-            break
-        end
-    end
-    
-    print(string.format("🎣 Selected %d fish for trade worth %s (Target: %s)", 
-        #fishList, formatCurrency(currentValue), formatCurrency(targetValue)))
-    
-    -- Debug selected fish
-    for i, fish in ipairs(fishList) do
-        print(string.format("  %d. %s - $%d (UUID: %s)", i, fish.Name, fish.Value, fish.UUID))
+    if not success then
+        warn("❌ Error in getFishToTrade")
     end
     
     return fishList, currentValue
@@ -857,27 +862,40 @@ local function executeDirectTrade(fishList, targetPlayer)
         print("🎯 Starting direct trade with: " .. targetPlayer.Name)
         print("🎣 Fish count: " .. #fishList)
         
-        -- Prepare UUID list
+        -- Prepare UUID list dengan validasi ketat
         local uuidList = {}
         for _, fish in ipairs(fishList) do
-            -- Perbaikan: Pastikan UUID valid sebelum dimasukkan ke daftar
-            if fish.UUID and type(fish.UUID) == "string" and fish.UUID ~= "" then
-                table.insert(uuidList, fish.UUID)
-            else
-                print("⚠️ Skipping fish due to invalid/missing UUID.")
+            -- Pastikan UUID adalah string yang valid
+            local uuid = fish.UUID
+            if uuid then
+                -- Convert ke string jika berupa number/table
+                if type(uuid) == "number" then
+                    uuid = tostring(uuid)
+                elseif type(uuid) == "table" then
+                    -- Skip jika table
+                    print("⚠️ Skipping invalid UUID (table type)")
+                    continue
+                end
+                
+                -- Validasi string tidak kosong
+                if type(uuid) == "string" and uuid ~= "" then
+                    table.insert(uuidList, uuid)
+                else
+                    print("⚠️ Skipping fish due to invalid UUID: " .. tostring(uuid))
+                end
             end
         end
         
-        -- Pengecekan krusial untuk mencegah error 'Parent'
-        -- Jika tidak ada UUID valid, batalkan trade sebelum memanggil remote.
+        -- Validasi krusial
         if #uuidList == 0 then
-            tradeError = "❌ No valid UUIDs found to trade. All items might be missing UUIDs or invalid references."
+            tradeError = "❌ No valid UUIDs found to trade"
             return false
         end
         
-        print("📦 UUIDs to trade: " .. table.concat(uuidList, ", "))
+        -- Debug print yang aman
+        print("📦 Valid UUIDs count: " .. #uuidList)
         
-        -- Cari trade remote dengan semua kemungkinan
+        -- Cari trade remote
         local possibleTradeRemotes = {
             "RF/RequestTrade",
             "RF/SendTradeRequest", 
@@ -886,7 +904,6 @@ local function executeDirectTrade(fishList, targetPlayer)
             "RF/StartTrade"
         }
         
-        -- Coba temukan trade remote
         for _, remoteName in ipairs(possibleTradeRemotes) do
             local remote = net:FindFirstChild(remoteName)
             if remote then
@@ -901,30 +918,18 @@ local function executeDirectTrade(fishList, targetPlayer)
             return false
         end
         
-        -- Try different parameter combinations untuk direct trade
+        -- Try different parameter combinations
         local parameterCombinations = {
-            -- Method 1: Player object + UUID list
             {targetPlayer, uuidList},
-            
-            -- Method 2: Player UserId + UUID list  
             {targetPlayer.UserId, uuidList},
-            
-            -- Method 3: Player name + UUID list
             {targetPlayer.Name, uuidList},
-            
-            -- Method 4: Table format
             {{Player = targetPlayer, Items = uuidList}},
-            
-            -- Method 5: Table with UserId
             {{PlayerId = targetPlayer.UserId, Items = uuidList}},
-            
-            -- Method 6: Just UUID list (some games auto-detect target)
             {uuidList}
         }
         
-        -- Try InvokeServer methods
         for i, params in ipairs(parameterCombinations) do
-            print("🔄 Trying trade method " .. i .. " with " .. #params .. " parameters")
+            print("🔄 Trying trade method " .. i)
             
             local methodSuccess, methodResult = pcall(function()
                 if tradeRemote:IsA("RemoteFunction") then
@@ -939,8 +944,6 @@ local function executeDirectTrade(fishList, targetPlayer)
                 tradeSuccess = true
                 tradeError = nil
                 print("✅ Trade method " .. i .. " succeeded!")
-                
-                -- Beri waktu untuk trade diproses
                 task.wait(3)
                 break
             else
@@ -948,7 +951,7 @@ local function executeDirectTrade(fishList, targetPlayer)
                 print("❌ Trade method " .. i .. " failed: " .. tradeError)
             end
             
-            task.wait(1) -- Delay antara attempts
+            task.wait(1)
         end
         
         return tradeSuccess
