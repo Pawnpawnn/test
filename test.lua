@@ -718,10 +718,12 @@ local function getFishToTrade(targetValue)
         local itemId = tonumber(item.Id)
         local isFavorited = item.Favorited or false
         local itemData = priceDB[itemId]
+        local uuid = item.UUID or item.Id
         
-        if not isFavorited and itemData and itemData.value > 0 then
+        -- Pastikan UUID valid dan item tidak difavoritkan
+        if not isFavorited and itemData and itemData.value > 0 and uuid then
             table.insert(tradableFish, {
-                UUID = item.UUID or item.Id,
+                UUID = tostring(uuid), -- Pastikan string
                 Value = itemData.value,
                 Id = itemId,
                 Name = itemData.name,
@@ -737,7 +739,7 @@ local function getFishToTrade(targetValue)
     
     -- Select fish until target value is reached
     for _, fish in ipairs(tradableFish) do
-        if currentValue < targetValue then
+        if currentValue < targetValue and fish.UUID and fish.UUID ~= "" then
             table.insert(fishList, fish)
             currentValue = currentValue + fish.Value
             
@@ -752,6 +754,11 @@ local function getFishToTrade(targetValue)
     
     print(string.format("🎣 Selected %d fish for trade worth %s (Target: %s)", 
         #fishList, formatCurrency(currentValue), formatCurrency(targetValue)))
+    
+    -- Debug selected fish
+    for i, fish in ipairs(fishList) do
+        print(string.format("  %d. %s - $%d (UUID: %s)", i, fish.Name, fish.Value, fish.UUID))
+    end
     
     return fishList, currentValue
 end
@@ -823,6 +830,33 @@ local function validateTradeConditions()
     return true, "Validation passed", fishList
 end
 
+local function debugRemotes()
+    print("=== REMOTE DEBUG ===")
+    print("Available remotes in net:")
+    
+    local tradeRemotes = {}
+    local otherRemotes = {}
+    
+    for _, remote in ipairs(net:GetChildren()) do
+        if string.find(remote.Name:lower(), "trade") then
+            table.insert(tradeRemotes, remote)
+        else
+            table.insert(otherRemotes, remote)
+        end
+    end
+    
+    print("TRADE-RELATED REMOTES:")
+    for _, remote in ipairs(tradeRemotes) do
+        print("  " .. remote.Name .. " (" .. remote.ClassName .. ")")
+    end
+    
+    print("OTHER REMOTES:")
+    for _, remote in ipairs(otherRemotes) do
+        print("  " .. remote.Name .. " (" .. remote.ClassName .. ")")
+    end
+    print("====================")
+end
+
 local function executeTrade()
     if tradeInProgress then 
         Rayfield:Notify({
@@ -852,26 +886,39 @@ local function executeTrade()
     local fishDetails = {}
     
     for _, fish in ipairs(fishList) do
-        table.insert(uuidList, fish.UUID)
-        table.insert(fishDetails, string.format("%s ($%d)", fish.Name, fish.Value))
-        totalValue = totalValue + fish.Value
+        if fish.UUID then
+            table.insert(uuidList, fish.UUID)
+            table.insert(fishDetails, string.format("%s ($%d)", fish.Name, fish.Value))
+            totalValue = totalValue + fish.Value
+        else
+            warn("❌ Fish missing UUID: " .. tostring(fish.Name))
+        end
+    end
+    
+    if #uuidList == 0 then
+        Rayfield:Notify({
+            Title = "❌ Trade Error",
+            Content = "No valid fish UUIDs found!",
+            Duration = 4
+        })
+        tradeInProgress = false
+        return false
     end
     
     -- Notify mulai trade
     Rayfield:Notify({
         Title = "📤 Starting Trade...",
-        Content = string.format("Trading %d fish worth %s to %s\nFish: %s", 
-            #fishList, formatCurrency(totalValue), selectedTradePlayer,
-            table.concat(fishDetails, ", ")),
+        Content = string.format("Trading %d fish worth %s to %s", 
+            #fishList, formatCurrency(totalValue), selectedTradePlayer),
         Duration = 6,
         Image = 4483362458
     })
     
-    -- Execute trade dengan multiple fallback methods
+    -- Execute trade dengan comprehensive method testing
     local tradeSuccess = false
     local tradeError = "Unknown error"
     
-    local success, result = pcall(function()
+    local success = pcall(function()
         -- Siapkan data trade
         local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
         if not targetPlayer then
@@ -879,45 +926,114 @@ local function executeTrade()
             return false
         end
         
-        -- Cari trade remote dengan multiple possibilities
-        if not tradeRemote then
-            tradeRemote = net:FindFirstChild("RF/RequestTrade") or 
-                         net:FindFirstChild("RF/SendTradeRequest") or
-                         net:FindFirstChild("RF/InitiateTrade") or
-                         net:FindFirstChild("RF/TradeRequest")
+        print("🎯 Target Player: " .. targetPlayer.Name)
+        print("🎣 Fish to trade: " .. #uuidList .. " items")
+        print("💰 Total Value: " .. formatCurrency(totalValue))
+        
+        -- Cari trade remote dengan semua kemungkinan
+        local possibleTradeRemotes = {
+            "RF/RequestTrade",
+            "RF/SendTradeRequest", 
+            "RF/InitiateTrade",
+            "RF/TradeRequest",
+            "RF/StartTrade",
+            "RE/RequestTrade",
+            "RE/TradeRequest"
+        }
+        
+        -- Coba temukan trade remote
+        for _, remoteName in ipairs(possibleTradeRemotes) do
+            local remote = net:FindFirstChild(remoteName)
+            if remote then
+                tradeRemote = remote
+                print("✅ Found trade remote: " .. remoteName)
+                break
+            end
         end
         
         if not tradeRemote then
-            tradeError = "Trade remote not found"
+            tradeError = "Trade remote not found. Available remotes:"
+            for _, remote in ipairs(net:GetChildren()) do
+                if string.find(remote.Name:lower(), "trade") then
+                    tradeError = tradeError .. "\n- " .. remote.Name
+                end
+            end
             return false
         end
         
-        -- Try different invocation methods
-        local methods = {
-            function() 
-                return tradeRemote:InvokeServer(targetPlayer, uuidList) 
-            end,
-            function() 
-                return tradeRemote:InvokeServer(targetPlayer.UserId, uuidList) 
-            end,
-            function() 
-                return tradeRemote:InvokeServer({Player = targetPlayer, Items = uuidList}) 
-            end,
-            function() 
-                return tradeRemote:FireServer(targetPlayer, uuidList) 
-            end
+        print("🔧 Using trade remote: " .. tradeRemote.Name)
+        print("📦 UUIDs to trade: " .. table.concat(uuidList, ", "))
+        
+        -- Try different parameter combinations
+        local parameterCombinations = {
+            -- Method 1: Player object + UUID list
+            {targetPlayer, uuidList},
+            
+            -- Method 2: Player UserId + UUID list  
+            {targetPlayer.UserId, uuidList},
+            
+            -- Method 3: Player name + UUID list
+            {targetPlayer.Name, uuidList},
+            
+            -- Method 4: Table format
+            {{Player = targetPlayer, Items = uuidList}},
+            
+            -- Method 5: Table with UserId
+            {{PlayerId = targetPlayer.UserId, Items = uuidList}},
+            
+            -- Method 6: Just UUID list (some games auto-detect target)
+            {uuidList},
+            
+            -- Method 7: Single UUID at a time
+            {targetPlayer, uuidList[1]},
         }
         
-        for i, method in ipairs(methods) do
-            local methodSuccess, methodResult = pcall(method)
+        -- Try InvokeServer methods
+        for i, params in ipairs(parameterCombinations) do
+            print("🔄 Trying method " .. i .. " with " .. #params .. " parameters")
+            
+            local methodSuccess, methodResult = pcall(function()
+                if tradeRemote:IsA("RemoteFunction") then
+                    return tradeRemote:InvokeServer(unpack(params))
+                else
+                    tradeRemote:FireServer(unpack(params))
+                    return true
+                end
+            end)
+            
             if methodSuccess then
                 tradeSuccess = true
                 tradeError = nil
-                print("✅ Trade method " .. i .. " succeeded")
+                print("✅ Trade method " .. i .. " succeeded!")
                 break
             else
                 tradeError = tostring(methodResult)
                 print("❌ Trade method " .. i .. " failed: " .. tradeError)
+            end
+            
+            task.wait(0.5) -- Small delay between attempts
+        end
+        
+        -- If still not successful, try FireServer for RemoteEvents
+        if not tradeSuccess and tradeRemote:IsA("RemoteEvent") then
+            for i, params in ipairs(parameterCombinations) do
+                print("🔥 Trying FireServer method " .. i)
+                
+                local methodSuccess = pcall(function()
+                    tradeRemote:FireServer(unpack(params))
+                    return true
+                end)
+                
+                if methodSuccess then
+                    tradeSuccess = true
+                    tradeError = nil
+                    print("✅ FireServer method " .. i .. " succeeded!")
+                    break
+                else
+                    tradeError = "FireServer also failed"
+                end
+                
+                task.wait(0.5)
             end
         end
         
@@ -925,7 +1041,9 @@ local function executeTrade()
     end)
     
     -- Tunggu response trade
-    task.wait(3)
+    local waitTime = 5
+    print("⏳ Waiting " .. waitTime .. " seconds for trade response...")
+    task.wait(waitTime)
     
     -- Update statistics berdasarkan hasil
     if success and tradeSuccess then
@@ -934,20 +1052,31 @@ local function executeTrade()
         
         Rayfield:Notify({
             Title = "✅ Trade Success!",
-            Content = string.format("Traded %s to %s!\nFish: %d items (%s)", 
-                formatCurrency(totalValue), selectedTradePlayer, #fishList, table.concat(fishDetails, ", ")),
+            Content = string.format("Traded %s to %s!\nFish: %d items", 
+                formatCurrency(totalValue), selectedTradePlayer, #fishList),
             Duration = 8,
             Image = 4483362458
         })
+        
+        print("🎉 Trade completed successfully!")
     else
         tradeFailedCount = tradeFailedCount + 1
         local errorMsg = tradeError or "Trade request failed or timed out"
         
         Rayfield:Notify({
             Title = "❌ Trade Failed",
-            Content = errorMsg .. "\nPlayer might be busy or unavailable",
-            Duration = 5
+            Content = errorMsg,
+            Duration = 6
         })
+        
+        print("💥 Trade failed: " .. errorMsg)
+        
+        -- Debug info
+        print("🐛 DEBUG INFO:")
+        print("  Target Player: " .. tostring(selectedTradePlayer))
+        print("  Fish Count: " .. #fishList)
+        print("  Total Value: " .. formatCurrency(totalValue))
+        print("  UUIDs: " .. table.concat(uuidList, ", "))
     end
     
     updateTradeProgress()
@@ -2113,8 +2242,6 @@ TradeTab:CreateButton({
     Name = "🔄 Refresh Player List",
     Callback = function()
         local players = refreshPlayerList()
-        -- Update dropdown options
-        -- Note: Rayfield mungkin perlu method khusus untuk update dropdown
     end,
 })
 
@@ -2217,6 +2344,19 @@ TradeTab:CreateButton({
         Rayfield:Notify({
             Title = "Debug Complete",
             Content = "Check console for inventory details",
+            Duration = 4,
+            Image = 4483362458
+        })
+    end,
+})
+
+TradeTab:CreateButton({
+    Name = "🐛 Debug Remotes",
+    Callback = function()
+        debugRemotes()
+        Rayfield:Notify({
+            Title = "Remote Debug",
+            Content = "Check console for remote list",
             Duration = 4,
             Image = 4483362458
         })
