@@ -272,6 +272,7 @@ local function updateRodModifiers()
 end
 
 -- Exclaim Detection System
+-- Exclaim Detection System dengan Response Ultra Cepat
 local function setupExclaimSystem()
     local textEffectRemote = net:FindFirstChild("RE/ReplicateTextEffect")
     
@@ -281,26 +282,29 @@ local function setupExclaimSystem()
                 
                 EnhanceFishing.ExclaimDetected = true
                 
-                print("🎉 EXCLAIM DETECTED! - Auto Responding...")
+                print("🎉 EXCLAIM DETECTED! - INSTANT RESPONSE...")
                 
-                -- Instant response untuk exclaim
+                -- INSTANT RESPONSE - 0.001 DETIK
                 if EnhanceFishing.Enabled then
-                    for i = 1, 2 do
+                    -- Fire multiple times untuk memastikan success
+                    for i = 1, 3 do  -- Triple fire untuk jaminan
                         finishRemote:FireServer(true)
-                        task.wait(0.01)
+                        task.wait(0.001)  -- HANYA 0.001 DETIK!
                     end
                     
-                    -- UI Notification
-                    Rayfield:Notify({
-                        Title = "⚡ EXCLAIM!",
-                        Content = "Auto response activated!",
-                        Duration = 2,
-                        Image = 4483362458
-                    })
+                    -- UI Notification super cepat
+                    task.spawn(function()
+                        Rayfield:Notify({
+                            Title = "⚡ EXCLAIM!",
+                            Content = "Instant response activated!",
+                            Duration = 1,  -- Notif lebih singkat
+                            Image = 4483362458
+                        })
+                    end)
                 end
             end
         end)
-        print("✅ Exclaim Detection System: ACTIVE")
+        print("✅ Exclaim Detection System: ULTRA FAST MODE ACTIVATED")
     else
         warn("❌ Exclaim remote not found")
     end
