@@ -70,7 +70,6 @@ local ijumpEnabled = false
 local AntiDrown_Enabled = false
 
 -- Trade Variables
-local autoTradeEnabled = false
 local selectedTradePlayer = ""
 local selectedTradeAmount = 0
 local tradeSuccessCount = 0
@@ -92,18 +91,7 @@ local GlobalFav = {
     AutoFavoriteEnabled = false
 }
 
--- Weather Variables
-local weatherActive = {}
-local weatherData = {
-    ["Storm"] = { duration = 900 },
-    ["Cloudy"] = { duration = 900 },
-    ["Snow"] = { duration = 900 },
-    ["Wind"] = { duration = 900 },
-    ["Radiant"] = { duration = 900 }
-}
-
--- Fish Notification Variables
-local webhookPath = nil
+-- Fish Categories untuk Auto Favorite
 local FishCategories = {
     ["Secret"] = {
         "Blob Shark","Great Christmas Whale","Frostborn Shark","Great Whale","Worm Fish","Robot Kraken",
@@ -121,6 +109,19 @@ local FishCategories = {
         "Enchanted Angelfish","Axolotl","Deep Sea Crab"
     },
 }
+
+-- Weather Variables
+local weatherActive = {}
+local weatherData = {
+    ["Storm"] = { duration = 900 },
+    ["Cloudy"] = { duration = 900 },
+    ["Snow"] = { duration = 900 },
+    ["Wind"] = { duration = 900 },
+    ["Radiant"] = { duration = 900 }
+}
+
+-- Fish Notification Variables
+local webhookPath = nil
 local SelectedCategories = {"Secret"}
 local LastCatchData = {}
 
@@ -270,7 +271,7 @@ end)
 -- ===================================
 
 local function setupAutoFavorite()
-    -- Load Fish Names
+    -- Load Fish Names dan mapping ID ke Name
     for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
         local ok, data = pcall(require, item)
         if ok and data.Data and data.Data.Type == "Fishes" then
@@ -282,47 +283,35 @@ local function setupAutoFavorite()
         end
     end
 
-    -- Load Variants
-    for _, variantModule in pairs(ReplicatedStorage.Variants:GetChildren()) do
-        local ok, variantData = pcall(require, variantModule)
-        if ok and variantData.Data and variantData.Data.Name then
-            table.insert(GlobalFav.Variants, variantData.Data.Name)
-        end
-    end
-
-    -- Auto Favorite Event Handler
+    -- Auto Favorite Event Handler berdasarkan kategori
     local REObtainedNewFishNotification = ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
     REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, data)
         if not GlobalFav.AutoFavoriteEnabled then return end
 
         local uuid = data.InventoryItem and data.InventoryItem.UUID
         local fishName = GlobalFav.FishIdToName[itemId] or "Unknown"
-        local variantId = data.InventoryItem.Metadata and data.InventoryItem.Metadata.VariantId
 
         if not uuid then return end
 
-        local matchByName = GlobalFav.SelectedFishIds[itemId]
-        local matchByVariant = variantId and GlobalFav.SelectedVariants[variantId]
-        
+        -- Cek apakah ikan termasuk dalam kategori yang dipilih
         local shouldFavorite = false
-
-        if matchByName and matchByVariant then
-            shouldFavorite = true
-        elseif matchByName and not next(GlobalFav.SelectedVariants) then
-            shouldFavorite = true
-        elseif matchByVariant and not matchByName then
-            shouldFavorite = true
+        for category, fishList in pairs(FishCategories) do
+            if table.find(GlobalFav.SelectedCategories or {}, category) then
+                for _, targetFish in ipairs(fishList) do
+                    if string.lower(fishName) == string.lower(targetFish) then
+                        shouldFavorite = true
+                        break
+                    end
+                end
+            end
+            if shouldFavorite then break end
         end
 
         if shouldFavorite then
             favoriteRemote:FireServer(uuid)
-            local msg = "Favorited " .. fishName
-            if matchByVariant then
-                msg = msg .. " (" .. (variantId or "Variant") .. ")"
-            end
             Rayfield:Notify({
-                Title = "Auto Favorite",
-                Content = msg,
+                Title = "⭐ Auto Favorite",
+                Content = "Favorited: " .. fishName,
                 Duration = 3,
                 Image = 4483362458
             })
@@ -545,7 +534,7 @@ local function autoBuyWeather(weatherType)
 end
 
 -- ===================================
--- ========== TRADE FUNCTIONS ========
+-- ========== TRADE SYSTEM ===========
 -- ===================================
 
 local function getAvailablePlayers()
@@ -580,270 +569,13 @@ local function updateTradeProgress()
     end
 end
 
-local function getInventoryValue()
-    local totalValue = 0
-    local fishCount = 0
-    
-    local success = pcall(function()
-        -- Method sederhana untuk mendapatkan nilai inventory
-        local leaderstats = player:FindFirstChild("leaderstats")
-        if leaderstats then
-            local caught = leaderstats:FindFirstChild("Caught")
-            if caught then
-                -- Estimasi kasar berdasarkan jumlah ikan yang ditangkap
-                fishCount = caught.Value
-                totalValue = fishCount * 1000 -- Estimasi rata-rata nilai per ikan
-            end
-        end
-    end)
-    
-    return totalValue, fishCount
-end
-
-local function validateTradeConditions()
-    -- Validasi player
-    if not selectedTradePlayer or selectedTradePlayer == "" then
-        return false, "❌ Please select a player first!"
-    end
-    
-    local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
-    if not targetPlayer then
-        return false, "❌ Player '" .. selectedTradePlayer .. "' not found in server!"
-    end
-    
-    -- Validasi amount
-    if not selectedTradeAmount or selectedTradeAmount <= 0 then
-        return false, "❌ Please set a valid trade amount!"
-    end
-    
-    -- Validasi inventory
-    local inventoryValue, fishCount = getInventoryValue()
-    
-    if inventoryValue <= 0 or fishCount == 0 then
-        return false, "❌ No tradable fish found in inventory!"
-    end
-    
-    if inventoryValue < selectedTradeAmount then
-        return false, string.format("❌ Not enough value! Current: %s / Needed: %s", 
-            formatCurrency(inventoryValue), formatCurrency(selectedTradeAmount))
-    end
-    
-    return true, "Validation passed"
-end
-
-local function executeTrade()
-    local tradeSuccess = false
-    local tradeError = "Unknown error"
-    
-    local success = pcall(function()
-        -- Cari trade remote
-        local possibleTradeRemotes = {
-            "RF/RequestTrade",
-            "RF/SendTradeRequest", 
-            "RF/InitiateTrade",
-            "RF/TradeRequest",
-            "RF/StartTrade"
-        }
-        
-        for _, remoteName in ipairs(possibleTradeRemotes) do
-            local remote = net:FindFirstChild(remoteName)
-            if remote then
-                tradeRemote = remote
-                break
-            end
-        end
-        
-        if not tradeRemote then
-            tradeError = "Trade remote not found"
-            return false
-        end
-        
-        local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
-        if not targetPlayer then
-            tradeError = "Target player not found"
-            return false
-        end
-        
-        -- Try different parameter combinations
-        local parameterCombinations = {
-            {targetPlayer},
-            {targetPlayer.UserId},
-            {targetPlayer.Name},
-            {{Player = targetPlayer}},
-            {{PlayerId = targetPlayer.UserId}}
-        }
-        
-        for i, params in ipairs(parameterCombinations) do
-            local methodSuccess = pcall(function()
-                if tradeRemote:IsA("RemoteFunction") then
-                    return tradeRemote:InvokeServer(unpack(params))
-                else
-                    tradeRemote:FireServer(unpack(params))
-                    return {Success = true}
-                end
-            end)
-            
-            if methodSuccess then
-                tradeSuccess = true
-                tradeError = nil
-                break
-            end
-            
-            task.wait(0.5)
-        end
-        
-        return tradeSuccess
-    end)
-    
-    return success and tradeSuccess, tradeError
-end
-
 local function tradeNow()
-    if tradeInProgress then 
-        Rayfield:Notify({
-            Title = "Trade Busy",
-            Content = "Trade in progress, please wait...",
-            Duration = 2
-        })
-        return false
-    end
-    
-    -- Validasi kondisi trade
-    local valid, errorMsg = validateTradeConditions()
-    if not valid then
-        Rayfield:Notify({
-            Title = "Trade Error",
-            Content = errorMsg,
-            Duration = 4
-        })
-        return false
-    end
-    
-    tradeInProgress = true
-    
-    -- Calculate total value
-    local totalValue, fishCount = getInventoryValue()
-    
-    -- Notify mulai trade
     Rayfield:Notify({
-        Title = "📤 Starting Trade...",
-        Content = string.format("Trading with %s\nAmount: %s", 
-            selectedTradePlayer, formatCurrency(selectedTradeAmount)),
+        Title = "Trade System",
+        Content = "Trade feature is currently being improved!",
         Duration = 4,
         Image = 4483362458
     })
-    
-    -- Execute trade
-    local tradeSuccess, tradeError = executeTrade()
-    
-    -- Update statistics berdasarkan hasil
-    if tradeSuccess then
-        tradeSuccessCount = tradeSuccessCount + 1
-        totalCoinConverted = totalCoinConverted + selectedTradeAmount
-        
-        Rayfield:Notify({
-            Title = "✅ Trade Success!",
-            Content = string.format("Traded %s to %s!", 
-                formatCurrency(selectedTradeAmount), selectedTradePlayer),
-            Duration = 5,
-            Image = 4483362458
-        })
-    else
-        tradeFailedCount = tradeFailedCount + 1
-        local errorMsg = tradeError or "Trade request failed"
-        
-        Rayfield:Notify({
-            Title = "❌ Trade Failed",
-            Content = errorMsg,
-            Duration = 4
-        })
-    end
-    
-    updateTradeProgress()
-    tradeInProgress = false
-    return tradeSuccess
-end
-
-local function autoTradeLoop()
-    if not selectedTradePlayer then
-        Rayfield:Notify({
-            Title = "❌ Auto Trade Error",
-            Content = "Please select a player first!",
-            Duration = 4
-        })
-        autoTradeEnabled = false
-        return
-    end
-    
-    Rayfield:Notify({
-        Title = "🔄 Auto Trade Started",
-        Content = string.format("Target: %s | Amount: %s", 
-            selectedTradePlayer, formatCurrency(selectedTradeAmount)),
-        Duration = 5,
-        Image = 4483362458
-    })
-    
-    local consecutiveFailures = 0
-    local maxConsecutiveFailures = 3
-    
-    while autoTradeEnabled do
-        -- Refresh player list periodically
-        getAvailablePlayers()
-        
-        -- Check jika target player masih ada
-        local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
-        if not targetPlayer then
-            Rayfield:Notify({
-                Title = "❌ Player Left",
-                Content = selectedTradePlayer .. " left the server!",
-                Duration = 4
-            })
-            autoTradeEnabled = false
-            break
-        end
-        
-        -- Check inventory value
-        local currentValue, fishCount = getInventoryValue()
-        
-        if currentValue >= selectedTradeAmount and fishCount > 0 then
-            -- Execute trade
-            local tradeResult = tradeNow()
-            
-            if tradeResult then
-                consecutiveFailures = 0
-                -- Cooldown setelah trade sukses
-                local cooldown = math.random(10, 20)
-                task.wait(cooldown)
-            else
-                consecutiveFailures = consecutiveFailures + 1
-                
-                -- Jika gagal berturut-turut, berhenti
-                if consecutiveFailures >= maxConsecutiveFailures then
-                    Rayfield:Notify({
-                        Title = "⚠️ Auto Trade Stopped",
-                        Content = "Too many consecutive failures",
-                        Duration = 5
-                    })
-                    autoTradeEnabled = false
-                    break
-                else
-                    task.wait(5) -- Tunggu sebentar sebelum retry
-                end
-            end
-        else
-            -- Not enough value, wait for fishing
-            task.wait(10)
-        end
-        
-        -- Safety check
-        if not autoTradeEnabled then
-            break
-        end
-        
-        task.wait(2)
-    end
-    
-    autoTradeEnabled = false
 end
 
 -- Function untuk refresh player list
@@ -1743,48 +1475,24 @@ FavoriteTab:CreateToggle({
     end,
 })
 
-local FishDropdown = FavoriteTab:CreateDropdown({
-    Name = "Select Fish to Favorite",
-    Options = GlobalFav.FishNames,
-    CurrentOption = {},
+FavoriteTab:CreateDropdown({
+    Name = "Select Rarity Categories",
+    Options = {"Secret", "Mythic", "Legendary"},
+    CurrentOption = {"Secret"},
     MultipleOptions = true,
-    Flag = "FavoriteFishDropdown",
+    Flag = "FavoriteCategoryDropdown",
     Callback = function(Options)
-        GlobalFav.SelectedFishIds = {}
-        for _, fishName in ipairs(Options) do
-            local id = GlobalFav.FishNameToId[fishName]
-            if id then
-                GlobalFav.SelectedFishIds[id] = true
-            end
-        end
+        GlobalFav.SelectedCategories = Options
         Rayfield:Notify({
-            Title = "Auto Favorite",
-            Content = "Favoriting active for selected fish",
-            Duration = 3,
+            Title = "⭐ Auto Favorite",
+            Content = "Now favoriting: " .. table.concat(Options, ", "),
+            Duration = 4,
             Image = 4483362458
         })
     end,
 })
 
-local VariantDropdown = FavoriteTab:CreateDropdown({
-    Name = "Select Variants to Favorite",
-    Options = GlobalFav.Variants,
-    CurrentOption = {},
-    MultipleOptions = true,
-    Flag = "FavoriteVariantDropdown",
-    Callback = function(Options)
-        GlobalFav.SelectedVariants = {}
-        for _, variantName in ipairs(Options) do
-            GlobalFav.SelectedVariants[variantName] = true
-        end
-        Rayfield:Notify({
-            Title = "Auto Favorite",
-            Content = "Favoriting active for selected variants",
-            Duration = 3,
-            Image = 4483362458
-        })
-    end,
-})
+FavoriteTab:CreateLabel("📝 Auto favorite akan aktif untuk ikan dengan rarity yang dipilih")
 
 -- Auto Farm Tab
 local FarmTab = Window:CreateTab("🌾 Auto Farm", 4483362458)
@@ -1866,92 +1574,10 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateLabel("⚠️ Auto Farm Event: DO WITH YOUR OWN RISK!")
 
--- ===================================
--- ========== TRADE TAB UI ===========
--- ===================================
-
+-- Trade Tab yang disederhanakan
 local TradeTab = Window:CreateTab("💱 Trade System", 4483362458)
 
-TradeTab:CreateSection("🎯 Player Selection")
-
-TradeTab:CreateButton({
-    Name = "🔄 Refresh Player List",
-    Callback = function()
-        local players = refreshPlayerList()
-        -- Update dropdown options
-        Rayfield:UpdateDropdown("TradePlayerDropdown", players)
-    end,
-})
-
-TradeTab:CreateDropdown({
-    Name = "👤 Select Player to Trade",
-    Options = getAvailablePlayers(),
-    CurrentOption = nil,
-    Flag = "TradePlayerDropdown",
-    Callback = function(Option)
-        selectedTradePlayer = Option
-        if Option and Option ~= "" then
-            Rayfield:Notify({
-                Title = "✅ Player Selected",
-                Content = "Will trade with: " .. Option,
-                Duration = 3,
-                Image = 4483362458
-            })
-        end
-    end,
-})
-
-TradeTab:CreateSection("💰 Trade Amount Settings")
-
-TradeTab:CreateInput({
-    Name = "Custom Trade Amount",
-    PlaceholderText = "Enter amount (e.g., 1000000)",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(Text)
-        local amount = tonumber(Text)
-        if amount and amount > 0 then
-            selectedTradeAmount = amount
-            Rayfield:Notify({
-                Title = "💰 Amount Set",
-                Content = "Trade target: " .. formatCurrency(amount),
-                Duration = 3,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "❌ Invalid Amount",
-                Content = "Please enter a valid number",
-                Duration = 3
-            })
-        end
-    end,
-})
-
--- Preset amounts untuk kemudahan
-local tradeAmounts = {
-    {name = "💵 $100K", value = 100000},
-    {name = "💸 $500K", value = 500000},
-    {name = "💎 $1M", value = 1000000},
-    {name = "🏆 $2M", value = 2000000},
-    {name = "👑 $5M", value = 5000000}
-}
-
-for _, amount in ipairs(tradeAmounts) do
-    TradeTab:CreateButton({
-        Name = amount.name,
-        Callback = function()
-            selectedTradeAmount = amount.value
-            Rayfield:Notify({
-                Title = "💰 Amount Set",
-                Content = "Trade target: " .. formatCurrency(amount.value),
-                Duration = 3,
-                Image = 4483362458
-            })
-        end,
-    })
-end
-
-TradeTab:CreateSection("🎮 Trade Controls")
+TradeTab:CreateSection("Trade Feature")
 
 TradeTab:CreateButton({
     Name = "🚀 TRADE NOW",
@@ -1960,102 +1586,8 @@ TradeTab:CreateButton({
     end,
 })
 
-TradeTab:CreateToggle({
-    Name = "🔄 Auto Trade",
-    CurrentValue = false,
-    Flag = "AutoTradeToggle",
-    Callback = function(Value)
-        autoTradeEnabled = Value
-        
-        if Value then
-            -- Validasi sebelum mulai auto trade
-            local valid, errorMsg = validateTradeConditions()
-            if not valid then
-                Rayfield:Notify({
-                    Title = "❌ Auto Trade Failed",
-                    Content = errorMsg,
-                    Duration = 5
-                })
-                autoTradeEnabled = false
-                return
-            end
-            
-            -- Start auto trade loop
-            task.spawn(autoTradeLoop)
-            Rayfield:Notify({
-                Title = "🔄 Auto Trade Started",
-                Content = "Auto trading enabled for " .. selectedTradePlayer,
-                Duration = 4,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "🛑 Auto Trade Stopped",
-                Content = "Auto trading has been disabled",
-                Duration = 3
-            })
-        end
-    end,
-})
-
-TradeTab:CreateSection("📊 Trade Information")
-
-TradeTab:CreateButton({
-    Name = "💼 Check Inventory Status",
-    Callback = function()
-        local value, count = getInventoryValue()
-        
-        Rayfield:Notify({
-            Title = "📊 Inventory Status",
-            Content = string.format(
-                "Estimated Value: %s\nEstimated Fish Count: %d items",
-                formatCurrency(value),
-                count
-            ),
-            Duration = 6,
-            Image = 4483362458
-        })
-    end,
-})
-
-TradeTab:CreateSection("📈 Trade Progress")
-
-TradeProgressLabel = TradeTab:CreateLabel(
-    "╔════════════════════════╗\n" ..
-    "║     TRADE PROGRESS     ║\n" ..
-    "╚════════════════════════╝\n\n" ..
-    "✅ Success: 0\n" ..
-    "❌ Failed: 0\n" ..
-    "💰 Total Converted: $0\n" ..
-    "📊 Success Rate: 0%"
-)
-
-TradeTab:CreateButton({
-    Name = "🔄 Reset Statistics",
-    Callback = function()
-        tradeSuccessCount = 0
-        tradeFailedCount = 0
-        totalCoinConverted = 0
-        updateTradeProgress()
-        
-        Rayfield:Notify({
-            Title = "🔄 Statistics Reset",
-            Content = "All trade statistics have been reset!",
-            Duration = 3,
-            Image = 4483362458
-        })
-    end,
-})
-
-TradeTab:CreateSection("ℹ️ How It Works")
-
-TradeTab:CreateLabel("1. Pilih player target dari dropdown")
-TradeTab:CreateLabel("2. Set amount yang ingin di-trade")
-TradeTab:CreateLabel("3. Klik TRADE NOW untuk trade langsung")
-TradeTab:CreateLabel("4. Atau aktifkan Auto Trade untuk otomatis")
-TradeTab:CreateLabel("5. Sistem akan trade berdasarkan nilai inventory")
-
-
+TradeTab:CreateLabel("📝 Trade system sedang dalam pengembangan")
+TradeTab:CreateLabel("Fitur akan segera hadir dengan update berikutnya!")
 
 -- Fish Notification Tab
 local NotifTab = Window:CreateTab("🔔 Notifications", 4483362458)
@@ -2544,218 +2076,6 @@ MiscTab:CreateButton({
         task.wait(0.9)
         hrp.CFrame = CFrame.new(originalPosition + Vector3.new(0, 3, 0))
     end
-})
-
-MiscTab:CreateSection("Rod & Bait Modifiers")
-
--- Rod Modifier System
-local lastModifiedRod = nil
-local originalRodData = {}
-local lastModifiedBait = nil
-local originalBaitData = {}
-
-local function deepCopyTable(tbl)
-    local copy = {}
-    for k, v in pairs(tbl) do
-        copy[k] = typeof(v) == "table" and deepCopyTable(v) or v
-    end
-    return copy
-end
-
-local function resetPreviousRod()
-    if lastModifiedRod and originalRodData[lastModifiedRod] then
-        local rodModule = ReplicatedStorage:WaitForChild("Items"):FindFirstChild(lastModifiedRod)
-        if rodModule and rodModule:IsA("ModuleScript") then
-            local rodData = require(rodModule)
-            local originalData = originalRodData[lastModifiedRod]
-
-            for key, value in pairs(originalData) do
-                rodData[key] = value
-            end
-            Rayfield:Notify({
-                Title = "Rod Reset",
-                Content = "Rod '" .. lastModifiedRod .. "' has been reset.",
-                Duration = 3,
-                Image = 4483362458
-            })
-        end
-    end
-end
-
-local function modifyRodData(rodNameInput)
-    local targetModule = ReplicatedStorage:WaitForChild("Items"):FindFirstChild(rodNameInput)
-    if not targetModule then
-        Rayfield:Notify({
-            Title = "Rod Not Found",
-            Content = "No rod matched: " .. rodNameInput,
-            Duration = 3
-        })
-        return
-    end
-
-    resetPreviousRod()
-
-    local rodData = require(targetModule)
-    if rodData.Data and rodData.Data.Type == "Fishing Rods" then
-        originalRodData[rodNameInput] = deepCopyTable(rodData)
-        lastModifiedRod = rodNameInput
-
-        if rodData.RollData and rodData.RollData.BaseLuck then
-            rodData.RollData.BaseLuck *= 1.35
-        end
-        if rodData.ClickPower then
-            rodData.ClickPower *= 1.25
-        end
-        if rodData.Resilience then
-            rodData.Resilience *= 1.25
-        end
-        if typeof(rodData.Windup) == "NumberRange" then
-            local newMin = rodData.Windup.Min * 0.50
-            local newMax = rodData.Windup.Max * 0.50
-            rodData.Windup = NumberRange.new(newMin, newMax)
-        end
-        if rodData.MaxWeight then
-            rodData.MaxWeight *= 1.25
-        end
-
-        Rayfield:Notify({
-            Title = "Rod Modified",
-            Content = "Rod '" .. rodData.Data.Name .. "' successfully boosted.",
-            Duration = 3,
-            Image = 4483362458
-        })
-    else
-        Rayfield:Notify({
-            Title = "Invalid Rod",
-            Content = "The selected module is not a valid rod.",
-            Duration = 3
-        })
-    end
-end
-
-local function resetPreviousBait()
-    if lastModifiedBait and originalBaitData[lastModifiedBait] then
-        local bait = ReplicatedStorage:WaitForChild("Baits"):FindFirstChild(lastModifiedBait)
-        if bait and bait:IsA("ModuleScript") then
-            local baitData = require(bait)
-            local originalData = originalBaitData[lastModifiedBait]
-
-            for key, value in pairs(originalData) do
-                baitData[key] = value
-            end
-
-            Rayfield:Notify({
-                Title = "Bait Reset",
-                Content = "Bait '" .. lastModifiedBait .. "' has been reset.",
-                Duration = 3,
-                Image = 4483362458
-            })
-        end
-    end
-end
-
-local function modifyBaitData(baitName)
-    local baitModule = ReplicatedStorage:WaitForChild("Baits"):FindFirstChild(baitName)
-    if not baitModule then
-        Rayfield:Notify({
-            Title = "Bait Not Found",
-            Content = "No bait matched: " .. baitName,
-            Duration = 3
-        })
-        return
-    end
-
-    resetPreviousBait()
-
-    local baitData = require(baitModule)
-    originalBaitData[baitName] = deepCopyTable(baitData)
-    lastModifiedBait = baitName
-
-    if baitData.Modifiers and baitData.Modifiers.BaseLuck then
-        baitData.Modifiers.BaseLuck *= 1.4
-    end
-
-    Rayfield:Notify({
-        Title = "Bait Modified",
-        Content = "Bait '" .. baitName .. "' successfully boosted.",
-        Duration = 3,
-        Image = 4483362458
-    })
-end
-
--- Get rod options
-local rodOptions = {}
-local rodNameMap = {}
-
-for _, item in pairs(ReplicatedStorage:WaitForChild("Items"):GetChildren()) do
-    if item:IsA("ModuleScript") and item.Name:sub(1,3) == "!!!" then
-        local displayName = item.Name:gsub("^!!!", "")
-        table.insert(rodOptions, displayName)
-        rodNameMap[displayName] = item.Name
-    end
-end
-
-MiscTab:CreateDropdown({
-    Name = "Rod Modifiers",
-    Options = rodOptions,
-    CurrentOption = nil,
-    Flag = "RodModifierDropdown",
-    Callback = function(Option)
-        local actualRodName = rodNameMap[Option]
-        if actualRodName then
-            modifyRodData(actualRodName)
-        end
-    end,
-})
-
--- Get bait options
-local baitOptions = {}
-for _, bait in pairs(ReplicatedStorage:WaitForChild("Baits"):GetChildren()) do
-    if bait:IsA("ModuleScript") then
-        table.insert(baitOptions, bait.Name)
-    end
-end
-
-MiscTab:CreateDropdown({
-    Name = "Bait Modifier",
-    Options = baitOptions,
-    CurrentOption = nil,
-    Flag = "BaitModifierDropdown",
-    Callback = function(Option)
-        modifyBaitData(Option)
-    end,
-})
-
-MiscTab:CreateButton({
-    Name = "🔄 Reset Last Modified Bait",
-    Callback = function()
-        if lastModifiedBait then
-            resetPreviousBait()
-            lastModifiedBait = nil
-        else
-            Rayfield:Notify({
-                Title = "No Bait",
-                Content = "No bait has been modified yet.",
-                Duration = 3
-            })
-        end
-    end,
-})
-
-MiscTab:CreateButton({
-    Name = "🔄 Reset Last Modified Rod",
-    Callback = function()
-        if lastModifiedRod then
-            resetPreviousRod()
-            lastModifiedRod = nil
-        else
-            Rayfield:Notify({
-                Title = "No Rod",
-                Content = "No rod has been modified yet.",
-                Duration = 3
-            })
-        end
-    end,
 })
 
 -- Settings Tab
