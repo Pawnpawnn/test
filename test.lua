@@ -132,9 +132,14 @@ local LastCatchData = {}
 
 local function buildFishPriceDatabase()
     local itemsFolder = ReplicatedStorage:FindFirstChild("Items")
-    if not itemsFolder then return 0 end
+    if not itemsFolder then 
+        print("❌ Items folder not found!")
+        return 0 
+    end
     
     local loadedCount = 0
+    
+    print("🔍 Building Fish Price Database...")
     
     for _, itemModule in ipairs(itemsFolder:GetChildren()) do
         if itemModule:IsA("ModuleScript") then
@@ -152,8 +157,28 @@ local function buildFishPriceDatabase()
                         Tier = itemData.Data.Tier or 0
                     }
                     loadedCount = loadedCount + 1
+                    
+                    -- Print sample
+                    if loadedCount <= 5 then
+                        print(string.format("  ✅ [%d] %s = $%s", 
+                            fishId, itemData.Data.Name, sellPrice))
+                    end
                 end
             end
+        end
+    end
+    
+    print(string.format("📊 Loaded %d FISH prices to database", loadedCount))
+    
+    -- Debug: Show first 10 entries
+    print("\n🔍 First 10 FishPriceDB entries:")
+    local count = 0
+    for id, data in pairs(FishPriceDB) do
+        count = count + 1
+        if count <= 10 then
+            print(string.format("  %d. ID %d: %s = $%s", count, id, data.Name, data.Price))
+        else
+            break
         end
     end
     
@@ -303,19 +328,28 @@ local function getInventoryValue()
         local data = Replion.Client:WaitReplion("Data")
         local items = data:Get({"Inventory","Items"})
         
-        for _, item in ipairs(items) do
+        print("🔍 DEBUG: Checking inventory items...")
+        
+        for i, item in ipairs(items) do
+            -- Cek apakah item ada di database fish DAN type-nya Fishes
             local fishData = FishPriceDB[item.Id]
-            if fishData and not item.Favorited and fishData.Price > 0 then
-                totalValue = totalValue + fishData.Price
-                fishCount = fishCount + 1
+            
+            if fishData then
+                print(string.format("  ✅ %d. %s = $%s (Favorited: %s)", 
+                    i, fishData.Name, fishData.Price, tostring(item.Favorited)))
+                
+                -- Hitung hanya jika: bukan favorit, harga > 0, dan type Fishes
+                if not item.Favorited and fishData.Price > 0 then
+                    totalValue = totalValue + fishData.Price
+                    fishCount = fishCount + 1
+                end
+            else
+                print(string.format("  ❌ %d. ID %d not in FishPriceDB", i, item.Id))
             end
         end
     end)
     
-    if not success then
-        warn("Failed to get inventory value")
-    end
-    
+    print(string.format("📊 RESULT: Total Value = $%s, Fish Count = %d", totalValue, fishCount))
     return totalValue, fishCount
 end
 
