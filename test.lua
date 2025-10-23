@@ -545,40 +545,6 @@ local function autoBuyWeather(weatherType)
 end
 
 -- ===================================
--- ========== TRADE SYSTEM FIXED =====
--- ===================================
-
--- PASTIKAN SEMUA VARIABEL GLOBAL DI BAWAH INI SUDAH DIDEFINISIKAN DI BAGIAN ATAS SKRIP ANDA
--- local Players = game:GetService("Players")
--- local ReplicatedStorage = game:GetService("ReplicatedStorage")
--- local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote, REEquipItem, RFSellItem
--- local player = Players.LocalPlayer
--- local Rayfield = ... (Pastikan Rayfield UI Library sudah dimuat)
--- local tradeSuccessCount = 0
--- local tradeFailedCount = 0
--- local totalCoinConverted = 0
--- local selectedTradePlayer = ""
--- local selectedTradeAmount = 0
--- local tradeInProgress = false
--- local autoTradeEnabled = false
--- local tradeRemote = nil
--- local TradeProgressLabel = nil -- Asumsi ini adalah label Rayfield yang sudah didefinisikan
-
--- Fungsi bantuan (Diasumsikan sudah ada di kode Anda)
-local function formatCurrency(amount)
-    -- Implementasi fungsi format mata uang Anda
-    local formatted = tostring(amount)
-    local k = 0
-    while true do
-        k = k + 3
-        if k >= #formatted then break end
-        formatted = formatted:sub(1, #formatted - k) .. "," .. formatted:sub(#formatted - k + 1)
-        k = k + 1
-    end
-    return formatted
-end
-
--- ===================================
 -- ========== TRADE FUNCTIONS ========
 -- ===================================
 
@@ -590,509 +556,6 @@ local function getAvailablePlayers()
         end
     end
     return availablePlayers
-end
-
--- ===================================
--- ========== TRADE SYSTEM DEBUG =====
--- ===================================
-
-local function getInventoryValue()
-    print("🔍 [DEBUG] Starting getInventoryValue...")
-    local totalValue = 0
-    local fishCount = 0
-    local allItems = {}
-    
-    local success, err = pcall(function()
-        print("🔍 [DEBUG] Looking for Replion...")
-        
-        -- Method 1: Packages
-        local ReplionPackage = ReplicatedStorage:FindFirstChild("Packages")
-        if ReplionPackage then
-            print("✅ [DEBUG] Found Packages folder")
-            local replionModule = ReplionPackage:FindFirstChild("Replion")
-            
-            if replionModule then
-                print("✅ [DEBUG] Found Replion module")
-                local replion = require(replionModule)
-                
-                local dataReplion = replion.Client:WaitReplion("Data", 5)
-                print("✅ [DEBUG] Got DataReplion")
-                
-                local items = dataReplion:Get({"Inventory", "Items"})
-                print("✅ [DEBUG] Got inventory items: " .. #items)
-                allItems = items
-            end
-        end
-        
-        -- Build price database
-        if #allItems > 0 then
-            print("🔍 [DEBUG] Building price database...")
-            local priceDB = {}
-            local itemsFolder = ReplicatedStorage.Items
-            local priceCount = 0
-            
-            for _, itemModule in ipairs(itemsFolder:GetDescendants()) do
-                if itemModule:IsA("ModuleScript") then
-                    local ok, itemData = pcall(require, itemModule)
-                    
-                    if ok and type(itemData) == "table" then
-                        local id = itemData.Data and itemData.Data.Id
-                        local price = itemData.SellPrice
-                        
-                        if id and price then
-                            priceDB[tonumber(id)] = tonumber(price)
-                            priceCount = priceCount + 1
-                        end
-                    end
-                end
-            end
-            
-            print("✅ [DEBUG] Loaded " .. priceCount .. " prices to database")
-            
-            -- Calculate value
-            for _, item in ipairs(allItems) do
-                local itemId = tonumber(item.Id)
-                local isFavorited = item.Favorited or false
-                local itemValue = priceDB[itemId] or 0
-                
-                if not isFavorited and itemValue > 0 then
-                    totalValue = totalValue + itemValue
-                    fishCount = fishCount + 1
-                end
-            end
-            
-            print(string.format("✅ [DEBUG] Total: %s (%d fish)", formatCurrency(totalValue), fishCount))
-        end
-    end)
-    
-    if not success then
-        warn("❌ [DEBUG] Error in getInventoryValue: " .. tostring(err))
-    end
-    
-    return totalValue, fishCount, allItems
-end
-
-local function getFishToTrade(targetValue)
-    print("🔍 [DEBUG] Starting getFishToTrade with target: " .. formatCurrency(targetValue))
-    local fishList = {}
-    local currentValue = 0
-    
-    local success, err = pcall(function()
-        local totalVal, fishCount, allItems = getInventoryValue()
-        
-        if not allItems or #allItems == 0 then
-            warn("❌ [DEBUG] No items returned from getInventoryValue")
-            return
-        end
-        
-        print("✅ [DEBUG] Got " .. #allItems .. " items from inventory")
-        
-        -- Build price database
-        local priceDB = {}
-        local itemsFolder = ReplicatedStorage.Items
-        
-        for _, itemModule in ipairs(itemsFolder:GetDescendants()) do
-            if itemModule:IsA("ModuleScript") then
-                local ok, itemData = pcall(require, itemModule)
-                
-                if ok and type(itemData) == "table" then
-                    local id = itemData.Data and itemData.Data.Id
-                    local price = itemData.SellPrice
-                    local name = itemData.Data and itemData.Data.Name or "Unknown"
-                    
-                    if id and price then
-                        priceDB[tonumber(id)] = {
-                            value = tonumber(price),
-                            name = name
-                        }
-                    end
-                end
-            end
-        end
-        
-        print("✅ [DEBUG] Price database ready")
-        
-        -- Filter tradable fish
-        local tradableFish = {}
-        for i, item in ipairs(allItems) do
-            local itemId = tonumber(item.Id)
-            local isFavorited = item.Favorited or false
-            local itemData = priceDB[itemId]
-            local uuid = item.UUID
-            
-            -- Debug first 3 items
-            if i <= 3 then
-                print(string.format("🔍 [DEBUG] Item %d: ID=%s, Fav=%s, UUID=%s (type: %s)", 
-                    i, tostring(itemId), tostring(isFavorited), tostring(uuid), type(uuid)))
-            end
-            
-            if not isFavorited and itemData and itemData.value > 0 and uuid then
-                -- Convert UUID to string if needed
-                local uuidString = tostring(uuid)
-                
-                if uuidString and uuidString ~= "" and uuidString ~= "nil" then
-                    table.insert(tradableFish, {
-                        UUID = uuidString,
-                        Value = itemData.value,
-                        Id = itemId,
-                        Name = itemData.name
-                    })
-                else
-                    print("⚠️ [DEBUG] Skipped item with invalid UUID")
-                end
-            end
-        end
-        
-        print("✅ [DEBUG] Found " .. #tradableFish .. " tradable fish")
-        
-        -- Sort by value
-        table.sort(tradableFish, function(a, b)
-            return a.Value > b.Value
-        end)
-        
-        -- Select fish
-        for _, fish in ipairs(tradableFish) do
-            if currentValue < targetValue then
-                table.insert(fishList, fish)
-                currentValue = currentValue + fish.Value
-                
-                if currentValue >= targetValue then
-                    break
-                end
-            end
-        end
-        
-        print(string.format("✅ [DEBUG] Selected %d fish worth %s", #fishList, formatCurrency(currentValue)))
-    end)
-    
-    if not success then
-        warn("❌ [DEBUG] Error in getFishToTrade: " .. tostring(err))
-    end
-    
-    return fishList, currentValue
-end
-
-local function executeDirectTrade(fishList, targetPlayer)
-    print("🔍 [DEBUG] Starting executeDirectTrade")
-    print("🔍 [DEBUG] Target: " .. targetPlayer.Name)
-    print("🔍 [DEBUG] Fish count: " .. #fishList)
-    
-    local tradeSuccess = false
-    local tradeError = "Unknown error"
-    
-    local success, err = pcall(function()
-        -- Prepare UUID list
-        local uuidList = {}
-        for i, fish in ipairs(fishList) do
-            print(string.format("🔍 [DEBUG] Fish %d: %s (UUID: %s, Type: %s)", 
-                i, fish.Name, tostring(fish.UUID), type(fish.UUID)))
-            
-            if fish.UUID and type(fish.UUID) == "string" and fish.UUID ~= "" then
-                table.insert(uuidList, fish.UUID)
-            else
-                print("⚠️ [DEBUG] Skipped invalid UUID")
-            end
-        end
-        
-        if #uuidList == 0 then
-            tradeError = "No valid UUIDs"
-            warn("❌ [DEBUG] " .. tradeError)
-            return false
-        end
-        
-        print("✅ [DEBUG] Valid UUIDs: " .. #uuidList)
-        
-        -- Find trade remote
-        print("🔍 [DEBUG] Looking for trade remote...")
-        local possibleRemotes = {
-            "RF/RequestTrade",
-            "RF/SendTradeRequest",
-            "RF/InitiateTrade",
-            "RF/TradeRequest",
-            "RF/StartTrade"
-        }
-        
-        for _, remoteName in ipairs(possibleRemotes) do
-            local remote = net:FindFirstChild(remoteName)
-            if remote then
-                tradeRemote = remote
-                print("✅ [DEBUG] Found trade remote: " .. remoteName)
-                break
-            end
-        end
-        
-        if not tradeRemote then
-            tradeError = "Trade remote not found"
-            warn("❌ [DEBUG] " .. tradeError)
-            return false
-        end
-        
-        -- Try trade methods
-        local methods = {
-            {targetPlayer, uuidList},
-            {targetPlayer.UserId, uuidList},
-            {targetPlayer.Name, uuidList},
-        }
-        
-        for i, params in ipairs(methods) do
-            print("🔍 [DEBUG] Trying method " .. i .. "...")
-            
-            local methodSuccess, result = pcall(function()
-                if tradeRemote:IsA("RemoteFunction") then
-                    return tradeRemote:InvokeServer(unpack(params))
-                else
-                    tradeRemote:FireServer(unpack(params))
-                    return {Success = true}
-                end
-            end)
-            
-            if methodSuccess then
-                tradeSuccess = true
-                print("✅ [DEBUG] Method " .. i .. " succeeded!")
-                task.wait(3)
-                break
-            else
-                print("❌ [DEBUG] Method " .. i .. " failed: " .. tostring(result))
-                tradeError = tostring(result)
-            end
-            
-            task.wait(1)
-        end
-        
-        return tradeSuccess
-    end)
-    
-    if not success then
-        warn("❌ [DEBUG] Error in executeDirectTrade: " .. tostring(err))
-        tradeError = tostring(err)
-    end
-    
-    return success and tradeSuccess, tradeError
-end
-
-local function tradeNow()
-    print("\n========== TRADE NOW DEBUG START ==========")
-    
-    if tradeInProgress then
-        print("❌ [DEBUG] Trade already in progress")
-        Rayfield:Notify({
-            Title = "Trade Busy",
-            Content = "Please wait...",
-            Duration = 2
-        })
-        return false
-    end
-    
-    print("🔍 [DEBUG] Validating conditions...")
-    
-    -- Validate player
-    if not selectedTradePlayer or selectedTradePlayer == "" then
-        print("❌ [DEBUG] No player selected")
-        Rayfield:Notify({
-            Title = "Trade Error",
-            Content = "Please select a player!",
-            Duration = 3
-        })
-        return false
-    end
-    
-    local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
-    if not targetPlayer then
-        print("❌ [DEBUG] Player not found: " .. selectedTradePlayer)
-        Rayfield:Notify({
-            Title = "Trade Error",
-            Content = "Player not found!",
-            Duration = 3
-        })
-        return false
-    end
-    
-    print("✅ [DEBUG] Player found: " .. targetPlayer.Name)
-    
-    -- Validate amount
-    if not selectedTradeAmount or selectedTradeAmount <= 0 then
-        print("❌ [DEBUG] Invalid amount: " .. tostring(selectedTradeAmount))
-        Rayfield:Notify({
-            Title = "Trade Error",
-            Content = "Set a valid amount!",
-            Duration = 3
-        })
-        return false
-    end
-    
-    print("✅ [DEBUG] Amount valid: " .. formatCurrency(selectedTradeAmount))
-    
-    tradeInProgress = true
-    
-    -- Get inventory value
-    print("🔍 [DEBUG] Checking inventory...")
-    local inventoryValue, fishCount = getInventoryValue()
-    
-    if inventoryValue < selectedTradeAmount then
-        print("❌ [DEBUG] Not enough value")
-        Rayfield:Notify({
-            Title = "Trade Error",
-            Content = string.format("Not enough! Have: %s / Need: %s",
-                formatCurrency(inventoryValue), formatCurrency(selectedTradeAmount)),
-            Duration = 5
-        })
-        tradeInProgress = false
-        return false
-    end
-    
-    print("✅ [DEBUG] Inventory sufficient")
-    
-    -- Get fish for trade
-    print("🔍 [DEBUG] Selecting fish for trade...")
-    local fishList, tradeValue = getFishToTrade(selectedTradeAmount)
-    
-    if #fishList == 0 then
-        print("❌ [DEBUG] No fish selected")
-        Rayfield:Notify({
-            Title = "Trade Error",
-            Content = "No suitable fish found!",
-            Duration = 3
-        })
-        tradeInProgress = false
-        return false
-    end
-    
-    print("✅ [DEBUG] Fish selected: " .. #fishList)
-    
-    -- Execute trade
-    print("🚀 [DEBUG] Executing trade...")
-    Rayfield:Notify({
-        Title = "Trading...",
-        Content = string.format("%d fish worth %s", #fishList, formatCurrency(tradeValue)),
-        Duration = 5,
-        Image = 4483362458
-    })
-    
-    local tradeSuccess, tradeError = executeDirectTrade(fishList, targetPlayer)
-    
-    -- Update stats
-    if tradeSuccess then
-        tradeSuccessCount = tradeSuccessCount + 1
-        totalCoinConverted = totalCoinConverted + tradeValue
-        
-        print("✅ [DEBUG] Trade completed successfully!")
-        Rayfield:Notify({
-            Title = "✅ Trade Success!",
-            Content = string.format("Traded %s to %s", 
-                formatCurrency(tradeValue), selectedTradePlayer),
-            Duration = 8,
-            Image = 4483362458
-        })
-    else
-        tradeFailedCount = tradeFailedCount + 1
-        
-        print("❌ [DEBUG] Trade failed: " .. tostring(tradeError))
-        Rayfield:Notify({
-            Title = "❌ Trade Failed",
-            Content = tostring(tradeError),
-            Duration = 6
-        })
-    end
-    
-    updateTradeProgress()
-    tradeInProgress = false
-    
-    print("========== TRADE NOW DEBUG END ==========\n")
-    return tradeSuccess
-end
-local function getFishToTrade(targetValue)
-    local fishList = {}
-    local currentValue = 0
-    
-    local success = pcall(function()
-        local totalVal, fishCount, allItems = getInventoryValue()
-        
-        if not allItems or #allItems == 0 then
-            warn("❌ No items found")
-            return
-        end
-        
-        -- Build price database
-        local priceDB = {}
-        local itemsFolder = ReplicatedStorage.Items
-        
-        for _, itemModule in ipairs(itemsFolder:GetDescendants()) do
-            if itemModule:IsA("ModuleScript") then
-                local itemSuccess, itemData = pcall(function()
-                    return require(itemModule)
-                end)
-                
-                if itemSuccess and type(itemData) == "table" then
-                    local id = itemData.Data and itemData.Data.Id
-                    local price = itemData.SellPrice
-                    local name = itemData.Data and itemData.Data.Name or "Unknown"
-                    
-                    if id and price and tonumber(price) then
-                        priceDB[tonumber(id)] = {
-                            value = tonumber(price),
-                            name = name
-                        }
-                    end
-                end
-            end
-        end
-        
-        -- Filter tradable fish
-        local tradableFish = {}
-        for _, item in ipairs(allItems) do
-            local itemId = tonumber(item.Id)
-            local isFavorited = item.Favorited or false
-            local itemData = priceDB[itemId]
-            
-            -- Validasi UUID dengan ketat
-            local uuid = item.UUID
-            if not isFavorited and itemData and itemData.value > 0 and uuid then
-                -- PENTING: Pastikan UUID adalah string
-                if type(uuid) == "number" then
-                    uuid = tostring(uuid)
-                elseif type(uuid) ~= "string" then
-                    -- Skip jika bukan string/number
-                    print("⚠️ Skipping item with invalid UUID type: " .. type(uuid))
-                    continue
-                end
-                
-                if uuid ~= "" then
-                    table.insert(tradableFish, {
-                        UUID = uuid, -- Sudah pasti string
-                        Value = itemData.value,
-                        Id = itemId,
-                        Name = itemData.name,
-                        RawItem = item
-                    })
-                end
-            end
-        end
-        
-        -- Sort by value
-        table.sort(tradableFish, function(a, b)
-            return (a.Value or 0) > (b.Value or 0)
-        end)
-        
-        -- Select fish until target
-        for _, fish in ipairs(tradableFish) do
-            if currentValue < targetValue and fish.UUID and type(fish.UUID) == "string" then
-                table.insert(fishList, fish)
-                currentValue = currentValue + fish.Value
-                
-                if currentValue >= targetValue then
-                    break
-                end
-            end
-        end
-        
-        print(string.format("🎣 Selected %d fish worth %s", #fishList, formatCurrency(currentValue)))
-    end)
-    
-    if not success then
-        warn("❌ Error in getFishToTrade")
-    end
-    
-    return fishList, currentValue
 end
 
 local function updateTradeProgress()
@@ -1117,6 +580,26 @@ local function updateTradeProgress()
     end
 end
 
+local function getInventoryValue()
+    local totalValue = 0
+    local fishCount = 0
+    
+    local success = pcall(function()
+        -- Method sederhana untuk mendapatkan nilai inventory
+        local leaderstats = player:FindFirstChild("leaderstats")
+        if leaderstats then
+            local caught = leaderstats:FindFirstChild("Caught")
+            if caught then
+                -- Estimasi kasar berdasarkan jumlah ikan yang ditangkap
+                fishCount = caught.Value
+                totalValue = fishCount * 1000 -- Estimasi rata-rata nilai per ikan
+            end
+        end
+    end)
+    
+    return totalValue, fishCount
+end
+
 local function validateTradeConditions()
     -- Validasi player
     if not selectedTradePlayer or selectedTradePlayer == "" then
@@ -1128,21 +611,13 @@ local function validateTradeConditions()
         return false, "❌ Player '" .. selectedTradePlayer .. "' not found in server!"
     end
     
-    if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("Humanoid") then
-        return false, "❌ Player '" .. selectedTradePlayer .. "' is not active!"
-    end
-    
     -- Validasi amount
     if not selectedTradeAmount or selectedTradeAmount <= 0 then
         return false, "❌ Please set a valid trade amount!"
     end
     
-    -- Validasi inventory dengan timeout
-    local inventoryValue, fishCount, allItems = getInventoryValue()
-    
-    if not allItems or #allItems == 0 then
-        return false, "❌ Cannot access inventory data! Try again later."
-    end
+    -- Validasi inventory
+    local inventoryValue, fishCount = getInventoryValue()
     
     if inventoryValue <= 0 or fishCount == 0 then
         return false, "❌ No tradable fish found in inventory!"
@@ -1153,56 +628,14 @@ local function validateTradeConditions()
             formatCurrency(inventoryValue), formatCurrency(selectedTradeAmount))
     end
     
-    -- Validasi fish untuk trade spesifik
-    local fishList, tradeValue = getFishToTrade(selectedTradeAmount)
-    if #fishList == 0 then
-        return false, "❌ No suitable fish found for this trade amount!"
-    end
-    
-    return true, "Validation passed", fishList
+    return true, "Validation passed"
 end
 
-local function executeDirectTrade(fishList, targetPlayer)
+local function executeTrade()
     local tradeSuccess = false
     local tradeError = "Unknown error"
     
     local success = pcall(function()
-        print("🎯 Starting direct trade with: " .. targetPlayer.Name)
-        print("🎣 Fish count: " .. #fishList)
-        
-        -- Prepare UUID list dengan validasi ketat
-        local uuidList = {}
-        for _, fish in ipairs(fishList) do
-            -- Pastikan UUID adalah string yang valid
-            local uuid = fish.UUID
-            if uuid then
-                -- Convert ke string jika berupa number/table
-                if type(uuid) == "number" then
-                    uuid = tostring(uuid)
-                elseif type(uuid) == "table" then
-                    -- Skip jika table
-                    print("⚠️ Skipping invalid UUID (table type)")
-                    continue
-                end
-                
-                -- Validasi string tidak kosong
-                if type(uuid) == "string" and uuid ~= "" then
-                    table.insert(uuidList, uuid)
-                else
-                    print("⚠️ Skipping fish due to invalid UUID: " .. tostring(uuid))
-                end
-            end
-        end
-        
-        -- Validasi krusial
-        if #uuidList == 0 then
-            tradeError = "❌ No valid UUIDs found to trade"
-            return false
-        end
-        
-        -- Debug print yang aman
-        print("📦 Valid UUIDs count: " .. #uuidList)
-        
         -- Cari trade remote
         local possibleTradeRemotes = {
             "RF/RequestTrade",
@@ -1216,7 +649,6 @@ local function executeDirectTrade(fishList, targetPlayer)
             local remote = net:FindFirstChild(remoteName)
             if remote then
                 tradeRemote = remote
-                print("✅ Found trade remote: " .. remoteName)
                 break
             end
         end
@@ -1226,20 +658,23 @@ local function executeDirectTrade(fishList, targetPlayer)
             return false
         end
         
+        local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
+        if not targetPlayer then
+            tradeError = "Target player not found"
+            return false
+        end
+        
         -- Try different parameter combinations
         local parameterCombinations = {
-            {targetPlayer, uuidList},
-            {targetPlayer.UserId, uuidList},
-            {targetPlayer.Name, uuidList},
-            {{Player = targetPlayer, Items = uuidList}},
-            {{PlayerId = targetPlayer.UserId, Items = uuidList}},
-            {uuidList}
+            {targetPlayer},
+            {targetPlayer.UserId},
+            {targetPlayer.Name},
+            {{Player = targetPlayer}},
+            {{PlayerId = targetPlayer.UserId}}
         }
         
         for i, params in ipairs(parameterCombinations) do
-            print("🔄 Trying trade method " .. i)
-            
-            local methodSuccess, methodResult = pcall(function()
+            local methodSuccess = pcall(function()
                 if tradeRemote:IsA("RemoteFunction") then
                     return tradeRemote:InvokeServer(unpack(params))
                 else
@@ -1251,15 +686,10 @@ local function executeDirectTrade(fishList, targetPlayer)
             if methodSuccess then
                 tradeSuccess = true
                 tradeError = nil
-                print("✅ Trade method " .. i .. " succeeded!")
-                task.wait(3)
                 break
-            else
-                tradeError = tostring(methodResult)
-                print("❌ Trade method " .. i .. " failed: " .. tradeError)
             end
             
-            task.wait(1)
+            task.wait(0.5)
         end
         
         return tradeSuccess
@@ -1279,7 +709,7 @@ local function tradeNow()
     end
     
     -- Validasi kondisi trade
-    local valid, errorMsg, fishList = validateTradeConditions()
+    local valid, errorMsg = validateTradeConditions()
     if not valid then
         Rayfield:Notify({
             Title = "Trade Error",
@@ -1292,65 +722,41 @@ local function tradeNow()
     tradeInProgress = true
     
     -- Calculate total value
-    local totalValue = 0
-    local fishDetails = {}
-    
-    for _, fish in ipairs(fishList) do
-        if fish.UUID then
-            table.insert(fishDetails, string.format("%s ($%d)", fish.Name, fish.Value))
-            totalValue = totalValue + fish.Value
-        end
-    end
-    
-    if #fishList == 0 then
-        Rayfield:Notify({
-            Title = "❌ Trade Error",
-            Content = "No valid fish found for trade!",
-            Duration = 4
-        })
-        tradeInProgress = false
-        return false
-    end
+    local totalValue, fishCount = getInventoryValue()
     
     -- Notify mulai trade
     Rayfield:Notify({
         Title = "📤 Starting Trade...",
-        Content = string.format("Trading %d fish worth %s to %s", 
-            #fishList, formatCurrency(totalValue), selectedTradePlayer),
-        Duration = 6,
+        Content = string.format("Trading with %s\nAmount: %s", 
+            selectedTradePlayer, formatCurrency(selectedTradeAmount)),
+        Duration = 4,
         Image = 4483362458
     })
     
     -- Execute trade
-    local targetPlayer = Players:FindFirstChild(selectedTradePlayer)
-    -- *** LOKASI ERROR 'PARENT' TERJADI SEBELUM INI ***
-    local tradeSuccess, tradeError = executeDirectTrade(fishList, targetPlayer)
+    local tradeSuccess, tradeError = executeTrade()
     
     -- Update statistics berdasarkan hasil
     if tradeSuccess then
         tradeSuccessCount = tradeSuccessCount + 1
-        totalCoinConverted = totalCoinConverted + totalValue
+        totalCoinConverted = totalCoinConverted + selectedTradeAmount
         
         Rayfield:Notify({
             Title = "✅ Trade Success!",
-            Content = string.format("Traded %s to %s!\nFish: %d items", 
-                formatCurrency(totalValue), selectedTradePlayer, #fishList),
-            Duration = 8,
+            Content = string.format("Traded %s to %s!", 
+                formatCurrency(selectedTradeAmount), selectedTradePlayer),
+            Duration = 5,
             Image = 4483362458
         })
-        
-        print("🎉 Trade completed successfully!")
     else
         tradeFailedCount = tradeFailedCount + 1
-        local errorMsg = tradeError or "Trade request failed or timed out"
+        local errorMsg = tradeError or "Trade request failed"
         
         Rayfield:Notify({
             Title = "❌ Trade Failed",
             Content = errorMsg,
-            Duration = 6
+            Duration = 4
         })
-        
-        print("💥 Trade failed: " .. errorMsg)
     end
     
     updateTradeProgress()
@@ -1373,12 +779,12 @@ local function autoTradeLoop()
         Title = "🔄 Auto Trade Started",
         Content = string.format("Target: %s | Amount: %s", 
             selectedTradePlayer, formatCurrency(selectedTradeAmount)),
-        Duration = 6,
+        Duration = 5,
         Image = 4483362458
     })
     
     local consecutiveFailures = 0
-    local maxConsecutiveFailures = 5
+    local maxConsecutiveFailures = 3
     
     while autoTradeEnabled do
         -- Refresh player list periodically
@@ -1406,7 +812,7 @@ local function autoTradeLoop()
             if tradeResult then
                 consecutiveFailures = 0
                 -- Cooldown setelah trade sukses
-                local cooldown = math.random(10, 15)
+                local cooldown = math.random(10, 20)
                 task.wait(cooldown)
             else
                 consecutiveFailures = consecutiveFailures + 1
@@ -1426,14 +832,7 @@ local function autoTradeLoop()
             end
         else
             -- Not enough value, wait for fishing
-            Rayfield:Notify({
-                Title = "⏳ Waiting for Fish...",
-                Content = string.format("Current: %s (%d fish) / Target: %s", 
-                    formatCurrency(currentValue), fishCount, formatCurrency(selectedTradeAmount)),
-                Duration = 4
-            })
-            
-            task.wait(30) -- Wait longer jika belum cukup
+            task.wait(10)
         end
         
         -- Safety check
@@ -1446,7 +845,6 @@ local function autoTradeLoop()
     
     autoTradeEnabled = false
 end
-
 
 -- Function untuk refresh player list
 local function refreshPlayerList()
@@ -1466,29 +864,6 @@ local function refreshPlayerList()
         })
     end
     return players
-end
-
--- Debug function untuk inventory
-local function debugInventory()
-    print("=== INVENTORY DEBUG ===")
-    
-    local totalValue, fishCount, allItems = getInventoryValue()
-    
-    print(string.format("Total Value: %s", formatCurrency(totalValue)))
-    print(string.format("Tradable Fish: %d", fishCount))
-    print(string.format("Total Items: %d", #allItems))
-    
-    -- Show first 10 items for debugging
-    for i = 1, math.min(10, #allItems) do
-        local item = allItems[i]
-        print(string.format("Item %d: ID=%d, Favorited=%s, UUID=%s", 
-            i, item.Id, tostring(item.Favorited), tostring(item.UUID)))
-    end
-    
-    if #allItems > 10 then
-        print("... and " .. (#allItems - 10) .. " more items")
-    end
-    print("=======================")
 end
 
 -- ===================================
@@ -2491,7 +1866,10 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateLabel("⚠️ Auto Farm Event: DO WITH YOUR OWN RISK!")
 
--- Trade Tab yang sudah diperbaiki
+-- ===================================
+-- ========== TRADE TAB UI ===========
+-- ===================================
+
 local TradeTab = Window:CreateTab("💱 Trade System", 4483362458)
 
 TradeTab:CreateSection("🎯 Player Selection")
@@ -2500,6 +1878,8 @@ TradeTab:CreateButton({
     Name = "🔄 Refresh Player List",
     Callback = function()
         local players = refreshPlayerList()
+        -- Update dropdown options
+        Rayfield:UpdateDropdown("TradePlayerDropdown", players)
     end,
 })
 
@@ -2547,7 +1927,7 @@ TradeTab:CreateInput({
     end,
 })
 
--- Tetap pertahankan preset amounts untuk kemudahan
+-- Preset amounts untuk kemudahan
 local tradeAmounts = {
     {name = "💵 $100K", value = 100000},
     {name = "💸 $500K", value = 500000},
@@ -2602,6 +1982,12 @@ TradeTab:CreateToggle({
             
             -- Start auto trade loop
             task.spawn(autoTradeLoop)
+            Rayfield:Notify({
+                Title = "🔄 Auto Trade Started",
+                Content = "Auto trading enabled for " .. selectedTradePlayer,
+                Duration = 4,
+                Image = 4483362458
+            })
         else
             Rayfield:Notify({
                 Title = "🛑 Auto Trade Stopped",
@@ -2618,19 +2004,15 @@ TradeTab:CreateButton({
     Name = "💼 Check Inventory Status",
     Callback = function()
         local value, count = getInventoryValue()
-        local fishList, tradeValue = getFishToTrade(selectedTradeAmount)
         
         Rayfield:Notify({
             Title = "📊 Inventory Status",
             Content = string.format(
-                "Total Value: %s\nTotal Fish: %d items\nTradeable for %s: %d fish\nTrade Value: %s",
+                "Estimated Value: %s\nEstimated Fish Count: %d items",
                 formatCurrency(value),
-                count,
-                formatCurrency(selectedTradeAmount),
-                #fishList,
-                formatCurrency(tradeValue)
+                count
             ),
-            Duration = 8,
+            Duration = 6,
             Image = 4483362458
         })
     end,
@@ -2671,8 +2053,10 @@ TradeTab:CreateLabel("1. Pilih player target dari dropdown")
 TradeTab:CreateLabel("2. Set amount yang ingin di-trade")
 TradeTab:CreateLabel("3. Klik TRADE NOW untuk trade langsung")
 TradeTab:CreateLabel("4. Atau aktifkan Auto Trade untuk otomatis")
-TradeTab:CreateLabel("5. Sistem akan ambil ikan dari inventory")
-TradeTab:CreateLabel("6. Langsung trade ke player tersebut")
+TradeTab:CreateLabel("5. Sistem akan trade berdasarkan nilai inventory")
+
+
+
 -- Fish Notification Tab
 local NotifTab = Window:CreateTab("🔔 Notifications", 4483362458)
 
