@@ -380,8 +380,8 @@ local function enhanceFishingLoop()
                     table.remove(EnhanceFishing.SuccessPattern, 1)
                 end
                 
-                task.wait(0.05 * EnhanceFishing.SpeedMultiplier)
-                finishRemote:FireServer()
+                task.wait(0.01 * EnhanceFishing.SpeedMultiplier)
+                finishRemote:FireServer(True)
             end
             
             -- Dynamic cooldown berdasarkan performance
@@ -391,16 +391,9 @@ local function enhanceFishingLoop()
                     if success then recentSuccessRate += 1 end
                 end
                 recentSuccessRate = recentSuccessRate / #EnhanceFishing.SuccessPattern
-            end
+                end
             
-            local cooldown = math.random(8, 15) / 100 * EnhanceFishing.SpeedMultiplier
-            if recentSuccessRate > 0.7 then
-                cooldown = cooldown * 0.8  -- Kurangi cooldown jika performa bagus
-            elseif recentSuccessRate < 0.3 then
-                cooldown = cooldown * 1.2  -- Tambah cooldown jika performa buruk
-            end
-            
-            task.wait(cooldown)
+            task.wait(0.2)
         end)
         
         if not success then
