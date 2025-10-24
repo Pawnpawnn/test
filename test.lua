@@ -358,6 +358,126 @@ local function stopStableFishing()
 end
 
 -- ===================================
+-- ========== SCAN EXISTING INVENTORY
+-- ===================================
+
+local function scanAndFavoriteExistingFish()
+    if not GlobalFav.AutoFavoriteEnabled then return end
+    
+    Rayfield:Notify({
+        Title = "🔍 Scanning Inventory",
+        Content = "Checking existing fish...",
+        Duration = 2,
+        Image = 4483362458
+    })
+    
+    local favoritedCount = 0
+    
+    task.spawn(function()
+        pcall(function()
+            local backpackGui = player.PlayerGui:FindFirstChild("Backpack")
+            if not backpackGui then return end
+            
+            local display = backpackGui:FindFirstChild("Display")
+            if not display then return end
+            
+            for _, slot in pairs(display:GetChildren()) do
+                if slot:IsA("Frame") or slot:IsA("ImageButton") then
+                    local inner = slot:FindFirstChild("Inner")
+                    if inner then
+                        local tags = inner:FindFirstChild("Tags")
+                        if tags then
+                            local itemName = tags:FindFirstChild("ItemName")
+                            local itemId = tags:FindFirstChild("ItemId") -- Might exist
+                            local isFavorited = tags:FindFirstChild("Favorited")
+                            
+                            -- Skip if already favorited
+                            if isFavorited and isFavorited.Value == true then
+                                continue
+                            end
+                            
+                            if itemName then
+                                local fishName = itemName.Text
+                                
+                                -- Find fish tier by name
+                                local fishTier = nil
+                                for id, fishInfo in pairs(GlobalFav.FishIdToName) do
+                                    if fishInfo.name == fishName then
+                                        fishTier = fishInfo.tier
+                                        break
+                                    end
+                                end
+                                
+                                if not fishTier then continue end
+                                
+                                -- Check if should favorite
+                                local shouldFavorite = false
+                                
+                                if table.find(GlobalFav.SelectedCategories or {}, "Secret") and fishTier == 7 then
+                                    shouldFavorite = true
+                                elseif table.find(GlobalFav.SelectedCategories or {}, "Mythic") and fishTier == 6 then
+                                    shouldFavorite = true
+                                elseif table.find(GlobalFav.SelectedCategories or {}, "Legendary") and fishTier == 5 then
+                                    shouldFavorite = true
+                                end
+                                
+                                -- Backup: Name-based check
+                                if not shouldFavorite then
+                                    for category, fishList in pairs(FishCategories) do
+                                        if table.find(GlobalFav.SelectedCategories or {}, category) then
+                                            for _, targetFish in ipairs(fishList) do
+                                                if string.lower(fishName) == string.lower(targetFish) then
+                                                    shouldFavorite = true
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        if shouldFavorite then break end
+                                    end
+                                end
+                                
+                                if shouldFavorite then
+                                    -- Get UUID from slot attributes or from data
+                                    local uuid = slot:GetAttribute("UUID") or 
+                                                slot:GetAttribute("ItemUUID") or
+                                                (inner:GetAttribute("UUID"))
+                                    
+                                    if uuid then
+                                        task.wait(0.15) -- Delay to avoid spam
+                                        pcall(function()
+                                            favoriteRemote:FireServer(uuid)
+                                            favoritedCount = favoritedCount + 1
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            task.wait(1)
+            
+            if favoritedCount > 0 then
+                Rayfield:Notify({
+                    Title = "✅ Inventory Scan Complete",
+                    Content = string.format("Favorited %d fish", favoritedCount),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            else
+                Rayfield:Notify({
+                    Title = "ℹ️ Scan Complete",
+                    Content = "No fish to favorite",
+                    Duration = 2,
+                    Image = 4483362458
+                })
+            end
+        end)
+    end)
+end
+
+-- ===================================
 -- ========== AUTO FAVORITE SYSTEM ===
 -- ===================================
 
@@ -1065,6 +1185,9 @@ MainTab:CreateToggle({
                 Duration = 3,
                 Image = 4483362458
             })
+
+          task.wait(0.5)
+          scanAndFavoriteExistingFish()
         end
     end,
 })
