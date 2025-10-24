@@ -16,8 +16,17 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- ===================================
 
 local autoSellThresholdEnabled = false
-local obtainedFishUUIDs = {}
+local obtainedFishUUIDs = 0
 local obtainedLimit = 30
+
+-- ===================================
+-- ========== VARIABLES ==============
+-- ===================================
+
+local autoSellThresholdEnabled = false
+local obtainedFishCount = 0 -- GANTI: dari table jadi number counter
+local obtainedLimit = 30
+
 
 local antiAFKEnabled = false
 local autoFavoriteEnabled = false
@@ -282,7 +291,7 @@ local function monitorFishThreshold()
                     Image = 4483362458
                 })
                 sellRemote:InvokeServer()
-                obtainedFishUUIDs = {}
+                obtainedFishUUIDs = 0
                 task.wait(0.5)
             end
             task.wait(0.3)
@@ -1951,6 +1960,7 @@ local function safeSetup()
     end
     
     setupAutoFavorite()
+    monitorFishThreshold()
     return true
 end
 
@@ -2016,3 +2026,12 @@ Players.LocalPlayer.OnTeleport:Connect(function(state)
 end)
 
 task.spawn(AutoReconnect)
+
+-- Final message
+task.delay(2, function()
+    print("🎣 Fish It INSTANT EXCLAIM V5 - Ready to use!")
+    print("📁 Configuration saved to: codepik/FishItConfig")
+    print("💡 INSTANT EXCLAIM: Tarik langsung saat tanda seru MUNCUL!")
+    print("⚡ Ultra-fast response: 3ms monitoring interval")
+    print("🎯 10x fire guarantee dalam <0.1 detik")
+end)
