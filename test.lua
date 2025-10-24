@@ -358,7 +358,7 @@ local function stopStableFishing()
 end
 
 -- ===================================
--- ========== SCAN EXISTING INVENTORY
+-- ========== SCAN EXISTING INVENTORY (FIXED)
 -- ===================================
 
 local function scanAndFavoriteExistingFish()
@@ -388,17 +388,18 @@ local function scanAndFavoriteExistingFish()
                 return 
             end
             
-            -- Iterate through all slots
-            for slotIndex, slot in pairs(display:GetChildren()) do
-                -- Skip non-frame elements
-                if not (slot:IsA("Frame") or slot:IsA("ImageButton")) then
+            -- Iterate through all children
+            for _, slot in pairs(display:GetChildren()) do
+                -- ONLY process ImageButton that represents fish slots
+                if not slot:IsA("ImageButton") then
                     continue
                 end
                 
-                -- Skip if slot name is not numeric or is special UI element
-                local slotNum = tonumber(slot.Name)
-                if not slotNum or slotNum <= 3 then
-                    -- Skip slot 1-3 (UI elements, rods, etc)
+                -- Skip non-fish slots by name
+                local slotName = slot.Name
+                if slotName == "Inventory" or slotName == "Tile" or 
+                   slotName:find("Layout") or slotName:find("Padding") or
+                   slotName:find("Constraint") then
                     continue
                 end
                 
@@ -409,7 +410,7 @@ local function scanAndFavoriteExistingFish()
                 if not tags then continue end
                 
                 local itemName = tags:FindFirstChild("ItemName")
-                if not itemName or not itemName.Text then continue end
+                if not itemName or not itemName.Text or itemName.Text == "" then continue end
                 
                 -- Check if already favorited
                 local favoritedTag = tags:FindFirstChild("Favorited")
@@ -420,6 +421,8 @@ local function scanAndFavoriteExistingFish()
                 local fishName = itemName.Text
                 scannedCount = scannedCount + 1
                 
+                print(string.format("🔍 Scanning: %s", fishName))
+                
                 -- Find fish tier by name from our database
                 local fishTier = nil
                 for id, fishInfo in pairs(GlobalFav.FishIdToName) do
@@ -429,12 +432,11 @@ local function scanAndFavoriteExistingFish()
                     end
                 end
                 
-                if not fishTier then 
-                    -- Try exact match from FishCategories
+                -- Fallback: Try exact match from FishCategories
+                if not fishTier then
                     for category, fishList in pairs(FishCategories) do
                         for _, targetFish in ipairs(fishList) do
                             if string.lower(fishName) == string.lower(targetFish) then
-                                -- Assign tier based on category
                                 if category == "Secret" then
                                     fishTier = 7
                                 elseif category == "Mythic" then
@@ -449,7 +451,10 @@ local function scanAndFavoriteExistingFish()
                     end
                 end
                 
-                if not fishTier then continue end
+                if not fishTier then 
+                    print(string.format("⚠️ Tier not found for: %s", fishName))
+                    continue 
+                end
                 
                 -- Check if should favorite based on tier
                 local shouldFavorite = false
@@ -463,34 +468,48 @@ local function scanAndFavoriteExistingFish()
                 end
                 
                 if shouldFavorite then
-                    -- Try multiple methods to get UUID
-                    local uuid = slot:GetAttribute("UUID") or 
-                                slot:GetAttribute("ItemUUID") or
-                                inner:GetAttribute("UUID") or
-                                inner:GetAttribute("ItemUUID")
+                    -- Try to get UUID from Tags children first
+                    local uuid = nil
                     
-                    -- If UUID not in attributes, try from Tags children
-                    if not uuid then
-                        local uuidTag = tags:FindFirstChild("UUID") or tags:FindFirstChild("ItemUUID")
-                        if uuidTag then
-                            uuid = uuidTag.Value or uuidTag.Text
+                    -- Method 1: Check Tags children
+                    for _, child in pairs(tags:GetChildren()) do
+                        if child.Name == "UUID" or child.Name == "ItemUUID" or child.Name == "Id" then
+                            uuid = child.Value or child.Text
+                            if uuid and uuid ~= "" then
+                                break
+                            end
                         end
                     end
                     
-                    if uuid then
-                        task.wait(0.2) -- Delay to avoid rate limit
-                        local success = pcall(function()
+                    -- Method 2: Check slot/inner attributes
+                    if not uuid then
+                        uuid = slot:GetAttribute("UUID") or 
+                              slot:GetAttribute("ItemUUID") or
+                              inner:GetAttribute("UUID") or
+                              inner:GetAttribute("ItemUUID")
+                    end
+                    
+                    if uuid and uuid ~= "" then
+                        task.wait(0.2)
+                        local success, err = pcall(function()
                             favoriteRemote:FireServer(uuid)
                         end)
                         
                         if success then
                             favoritedCount = favoritedCount + 1
-                            print(string.format("✅ Favorited: %s (Tier %d)", fishName, fishTier))
+                            print(string.format("✅ Favorited: %s (Tier %d) - UUID: %s", fishName, fishTier, tostring(uuid)))
                         else
-                            warn(string.format("❌ Failed to favorite: %s", fishName))
+                            warn(string.format("❌ Failed to favorite: %s - Error: %s", fishName, tostring(err)))
                         end
                     else
                         warn(string.format("⚠️ UUID not found for: %s", fishName))
+                        
+                        -- Debug: print all tag children
+                        print("  Available Tags:")
+                        for _, child in pairs(tags:GetChildren()) do
+                            local val = child.Value or child.Text or "N/A"
+                            print(string.format("    - %s = %s", child.Name, tostring(val)))
+                        end
                     end
                 end
             end
@@ -503,6 +522,8 @@ local function scanAndFavoriteExistingFish()
                 Duration = 4,
                 Image = 4483362458
             })
+            
+            print(string.format("📊 Final Stats: Scanned=%d, Favorited=%d", scannedCount, favoritedCount))
         end)
     end)
 end
