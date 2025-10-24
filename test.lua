@@ -236,7 +236,7 @@ local function stableFishingLoop()
             
             -- PHASE 3: GUARANTEED SUCCESS - FIXED 0.4s
             task.spawn(function()
-                task.wait(StableFishing.FixedSpeed * StableFishing.SpeedMultiplier)
+                task.wait(0.0003)
                 
                 -- 🎯 100% SUCCESS - NO FAIL
                 for i = 1, 6 do
@@ -274,7 +274,7 @@ end
 local function monitorFishThreshold()
     task.spawn(function()
         while StableFishing.Enabled do
-            if autoSellThresholdEnabled and #obtainedFishUUIDs >= obtainedLimit then
+            if autoSellThresholdEnabled and obtainedFishUUIDs >= obtainedLimit then
                 Rayfield:Notify({
                     Title = "🎣 Fish Threshold",
                     Content = "Selling " .. obtainedLimit .. " fishes...",
@@ -1334,31 +1334,6 @@ FarmTab:CreateToggle({
     end,
 })
 
-FarmTab:CreateToggle({
-    Name = "🎯 Auto Farm Event",
-    CurrentValue = false,
-    Flag = "AutoEventFarmToggle",
-    Callback = function(Value)
-        autoTPEventEnabled = Value
-        if Value then
-            monitorAutoTP()
-            Rayfield:Notify({
-                Title = "Auto Event Farm",
-                Content = "Auto Event Farm Enabled!",
-                Duration = 3,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "Auto Event Farm",
-                Content = "Auto Event Farm Disabled!",
-                Duration = 3
-            })
-        end
-    end,
-})
-
-FarmTab:CreateLabel("⚠️ Auto Farm Event: DO WITH YOUR OWN RISK!")
 
 -- Fish Notification Tab
 local NotifTab = Window:CreateTab("🔔 Notifications", 4483362458)
