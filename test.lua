@@ -911,7 +911,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- Main Tab
-local MainTab = Window:CreateTab("🎣 Auto Fishing", 4483362458)
+local MainTab = Window:CreateTab("🔥 Main Tab", 4483362458)
 
 MainTab:CreateToggle({
     Name = "🚀 Auto Fishing",
@@ -952,12 +952,7 @@ MainTab:CreateButton({
     Callback = sellNow,
 })
 
--- Auto Favorite Tab
-local FavoriteTab = Window:CreateTab("⭐ Auto Favorite", 4483362458)
-
-FavoriteTab:CreateSection("Auto Favorite Settings")
-
-FavoriteTab:CreateToggle({
+MainTab:CreateToggle({
     Name = "⭐ Enable Auto Favorite",
     CurrentValue = false,
     Flag = "AutoFavoriteToggle",
@@ -966,7 +961,7 @@ FavoriteTab:CreateToggle({
     end,
 })
 
-FavoriteTab:CreateDropdown({
+MainTab:CreateDropdown({
     Name = "Select Rarity Categories",
     Options = {"Secret", "Mythic", "Legendary"},
     CurrentOption = {"Secret"},
@@ -977,18 +972,13 @@ FavoriteTab:CreateDropdown({
     end,
 })
 
--- Auto Farm Tab
-local FarmTab = Window:CreateTab("🌾 Auto Farm", 4483362458)
-
-FarmTab:CreateSection("Auto Farm Settings")
-
 local islandOptions = {
     "Crater Islands",
     "Tropical Grove", 
     "Fisherman Island"
 }
 
-FarmTab:CreateDropdown({
+MainTab:CreateDropdown({
     Name = "Select Farm Island",
     Options = islandOptions,
     CurrentOption = "Fisherman Island",
@@ -998,7 +988,7 @@ FarmTab:CreateDropdown({
     end,
 })
 
-FarmTab:CreateToggle({
+MainTab:CreateToggle({
     Name = "🌾 Start Auto Farm",
     CurrentValue = false,
     Flag = "AutoFarmToggle",
@@ -1010,12 +1000,9 @@ FarmTab:CreateToggle({
     end,
 })
 
--- Weather Tab
-local WeatherTab = Window:CreateTab("🌤️ Weather", 4483362458)
+MainTab:CreateSection("Auto Buy Weather")
 
-WeatherTab:CreateSection("Auto Buy Weather")
-
-WeatherTab:CreateDropdown({
+MainTab:CreateDropdown({
     Name = "Auto Buy Weather",
     Options = {"Storm", "Cloudy", "Snow", "Wind", "Radiant"},
     CurrentOption = {},
