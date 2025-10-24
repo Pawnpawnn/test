@@ -15,14 +15,14 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- ========== VARIABLES ==============
 -- ===================================
 
-local autoSellThresholdEnabled = false
-local obtainedFishCount = 0 -- GANTI: dari table jadi number counter
-local obtainedLimit = 30
+
+-- Fish Threshold Variables
+local obtainedFishUUIDs = {}
+local obtainedLimit = 4000
 
 
 local antiAFKEnabled = false
 local autoFavoriteEnabled = false
-local autoSellAt4000Enabled = false
 local autoFarmEnabled = false
 local universalNoclip = false
 local floatEnabled = false
@@ -271,33 +271,43 @@ local function stableFishingLoop()
     end
 end
 
+-- ===================================
+-- ========== FISH THRESHOLD =========
+-- ===================================
+
 local function monitorFishThreshold()
-    obtainedFishCount = 0
-    
     task.spawn(function()
-        while true do
-            task.wait(0.5)
-            
-            if autoSellThresholdEnabled and obtainedFishCount >= obtainedLimit then
-                local success = pcall(function()
-                    sellRemote:InvokeServer()
-                end)
-                
-                if success then
-                    Rayfield:Notify({
-                        Title = "🎣 Auto Sell Threshold",
-                        Content = "Sold " .. obtainedFishCount .. " fish!",
-                        Duration = 3,
-                        Image = 4483362458
-                    })
-                    obtainedFishCount = 0
-                end
-                
-                task.wait(1)
+        while StableFishing.Enabled do
+            if #obtainedFishUUIDs >= obtainedLimit then
+                Rayfield:Notify({
+                    Title = "Fish Threshold",
+                    Content = "Selling all fishes...",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+                sellRemote:InvokeServer()
+                obtainedFishUUIDs = {}
+                task.wait(0.5)
             end
+            task.wait(0.3)
         end
     end)
 end
+
+-- Setup fish obtained listener
+task.spawn(function()
+    local success, remoteV2 = pcall(function()
+        return ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    end)
+    
+    if success and remoteV2 then
+        remoteV2.OnClientEvent:Connect(function(_, _, data)
+            if data and data.InventoryItem and data.InventoryItem.UUID then
+                table.insert(obtainedFishUUIDs, data.InventoryItem.UUID)
+            end
+        end)
+    end
+end)
 
 -- Start Stable Fishing
 local function startStableFishing()
@@ -1161,6 +1171,7 @@ MainTab:CreateToggle({
     Flag = "StableFishingToggle",
     Callback = function(Value)
         if Value then
+            monitorFishThreshold()
             startStableFishing()
         else
             stopStableFishing()
@@ -1183,59 +1194,21 @@ MainTab:CreateToggle({
     end,
 })
 
-MainTab:CreateSection("Inventory Management")
-
-MainTab:CreateToggle({
-    Name = "🔢 Auto Sell Threshold",
-    CurrentValue = false,
-    Flag = "AutoSellThresholdToggle",
-    Callback = function(Value)
-        autoSellThresholdEnabled = Value
-        if Value then
-            Rayfield:Notify({
-                Title = "Auto Sell Threshold",
-                Content = "Enabled - Auto sell at " .. obtainedLimit .. " fishes",
-                Duration = 3,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "Auto Sell Threshold", 
-                Content = "Disabled - No auto selling",
-                Duration = 3
-            })
-        end
-    end,
-})
-
 MainTab:CreateInput({
-    Name = "Fish Threshold Limit",
-    PlaceholderText = "Default: 30",
+    Name = "Fish Threshold",
+    PlaceholderText = "Default: 4000 fish",
     RemoveTextAfterFocusLost = false,
     Callback = function(Text)
         local num = tonumber(Text)
-        if num and num > 0 then
+        if num then
             obtainedLimit = num
             Rayfield:Notify({
-                Title = "Threshold Updated",
-                Content = "Auto sell at " .. num .. " fishes (if enabled)",
+                Title = "Threshold Set",
+                Content = "Fish threshold set to " .. num,
                 Duration = 3,
                 Image = 4483362458
             })
         end
-    end,
-})
-
-MainTab:CreateButton({
-    Name = "🔄 Reset Fish Counter",
-    Callback = function()
-        obtainedFishCount = 0
-        Rayfield:Notify({
-            Title = "Counter Reset",
-            Content = "Fish counter reset to 0",
-            Duration = 3,
-            Image = 4483362458
-        })
     end,
 })
 
