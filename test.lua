@@ -19,7 +19,6 @@ local EnhanceFishing = {
     Enabled = false,
     SpeedMultiplier = 1.0,
     PerfectCast = true,
-    ExclaimDetected = false,
     SuccessPattern = {},
     FishingActive = false
 }
@@ -271,40 +270,48 @@ local function updateRodModifiers()
     return speedMultiplier
 end
 
--- Exclaim Detection System
--- Exclaim Detection System dengan Response Ultra Cepat
-local function setupExclaimSystem()
+-- MAX RESPONSE EXCLAIM SYSTEM - TARIK LANGSUNG SAAT TANDA SERU MUNCUL
+local function setupMaxResponseExclaimSystem()
     local textEffectRemote = net:FindFirstChild("RE/ReplicateTextEffect")
     
     if textEffectRemote then
-        textEffectRemote.OnClientEvent:Connect(function(data)
-            if data and data.TextData and data.TextData.EffectType == "Exclaim" then
+        -- Simpan original function
+        local originalOnClientEvent = textEffectRemote.OnClientEvent
+        
+        -- Hook dengan response maksimum
+        textEffectRemote.OnClientEvent = function(...)
+            local args = {...}
+            local data = args[1]
+            
+            -- Cek jika ini exclaim DAN fishing aktif
+            if data and data.TextData and data.TextData.EffectType == "Exclaim" and EnhanceFishing.Enabled then
+                print("🚨 EXCLAIM DETECTED - MAXIMUM RESPONSE!")
                 
-                EnhanceFishing.ExclaimDetected = true
-                
-                print("🎉 EXCLAIM DETECTED! - INSTANT RESPONSE...")
-                
-                -- INSTANT RESPONSE - 0.001 DETIK
-                if EnhanceFishing.Enabled then
-                    -- Fire multiple times untuk memastikan success
-                    for i = 1, 3 do  -- Triple fire untuk jaminan
+                -- INSTANT PULL - SEBELUM EVENT DIPROSES LAINNYA
+                for i = 1, 6 do  -- 6x fire untuk jaminan maximum
+                    pcall(function()
                         finishRemote:FireServer(true)
-                        task.wait(0.001)  -- HANYA 0.001 DETIK!
-                    end
-                    
-                    -- UI Notification super cepat
-                    task.spawn(function()
-                        Rayfield:Notify({
-                            Title = "⚡ EXCLAIM!",
-                            Content = "Instant response activated!",
-                            Duration = 1,  -- Notif lebih singkat
-                            Image = 4483362458
-                        })
                     end)
                 end
+                
+                print("🎯 MAX PULL: 6x instant fire saat tanda seru muncul!")
+                
+                -- Quick notification
+                task.spawn(function()
+                    Rayfield:Notify({
+                        Title = "🚨 MAX PULL!",
+                        Content = "Tarik langsung saat tanda seru muncul!",
+                        Duration = 1.5,
+                        Image = 4483362458
+                    })
+                end)
             end
-        end)
-        print("✅ Exclaim Detection System: ULTRA FAST MODE ACTIVATED")
+            
+            -- Tetap jalankan original function
+            return originalOnClientEvent(...)
+        end
+        
+        print("✅ Max Response System: HOOKED - Pull on exclaim appear")
     else
         warn("❌ Exclaim remote not found")
     end
@@ -343,7 +350,7 @@ local function enhanceFishingLoop()
             -- Start minigame
             miniGameRemote:InvokeServer(x, y)
             
-            -- Smart waiting system dengan exclaim monitoring
+            -- Wait time normal (exclaim akan dihandle oleh max response system)
             local baseWaitTime = 0.7 * EnhanceFishing.SpeedMultiplier
             local adaptiveWait = baseWaitTime
             
@@ -355,38 +362,27 @@ local function enhanceFishingLoop()
                 end
                 
                 if recentSuccess >= 2 then
-                    adaptiveWait = 0.4 * EnhanceFishing.SpeedMultiplier  -- Lebih cepat jika berhasil
+                    adaptiveWait = 0.4 * EnhanceFishing.SpeedMultiplier
                 elseif recentSuccess <= 1 then
-                    adaptiveWait = 0.9 * EnhanceFishing.SpeedMultiplier  -- Lebih lambat jika gagal
+                    adaptiveWait = 0.9 * EnhanceFishing.SpeedMultiplier
                 end
             end
             
-            -- Wait dengan exclaim monitoring
-            EnhanceFishing.ExclaimDetected = false
-            local waitTime = 0
-            while waitTime < adaptiveWait and not EnhanceFishing.ExclaimDetected do
-                task.wait(0.03)
-                waitTime += 0.03
+            -- Wait normal
+            task.wait(adaptiveWait)
+            
+            -- Normal fishing completion (jika tidak ada exclaim)
+            local willSucceed = math.random(1, 100) <= 80
+            finishRemote:FireServer(willSucceed)
+            table.insert(EnhanceFishing.SuccessPattern, willSucceed)
+            
+            -- Cleanup pattern array
+            if #EnhanceFishing.SuccessPattern > 5 then
+                table.remove(EnhanceFishing.SuccessPattern, 1)
             end
             
-            if EnhanceFishing.ExclaimDetected then
-                -- Exclaim already handled, continue to next cycle
-                table.insert(EnhanceFishing.SuccessPattern, true)
-                print("⚡ Exclaim handled - Continuing...")
-            else
-                -- Normal fishing completion
-                local willSucceed = math.random(1, 100) <= 80  -- 80% success rate
-                finishRemote:FireServer(willSucceed)
-                table.insert(EnhanceFishing.SuccessPattern, willSucceed)
-                
-                -- Cleanup pattern array
-                if #EnhanceFishing.SuccessPattern > 5 then
-                    table.remove(EnhanceFishing.SuccessPattern, 1)
-                end
-                
-                task.wait(0.01 * EnhanceFishing.SpeedMultiplier)
-                finishRemote:FireServer(True)
-            end
+            task.wait(0.05 * EnhanceFishing.SpeedMultiplier)
+            finishRemote:FireServer()
             
             -- Dynamic cooldown berdasarkan performance
             local recentSuccessRate = 0
@@ -395,9 +391,16 @@ local function enhanceFishingLoop()
                     if success then recentSuccessRate += 1 end
                 end
                 recentSuccessRate = recentSuccessRate / #EnhanceFishing.SuccessPattern
-                end
+            end
             
-            task.wait(0.2)
+            local cooldown = math.random(8, 15) / 100 * EnhanceFishing.SpeedMultiplier
+            if recentSuccessRate > 0.7 then
+                cooldown = cooldown * 0.8
+            elseif recentSuccessRate < 0.3 then
+                cooldown = cooldown * 1.2
+            end
+            
+            task.wait(cooldown)
         end)
         
         if not success then
@@ -467,23 +470,22 @@ local function startEnhanceFishing()
         print("🎣 Auto Sell Threshold: DISABLED")
     end
     
-    task.spawn(enhanceFishingLoop)
+    -- SETUP MAX RESPONSE SYSTEM
+    setupMaxResponseExclaimSystem()
     
-    -- Notifikasi dengan status threshold
-    local thresholdStatus = autoSellThresholdEnabled and "Enabled (at " .. obtainedLimit .. " fish)" or "Disabled"
+    task.spawn(enhanceFishingLoop)
     
     Rayfield:Notify({
         Title = "🚀 Enhance Fishing Started",
-        Content = "With smart adaptive system & exclaim detection!\nAuto Sell: " .. thresholdStatus,
+        Content = "MAX RESPONSE MODE - Tarik langsung saat tanda seru muncul!",
         Duration = 4,
         Image = 4483362458
     })
     
-    print("🎣 Enhance Fishing: STARTED")
-    print("   - Adaptive Timing")
-    print("   - Exclaim Auto-Response") 
-    print("   - Rod Modifier Detection")
-    print("   - Auto Sell Threshold: " .. (autoSellThresholdEnabled and "ON" or "OFF"))
+    print("🎣 Enhance Fishing: STARTED - MAX RESPONSE MODE")
+    print("   ⚡ Instant pull saat tanda seru MUNCUL")
+    print("   🎯 6x fire guarantee")
+    print("   🚀 No waiting for exclaim to disappear")
 end
 
 -- Stop Enhance Fishing
@@ -1327,9 +1329,9 @@ end
 -- ===================================
 
 local Window = Rayfield:CreateWindow({
-    Name = "🐟 Fish It - Codepikk Premium V4",
+    Name = "🐟 Fish It - MAX RESPONSE V4",
     LoadingTitle = "Fish It Premium Loading...",
-    LoadingSubtitle = "by Codepikk - Enhance Fishing Edition",
+    LoadingSubtitle = "by Codepikk - MAX RESPONSE Edition",
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "codepik",
@@ -1346,7 +1348,7 @@ local Window = Rayfield:CreateWindow({
 -- Main Tab - ENHANCE FISHING
 local MainTab = Window:CreateTab("🎣 Enhance Fishing", 4483362458)
 
-MainTab:CreateSection("🚀 Enhanced Fishing System")
+MainTab:CreateSection("🚀 MAX RESPONSE Fishing System")
 
 MainTab:CreateToggle({
     Name = "⚡ Enable Enhance Fishing",
@@ -1375,6 +1377,12 @@ MainTab:CreateToggle({
         })
     end,
 })
+
+MainTab:CreateSection("MAX RESPONSE Features")
+
+MainTab:CreateLabel("🚨 Tanda Seru: TARIK LANGSUNG saat muncul!")
+MainTab:CreateLabel("⚡ Response: 6x Instant Fire")
+MainTab:CreateLabel("🎯 Tidak tunggu tanda seru ilang")
 
 MainTab:CreateSection("Inventory Management")
 
@@ -1437,9 +1445,6 @@ MainTab:CreateButton({
         })
     end,
 })
-
-MainTab:CreateLabel("⚡ Features: Adaptive Timing • Exclaim Auto-Response • Rod Detection")
-MainTab:CreateLabel("🎯 Perfect Cast: Higher success rate with optimal coordinates")
 
 -- Auto Favorite Tab
 local FavoriteTab = Window:CreateTab("⭐ Auto Favorite", 4483362458)
@@ -2112,7 +2117,7 @@ SettingsTab:CreateButton({
 
 SettingsTab:CreateSection("Credits")
 
-SettingsTab:CreateLabel("Fish It Premium V4 - Enhance Fishing Edition")
+SettingsTab:CreateLabel("Fish It MAX RESPONSE V4")
 SettingsTab:CreateLabel("Developed by Codepikk")
 SettingsTab:CreateLabel("Thanks for using! 🎣")
 
@@ -2137,9 +2142,6 @@ local function safeSetup()
     if not animSuccess then
         warn("Failed to setup some animations")
     end
-    
-    -- Setup Enhance Fishing Systems
-    setupExclaimSystem()
     
     -- Setup auto favorite system
     setupAutoFavorite()
@@ -2169,13 +2171,14 @@ if safeSetup() then
 
     Rayfield:Notify({
         Title = "Script Loaded!",
-        Content = "Fish It Premium V4 - Enhance Fishing loaded successfully!\nAuto Sell Threshold: DISABLED (Default)",
+        Content = "Fish It MAX RESPONSE V4 loaded successfully!\nAuto Sell Threshold: DISABLED (Default)",
         Duration = 5,
         Image = 4483362458
     })
     
-    print("🎣 Fish It Premium V4 - Enhance Fishing Fully Loaded!")
-    print("🚀 Features: Enhance Fishing, Auto Farm, Auto Favorite, Fish Notifications, Weather System, and more!")
+    print("🎣 Fish It MAX RESPONSE V4 - Fully Loaded!")
+    print("🚀 MAX RESPONSE MODE: Tarik langsung saat tanda seru muncul!")
+    print("⚡ 6x Instant Fire Guarantee")
     print("🔢 Auto Sell Threshold: DISABLED (Default) - Enable manually jika perlu")
 else
     Rayfield:Notify({
@@ -2213,7 +2216,7 @@ task.spawn(AutoReconnect)
 
 -- Final message
 task.delay(2, function()
-    print("🎣 Fish It Premium V4 - Enhance Fishing Ready to use!")
+    print("🎣 Fish It MAX RESPONSE V4 - Ready to use!")
     print("📁 Configuration saved to: codepik/FishItConfig")
-    print("💡 Auto Sell Threshold: DISABLED - Enable manually di UI jika perlu")
+    print("💡 MAX RESPONSE: Tarik langsung saat tanda seru MUNCUL!")
 end)
