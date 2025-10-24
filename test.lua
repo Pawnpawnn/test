@@ -358,418 +358,243 @@ local function stopStableFishing()
 end
 
 -- ===================================
--- ========== SISTEM AUTO FAVORITE ===
+-- ========== SCAN EXISTING INVENTORY
 -- ===================================
 
-local AutoFavorite = {
-    Enabled = false,
-    FishIdToName = {},
-    FishNameToId = {},
-    FishNames = {},
-    SelectedCategories = {"Secret"},
-    ScanCooldown = 5, -- detik antara scan
-    LastScanTime = 0
-}
-
--- Build database ikan yang lengkap
-local function buildFishDatabase()
-    AutoFavorite.FishIdToName = {}
-    AutoFavorite.FishNameToId = {}
-    AutoFavorite.FishNames = {}
-    
-    local success, result = pcall(function()
-        local ItemsFolder = ReplicatedStorage:FindFirstChild("Items")
-        if not ItemsFolder then
-            warn("Folder Items tidak ditemukan di ReplicatedStorage")
-            return false
-        end
-        
-        for _, item in pairs(ItemsFolder:GetChildren()) do
-            local ok, data = pcall(function()
-                return require(item)
-            end)
-            
-            if ok and data and data.Data then
-                if data.Data.Type == "Fishes" then
-                    local id = tostring(data.Data.Id)
-                    local name = tostring(data.Data.Name)
-                    local tier = tonumber(data.Data.Tier) or 1
-                    
-                    AutoFavorite.FishIdToName[id] = {
-                        name = name,
-                        tier = tier,
-                        displayName = data.Data.DisplayName or name
-                    }
-                    AutoFavorite.FishNameToId[name] = id
-                    AutoFavorite.FishNameToId[string.lower(name)] = id
-                    table.insert(AutoFavorite.FishNames, name)
-                    
-                    -- Tambahkan display name jika berbeda
-                    if data.Data.DisplayName and data.Data.DisplayName ~= name then
-                        AutoFavorite.FishNameToId[data.Data.DisplayName] = id
-                        AutoFavorite.FishNameToId[string.lower(data.Data.DisplayName)] = id
-                    end
-                end
-            end
-        end
-        return true
-    end)
-    
-    if not success then
-        warn("Gagal membangun database ikan: " .. tostring(result))
-        return false
-    end
-    
-    print(string.format("✅ Database ikan berhasil: %d ikan dimuat", #AutoFavorite.FishNames))
-    return true
-end
-
--- Ekstrak data ikan dari slot inventory berdasarkan struktur yang ada
-local function extractFishDataFromSlot(slot)
-    local fishData = {
-        uuid = nil,
-        name = nil,
-        tier = nil,
-        isFavorited = false
-    }
-    
-    -- Cek atribut di slot langsung
-    fishData.uuid = slot:GetAttribute("UUID") or 
-                   slot:GetAttribute("ItemUUID")
-    
-    -- Cek Inner frame
-    local inner = slot:FindFirstChild("Inner")
-    if inner then
-        -- Dapatkan UUID dari atribut Inner
-        if not fishData.uuid then
-            fishData.uuid = inner:GetAttribute("UUID") or 
-                           inner:GetAttribute("ItemUUID")
-        end
-        
-        -- Cek Tags untuk nama dan status favorite
-        local tags = inner:FindFirstChild("Tags")
-        if tags then
-            -- Dapatkan nama ikan dari ItemName
-            local itemName = tags:FindFirstChild("ItemName")
-            if itemName and itemName:IsA("StringValue") then
-                fishData.name = itemName.Value
-            end
-            
-            -- Cek apakah sudah di favorite
-            local favorited = tags:FindFirstChild("Favorited")
-            if favorited and favorited:IsA("BoolValue") then
-                fishData.isFavorited = favorited.Value == true
-            end
-            
-            -- Dapatkan ID ikan dari ItemId
-            local itemId = tags:FindFirstChild("ItemId")
-            if itemId and itemId:IsA("StringValue") and itemId.Value ~= "" then
-                local fishInfo = AutoFavorite.FishIdToName[itemId.Value]
-                if fishInfo then
-                    fishData.name = fishData.name or fishInfo.name
-                    fishData.tier = fishInfo.tier
-                end
-            end
-        end
-    end
-    
-    -- Jika punya nama tapi tidak ada tier, cari di database
-    if fishData.name and not fishData.tier then
-        local fishId = AutoFavorite.FishNameToId[fishData.name] or AutoFavorite.FishNameToId[string.lower(fishData.name)]
-        if fishId then
-            local fishInfo = AutoFavorite.FishIdToName[fishId]
-            if fishInfo then
-                fishData.tier = fishInfo.tier
-            end
-        end
-    end
-    
-    return (fishData.uuid and fishData.name) and fishData or nil
-end
-
--- Tentukan apakah ikan harus di favorite berdasarkan kategori dan tier
-local function shouldFavoriteFish(fishName, fishTier)
-    if not fishName or not AutoFavorite.SelectedCategories or #AutoFavorite.SelectedCategories == 0 then
-        return false
-    end
-    
-    -- Filter berdasarkan tier (paling akurat)
-    if fishTier then
-        if table.find(AutoFavorite.SelectedCategories, "Secret") and fishTier == 7 then
-            return true
-        elseif table.find(AutoFavorite.SelectedCategories, "Mythic") and fishTier == 6 then
-            return true
-        elseif table.find(AutoFavorite.SelectedCategories, "Legendary") and fishTier == 5 then
-            return true
-        end
-    end
-    
-    -- Fallback berdasarkan nama
-    local fishNameLower = string.lower(fishName)
-    for category, fishList in pairs(FishCategories) do
-        if table.find(AutoFavorite.SelectedCategories, category) then
-            for _, targetFish in ipairs(fishList) do
-                if fishNameLower == string.lower(targetFish) then
-                    return true
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
--- Favorite ikan berdasarkan UUID
-local function favoriteFishByUUID(uuid, fishName)
-    if not uuid or not favoriteRemote then
-        return false
-    end
-    
-    local success, err = pcall(function()
-        favoriteRemote:FireServer(uuid)
-        return true
-    end)
-    
-    if success then
-        print(string.format("⭐ Difavorite: %s (UUID: %s)", fishName, uuid))
-        return true
-    else
-        warn(string.format("Gagal memfavorite %s: %s", fishName, tostring(err)))
-        return false
-    end
-end
-
--- Scan dan favorite ikan yang ada di inventory
 local function scanAndFavoriteExistingFish()
-    if not AutoFavorite.Enabled then 
-        Rayfield:Notify({
-            Title = "Auto Favorite",
-            Content = "Silakan aktifkan Auto Favorite terlebih dahulu!",
-            Duration = 3,
-            Image = 4483362458
-        })
-        return 
-    end
-    
-    -- Cek cooldown
-    if tick() - AutoFavorite.LastScanTime < AutoFavorite.ScanCooldown then
-        Rayfield:Notify({
-            Title = "Auto Favorite",
-            Content = "Tunggu sebentar sebelum scan lagi",
-            Duration = 2,
-            Image = 4483362458
-        })
-        return
-    end
-    
-    AutoFavorite.LastScanTime = tick()
+    if not GlobalFav.AutoFavoriteEnabled then return end
     
     Rayfield:Notify({
-        Title = "🔍 Memindai Inventory",
-        Content = "Mengecek ikan yang ada...",
+        Title = "🔍 Scanning Inventory",
+        Content = "Checking existing fish...",
         Duration = 2,
         Image = 4483362458
     })
     
     local favoritedCount = 0
     local scannedCount = 0
-    local skippedCount = 0
     
     task.spawn(function()
-        local success, err = pcall(function()
-            -- Cek Backpack GUI
+        pcall(function()
             local backpackGui = player.PlayerGui:FindFirstChild("Backpack")
-            if not backpackGui then
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "Backpack GUI tidak ditemukan!",
-                    Duration = 3
-                })
-                return
+            if not backpackGui then 
+                warn("Backpack GUI not found")
+                return 
             end
             
             local display = backpackGui:FindFirstChild("Display")
-            if not display then
-                Rayfield:Notify({
-                    Title = "Error",
-                    Content = "Display tidak ditemukan di Backpack!",
-                    Duration = 3
-                })
-                return
+            if not display then 
+                warn("Display not found")
+                return 
             end
             
-            -- Scan semua slot di Display
-            for _, slot in pairs(display:GetChildren()) do
-                if slot:IsA("Frame") or slot:IsA("ImageButton") then
-                    scannedCount = scannedCount + 1
-                    
-                    local fishData = extractFishDataFromSlot(slot)
-                    if fishData then
-                        if fishData.isFavorited then
-                            skippedCount = skippedCount + 1
-                            -- print(string.format("⏩ Dilewati: %s (sudah difavorite)", fishData.name))
-                        elseif shouldFavoriteFish(fishData.name, fishData.tier) then
-                            if favoriteFishByUUID(fishData.uuid, fishData.name) then
-                                favoritedCount = favoritedCount + 1
-                                task.wait(0.15) -- Mencegah rate limiting
+            -- Iterate through all slots
+            for slotIndex, slot in pairs(display:GetChildren()) do
+                -- Skip non-frame elements
+                if not (slot:IsA("Frame") or slot:IsA("ImageButton")) then
+                    continue
+                end
+                
+                -- Skip if slot name is not numeric or is special UI element
+                local slotNum = tonumber(slot.Name)
+                if not slotNum or slotNum <= 3 then
+                    -- Skip slot 1-3 (UI elements, rods, etc)
+                    continue
+                end
+                
+                local inner = slot:FindFirstChild("Inner")
+                if not inner then continue end
+                
+                local tags = inner:FindFirstChild("Tags")
+                if not tags then continue end
+                
+                local itemName = tags:FindFirstChild("ItemName")
+                if not itemName or not itemName.Text then continue end
+                
+                -- Check if already favorited
+                local favoritedTag = tags:FindFirstChild("Favorited")
+                if favoritedTag and favoritedTag.Value == true then
+                    continue
+                end
+                
+                local fishName = itemName.Text
+                scannedCount = scannedCount + 1
+                
+                -- Find fish tier by name from our database
+                local fishTier = nil
+                for id, fishInfo in pairs(GlobalFav.FishIdToName) do
+                    if fishInfo.name == fishName then
+                        fishTier = fishInfo.tier
+                        break
+                    end
+                end
+                
+                if not fishTier then 
+                    -- Try exact match from FishCategories
+                    for category, fishList in pairs(FishCategories) do
+                        for _, targetFish in ipairs(fishList) do
+                            if string.lower(fishName) == string.lower(targetFish) then
+                                -- Assign tier based on category
+                                if category == "Secret" then
+                                    fishTier = 7
+                                elseif category == "Mythic" then
+                                    fishTier = 6
+                                elseif category == "Legendary" then
+                                    fishTier = 5
+                                end
+                                break
                             end
                         end
+                        if fishTier then break end
+                    end
+                end
+                
+                if not fishTier then continue end
+                
+                -- Check if should favorite based on tier
+                local shouldFavorite = false
+                
+                if table.find(GlobalFav.SelectedCategories or {}, "Secret") and fishTier == 7 then
+                    shouldFavorite = true
+                elseif table.find(GlobalFav.SelectedCategories or {}, "Mythic") and fishTier == 6 then
+                    shouldFavorite = true
+                elseif table.find(GlobalFav.SelectedCategories or {}, "Legendary") and fishTier == 5 then
+                    shouldFavorite = true
+                end
+                
+                if shouldFavorite then
+                    -- Try multiple methods to get UUID
+                    local uuid = slot:GetAttribute("UUID") or 
+                                slot:GetAttribute("ItemUUID") or
+                                inner:GetAttribute("UUID") or
+                                inner:GetAttribute("ItemUUID")
+                    
+                    -- If UUID not in attributes, try from Tags children
+                    if not uuid then
+                        local uuidTag = tags:FindFirstChild("UUID") or tags:FindFirstChild("ItemUUID")
+                        if uuidTag then
+                            uuid = uuidTag.Value or uuidTag.Text
+                        end
+                    end
+                    
+                    if uuid then
+                        task.wait(0.2) -- Delay to avoid rate limit
+                        local success = pcall(function()
+                            favoriteRemote:FireServer(uuid)
+                        end)
+                        
+                        if success then
+                            favoritedCount = favoritedCount + 1
+                            print(string.format("✅ Favorited: %s (Tier %d)", fishName, fishTier))
+                        else
+                            warn(string.format("❌ Failed to favorite: %s", fishName))
+                        end
+                    else
+                        warn(string.format("⚠️ UUID not found for: %s", fishName))
                     end
                 end
             end
             
-        end)
-        
-        if not success then
-            warn("Error saat scan inventory: " .. tostring(err))
+            task.wait(1)
+            
             Rayfield:Notify({
-                Title = "Error Scan",
-                Content = "Terjadi error saat memindai inventory",
-                Duration = 3
-            })
-        end
-        
-        -- Laporkan hasil
-        task.wait(1)
-        local message = string.format("Slot dipindai: %d\nDifavorite: %d\nDilewati: %d", 
-                                    scannedCount, favoritedCount, skippedCount)
-        
-        if favoritedCount > 0 then
-            Rayfield:Notify({
-                Title = "✅ Scan Selesai",
-                Content = message,
-                Duration = 5,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "ℹ️ Scan Selesai",
-                Content = message,
+                Title = "✅ Scan Complete",
+                Content = string.format("Scanned: %d | Favorited: %d", scannedCount, favoritedCount),
                 Duration = 4,
                 Image = 4483362458
             })
-        end
-        
-        -- Debug info
-        print(string.format("📊 HASIL SCAN: %d slot, %d difavorite, %d dilewati", 
-                          scannedCount, favoritedCount, skippedCount))
+        end)
     end)
 end
+-- ===================================
+-- ========== AUTO FAVORITE SYSTEM ===
+-- ===================================
 
--- Fungsi debug untuk melihat struktur slot
-local function debugSlotStructure()
-    local backpackGui = player.PlayerGui:FindFirstChild("Backpack")
-    if backpackGui then
-        local display = backpackGui:FindFirstChild("Display")
-        if display then
-            print("=== DEBUG STRUKTUR INVENTORY ===")
-            for i, slot in pairs(display:GetChildren()) do
-                if i <= 5 then -- Cek 5 slot pertama
-                    print("\n=== SLOT", i, "===")
-                    print("Nama:", slot.Name, "Tipe:", slot.ClassName)
-                    
-                    -- Cek atribut
-                    for attr, val in pairs(slot:GetAttributes()) do
-                        print("Atribut:", attr, "=", val)
-                    end
-                    
-                    -- Cek Inner
-                    local inner = slot:FindFirstChild("Inner")
-                    if inner then
-                        print("✓ Inner ditemukan")
-                        for attr, val in pairs(inner:GetAttributes()) do
-                            print("Atribut Inner:", attr, "=", val)
-                        end
-                        
-                        local tags = inner:FindFirstChild("Tags")
-                        if tags then
-                            print("✓ Tags ditemukan")
-                            for _, child in pairs(tags:GetChildren()) do
-                                if child:IsA("StringValue") then
-                                    print("Tag String:", child.Name, "=", child.Value)
-                                elseif child:IsA("BoolValue") then
-                                    print("Tag Bool:", child.Name, "=", child.Value)
-                                end
-                            end
-                        else
-                            print("✗ Tags tidak ditemukan")
-                        end
-                    else
-                        print("✗ Inner tidak ditemukan")
-                    end
-                end
+local function setupAutoFavorite()
+    -- Build fish database dengan tier info
+    pcall(function()
+        for _, item in pairs(ReplicatedStorage.Items:GetChildren()) do
+            local ok, data = pcall(require, item)
+            if ok and data and data.Data and data.Data.Type == "Fishes" then
+                local id = data.Data.Id
+                local name = data.Data.Name
+                local tier = data.Data.Tier or "1"
+                
+                GlobalFav.FishIdToName[id] = {
+                    name = name,
+                    tier = tonumber(tier) or 1
+                }
+                GlobalFav.FishNameToId[name] = id
+                table.insert(GlobalFav.FishNames, name)
             end
-            print("=== DEBUG SELESAI ===")
         end
-    end
-end
+    end)
 
--- Setup listener untuk ikan yang baru ditangkap
-local function setupAutoFavoriteListener()
+    -- Listen fish caught event
     local success, REObtainedNewFishNotification = pcall(function()
         return ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
     end)
     
     if success and REObtainedNewFishNotification then
         REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, data)
-            if not AutoFavorite.Enabled then return end
+            if not GlobalFav.AutoFavoriteEnabled then return end
 
             local uuid = data.InventoryItem and data.InventoryItem.UUID
             if not uuid then return end
 
-            local fishInfo = AutoFavorite.FishIdToName[tostring(itemId)]
+            local fishInfo = GlobalFav.FishIdToName[itemId]
             if not fishInfo then return end
             
             local fishName = fishInfo.name
             local fishTier = fishInfo.tier
 
-            if shouldFavoriteFish(fishName, fishTier) then
-                task.wait(0.2) -- Delay kecil untuk memastikan server memproses tangkapan
-                if favoriteFishByUUID(uuid, fishName) then
-                    Rayfield:Notify({
-                        Title = "⭐ Auto Favorite",
-                        Content = string.format("%s (Tier %d)", fishName, fishTier),
-                        Duration = 2,
-                        Image = 4483362458
-                    })
+            -- TIER BASED FILTERING (lebih akurat!)
+            local shouldFavorite = false
+            
+            -- Tier 7 = Secret (paling langka)
+            -- Tier 6 = Mythic
+            -- Tier 5 = Legendary
+            
+            if table.find(GlobalFav.SelectedCategories or {}, "Secret") and fishTier == 7 then
+                shouldFavorite = true
+            elseif table.find(GlobalFav.SelectedCategories or {}, "Mythic") and fishTier == 6 then
+                shouldFavorite = true
+            elseif table.find(GlobalFav.SelectedCategories or {}, "Legendary") and fishTier == 5 then
+                shouldFavorite = true
+            end
+            
+            -- BACKUP: Name-based check (kalau tier ga ketemu)
+            if not shouldFavorite then
+                for category, fishList in pairs(FishCategories) do
+                    if table.find(GlobalFav.SelectedCategories or {}, category) then
+                        for _, targetFish in ipairs(fishList) do
+                            if string.lower(fishName) == string.lower(targetFish) then
+                                shouldFavorite = true
+                                break
+                            end
+                        end
+                    end
+                    if shouldFavorite then break end
                 end
             end
+
+            if shouldFavorite then
+                -- Reduced delay untuk faster favoriting
+                task.wait(0.1)
+                pcall(function() 
+                    favoriteRemote:FireServer(uuid) 
+                end)
+                
+                Rayfield:Notify({
+                    Title = "⭐ Auto Favorite",
+                    Content = string.format("%s (Tier %d)", fishName, fishTier),
+                    Duration = 2,
+                    Image = 4483362458
+                })
+            end
         end)
-        
-        print("✅ Listener Auto Favorite berhasil di setup")
-        return true
-    else
-        warn("❌ Gagal setup listener Auto Favorite")
-        return false
     end
 end
-
--- Inisialisasi sistem auto favorite
-local function initializeAutoFavorite()
-    -- Build database ikan dulu
-    if not buildFishDatabase() then
-        Rayfield:Notify({
-            Title = "Error Auto Favorite",
-            Content = "Gagal memuat database ikan",
-            Duration = 5,
-            Image = 4483362458
-        })
-        return false
-    end
-    
-    -- Setup listener untuk tangkapan baru
-    if not setupAutoFavoriteListener() then
-        Rayfield:Notify({
-            Title = "Peringatan Auto Favorite",
-            Content = "Auto favorite live mungkin tidak bekerja",
-            Duration = 5,
-            Image = 4483362458
-        })
-    end
-    
-    return true
-end
-
 -- ===================================
 -- ========== AUTO SELL ==============
 -- ===================================
@@ -1373,33 +1198,20 @@ MainTab:CreateButton({
     Callback = sellNow,
 })
 
-MainTab:CreateSection("Sistem Auto Favorite")
+MainTab:CreateSection("Auto Favorite System")
 
 MainTab:CreateToggle({
-    Name = "⭐ Aktifkan Auto Favorite",
+    Name = "⭐ Enable Auto Favorite",
     CurrentValue = false,
     Flag = "AutoFavoriteToggle",
     Callback = function(Value)
-        AutoFavorite.Enabled = Value
+        GlobalFav.AutoFavoriteEnabled = Value
         
         if Value then
-            -- Inisialisasi jika belum dilakukan
-            if #AutoFavorite.FishNames == 0 then
-                initializeAutoFavorite()
-            end
-            
-            local categories = #AutoFavorite.SelectedCategories > 0 and table.concat(AutoFavorite.SelectedCategories, ", ") or "Tidak ada"
             Rayfield:Notify({
-                Title = "Auto Favorite AKTIF",
-                Content = "Memfavorite: " .. categories,
+                Title = "Auto Favorite ON",
+                Content = "Favoriting: " .. table.concat(GlobalFav.SelectedCategories, ", "),
                 Duration = 3,
-                Image = 4483362458
-            })
-        else
-            Rayfield:Notify({
-                Title = "Auto Favorite NONAKTIF",
-                Content = "Auto favorite dimatikan",
-                Duration = 2,
                 Image = 4483362458
             })
         end
@@ -1407,48 +1219,51 @@ MainTab:CreateToggle({
 })
 
 MainTab:CreateDropdown({
-    Name = "Pilih Kategori Kelangkaan",
+    Name = "Select Rarity Categories",
     Options = {"Secret", "Mythic", "Legendary"},
     CurrentOption = {"Secret"},
     MultipleOptions = true,
     Flag = "FavoriteCategoryDropdown",
     Callback = function(Options)
-        AutoFavorite.SelectedCategories = Options
+        GlobalFav.SelectedCategories = Options
         
-        local categories = #Options > 0 and table.concat(Options, ", ") or "Tidak ada"
+        local categories = #Options > 0 and table.concat(Options, ", ") or "None"
         Rayfield:Notify({
-            Title = "Kategori Diupdate",
-            Content = "Dipilih: " .. categories,
+            Title = "Category Updated",
+            Content = "Selected: " .. categories,
             Duration = 2,
             Image = 4483362458
         })
     end,
 })
 
+MainTab:CreateLabel("💡 Tier Info:")
+MainTab:CreateLabel("Tier 7 = Secret | Tier 6 = Mythic | Tier 5 = Legendary")
+
 MainTab:CreateButton({
-    Name = "🔍 Scan Inventory Sekarang",
+    Name = "🔍 Scan & Favorite Inventory Fish",
     Callback = function()
+        if not GlobalFav.AutoFavoriteEnabled then
+            Rayfield:Notify({
+                Title = "⚠️ Auto Favorite Disabled",
+                Content = "Enable Auto Favorite first!",
+                Duration = 3
+            })
+            return
+        end
+        
+        if #GlobalFav.SelectedCategories == 0 then
+            Rayfield:Notify({
+                Title = "⚠️ No Category Selected",
+                Content = "Select rarity categories first!",
+                Duration = 3
+            })
+            return
+        end
+        
         scanAndFavoriteExistingFish()
     end,
 })
-
-MainTab:CreateButton({
-    Name = "🐛 Debug Struktur Inventory",
-    Callback = function()
-        debugSlotStructure()
-        Rayfield:Notify({
-            Title = "Debug",
-            Content = "Cek console untuk struktur inventory",
-            Duration = 3,
-            Image = 4483362458
-        })
-    end,
-})
-
-MainTab:CreateLabel("💡 Info Tier:")
-MainTab:CreateLabel("Tier 7 = Secret | Tier 6 = Mythic | Tier 5 = Legendary")
-MainTab:CreateLabel("📦 Memindai backpack untuk ikan yang belum difavorite")
-
 
 MainTab:CreateSection("Auto Farm")
 
@@ -1838,7 +1653,6 @@ local function safeSetup()
     
     setupAutoFavorite()
     monitorFishThreshold()
-    initializeAutoFavorite()
     return true
 end
 
