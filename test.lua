@@ -1765,40 +1765,56 @@ end
 local function updateEventButtons()
     local events = ScanActiveEvents() or {}
 
-    -- Hapus button lama
-    for _, b in pairs(eventButtons) do
-        if typeof(b) == "table" and b.Remove then
-          b:Remove()
-        elseif typeof(b) == "Instance" and b.Destroy then
-          b:Destroy()
-         end
-       end
-    table.clear(eventButtons)
+    -- Hapus semua element lama
+    for _, element in ipairs(eventButtons) do
+        pcall(function()
+            if element.Destroy then
+                element:Destroy()
+            end
+        end)
+    end
+    eventButtons = {}
 
-
-    -- HEADER
+    -- Buat header
     local header = TeleportTab:CreateLabel("---- Active Events ----")
     table.insert(eventButtons, header)
 
-    -- Jika ada event
+    -- Buat buttons untuk events
     for _, event in ipairs(events) do
         local btn = TeleportTab:CreateButton({
             Name = "📍 " .. event.Name,
             Callback = function()
-                teleportToEventPosition(event.Position)
+                local success, err = pcall(function()
+                    local char = player.Character or player.CharacterAdded:Wait()
+                    local hrp = char:WaitForChild("HumanoidRootPart", 3)
+                    if hrp then
+                        hrp.CFrame = CFrame.new(event.Position + Vector3.new(0, 20, 0))
+                        Rayfield:Notify({
+                            Title = "Event Teleport",
+                            Content = "Teleported to: " .. event.Name,
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                    end
+                end)
+                
+                if not success then
+                    Rayfield:Notify({
+                        Title = "Teleport Failed",
+                        Content = "Error: " .. tostring(err),
+                        Duration = 3
+                    })
+                end
             end
         })
         table.insert(eventButtons, btn)
     end
 
-    -- Jika tidak ada event
+    -- Jika tidak ada events
     if #events == 0 then
         local noEvent = TeleportTab:CreateLabel("📭 No active events found")
         table.insert(eventButtons, noEvent)
     end
-
-    -- Update snapshot
-    lastEventSnapshot = events
 end
 
 
