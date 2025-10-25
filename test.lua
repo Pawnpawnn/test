@@ -1767,7 +1767,7 @@ local function updateEventButtons()
 
     -- Hapus button lama
     for _, b in pairs(eventButtons) do
-        b:Set()
+        b:Set("")
     end
     table.clear(eventButtons)
 
