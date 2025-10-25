@@ -1829,36 +1829,6 @@ end)
 -- render pertama kali
 updateEventButtons()
 
-
-
-
--- Manual refresh button (di atas)
-local refreshBtn = TeleportTab:CreateButton({
-    Name = "🔄 Refresh Active Events",
-    Callback = function()
-        updateEventButtons()
-        Rayfield:Notify({
-            Title = "Event Scanner",
-            Content = "✅ Events refreshed successfully",
-            Duration = 2,
-            Image = 4483362458
-        })
-    end
-})
-
--- Auto scan setiap 5 detik (soft update)
-task.spawn(function()
-    while task.wait(5) do
-        local events = ScanActiveEvents() or {}
-        if hasEventChanged(events) then
-            updateEventButtons()
-        end
-    end
-end)
-
-updateEventButtons()
-
-
 -- Webhook Tab
 local WebhookTab = Window:CreateTab("📣 Webhook", 4483362458)
 
