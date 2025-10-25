@@ -698,7 +698,7 @@ local function scanAndFavoriteExistingFish()
     AutoFavorite.LastScanTime = tick()
     
     Rayfield:Notify({
-        Title = "🔍 Memindai Inventory",
+        Title = "🔍 Memindai Inventory (Not Working now)",
         Content = "Mengecek ikan yang ada...",
         Duration = 2,
         Image = 4483362458
@@ -1304,15 +1304,6 @@ MainTab:CreateDropdown({
     end,
 })
 
-MainTab:CreateButton({
-    Name = "🔍 Scan Inventory Sekarang",
-    Callback = function()
-        scanAndFavoriteExistingFish()
-    end,
-})
-
-MainTab:CreateLabel("💡 Info Tier:")
-MainTab:CreateLabel("Tier 7 = Secret | Tier 6 = Mythic | Tier 5 = Legendary")
 
 MainTab:CreateSection("Auto Farm")
 
