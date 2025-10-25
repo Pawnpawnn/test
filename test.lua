@@ -1767,7 +1767,7 @@ local function updateEventButtons()
 
     -- Hapus button lama
     for _, b in pairs(eventButtons) do
-        b:Destroy()
+        b:Remove()
     end
     table.clear(eventButtons)
 
@@ -1796,7 +1796,6 @@ local function updateEventButtons()
     lastEventSnapshot = events
 end
 
-updateEventButtons()
 
 
 -- Manual refresh button (di atas)
@@ -1823,6 +1822,7 @@ task.spawn(function()
     end
 end)
 
+updateEventButtons()
 
 
 -- Webhook Tab
