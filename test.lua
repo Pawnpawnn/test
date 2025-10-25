@@ -459,127 +459,6 @@ local function setupRemotes()
     return true
 end
 
-ok itu udah aman, ini bisa dicepetin lagi ga si 0.0001 super duper fasy
-
--- ===================================
--- ========== ULTRA INSTANT BITE =====
--- ===================================
-
-local function ExecuteUltraBiteCycle()
-    local catches = 0
-    
-    -- AUTO FISHING COMPLETE PROCESS - INSTANT BITE
-    pcall(function()
-        -- STEP 1: AUTO EQUIP
-        if equipRemote then
-            equipRemote:FireServer(1) -- Equip fishing rod
-        end
-        
-        -- STEP 2: AUTO CHARGE/LEMPAR
-        if ChargeRod then
-            ChargeRod:InvokeServer(tick()) -- Instant charge
-        end
-        
-        -- STEP 3: AUTO MINIGAME - INSTANT BITE BYPASS!
-        if StartMini then
-            -- BYPASS MENUNGGU IKAN MAKAN UMPAN
-            -- Langsung mulai minigame dengan perfect score
-            StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
-        end
-        
-        -- STEP 4: AUTO FINISH COMPLETE
-        if FinishFish then
-            FinishFish:FireServer() -- Complete fishing
-        end
-        
-        -- STEP 5: AUTO FISH CAUGHT
-        if FishCaught then
-            -- Dapat ikan rare
-            FishCaught:FireServer({
-                Name = "Plz Secret",
-                Tier = math.random(5, 7),
-                SellPrice = math.random(15000, 40000),
-                Rarity = "LEGENDARY"
-            })
-            catches = 1
-        end
-        
-        -- EXTRA: MASS CATCH FOR MAX PERFORMANCE
-        if Config.MaxPerformance and FishCaught then
-            for i = 1, 2 do -- Extra 2 fish
-                FishCaught:FireServer({
-                    Name = "🚀 ULTRA FISH",
-                    Tier = math.random(6, 7),
-                    SellPrice = math.random(20000, 50000),
-                    Rarity = "MYTHIC"
-                })
-                catches = catches + 1
-            end
-        end
-    end)
-    
-    return catches
-end
-
-local function StartUltraInstantBite()
-    if UltraBiteActive then return end
-    
-    print("🚀 ACTIVATING ULTRA INSTANT BITE...")
-    
-    UltraBiteActive = true
-    TotalCatches = 0
-    StartTime = tick()
-    
-    -- MAIN ULTRA BITE LOOP
-    task.spawn(function()
-        while UltraBiteActive do
-            local cycleStart = tick()
-            
-            -- EXECUTE COMPLETE FISHING CYCLE
-            local catchesThisCycle = ExecuteUltraBiteCycle()
-            TotalCatches = TotalCatches + catchesThisCycle
-            
-            -- ULTRA FAST CYCLE TIMING - FIXED 0.1s
-            local cycleTime = tick() - cycleStart
-            local waitTime = math.max(0.1 - cycleTime, 0.01) -- TETAP 0.1
-            
-            task.wait(waitTime)
-        end
-    end)
-    
-    -- PERFORMANCE MONITOR
-    task.spawn(function()
-        while UltraBiteActive do
-            local elapsed = tick() - StartTime
-            local currentRate = math.floor(TotalCatches / math.max(elapsed, 1))
-            
-            task.wait(0.5)
-        end
-    end)
-    
-    Rayfield:Notify({
-        Title = "🚀 Fishing V2 Activated",
-        Content = "Speed: 0.1s", -- TAMPILKAN SPEED TETAP
-        Duration = 5
-    })
-end
-
-local function StopUltraInstantBite()
-    if not UltraBiteActive then return end
-    
-    UltraBiteActive = false
-    
-    local totalTime = tick() - StartTime
-    local avgRate = math.floor(TotalCatches / math.max(totalTime, 1))
-    
-    Rayfield:Notify({
-        Title = "🛑 Fishing V2 stopped",
-        Content = "Total: " .. TotalCatches .. " fish | Avg: " .. avgRate .. "/sec",
-        Duration = 5
-    })
-    
-end
-
 -- ===================================
 -- ========== EXTREME CHAOS MODE =====
 -- ===================================
@@ -722,6 +601,127 @@ local function StopExtremeChaosMode()
     print("💀 EXTREME CHAOS MODE DEACTIVATED 💀")
     print("📊 Final Stats: " .. TotalCatches .. " fish in " .. string.format("%.1f", totalTime) .. "s")
 end
+
+
+-- ===================================
+-- ========== ULTRA INSTANT BITE =====
+-- ===================================
+
+local function ExecuteUltraBiteCycle()
+    local catches = 0
+    
+    -- AUTO FISHING COMPLETE PROCESS - INSTANT BITE
+    pcall(function()
+        -- STEP 1: AUTO EQUIP
+        if equipRemote then
+            equipRemote:FireServer(1) -- Equip fishing rod
+        end
+        
+        -- STEP 2: AUTO CHARGE/LEMPAR
+        if ChargeRod then
+            ChargeRod:InvokeServer(tick()) -- Instant charge
+        end
+        
+        -- STEP 3: AUTO MINIGAME - INSTANT BITE BYPASS!
+        if StartMini then
+            -- BYPASS MENUNGGU IKAN MAKAN UMPAN
+            -- Langsung mulai minigame dengan perfect score
+            StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
+        end
+        
+        -- STEP 4: AUTO FINISH COMPLETE
+        if FinishFish then
+            FinishFish:FireServer() -- Complete fishing
+        end
+        
+        -- STEP 5: AUTO FISH CAUGHT
+        if FishCaught then
+            -- Dapat ikan rare
+            FishCaught:FireServer({
+                Name = "Plz Secret",
+                Tier = math.random(5, 7),
+                SellPrice = math.random(15000, 40000),
+                Rarity = "LEGENDARY"
+            })
+            catches = 1
+        end
+        
+        -- EXTRA: MASS CATCH FOR MAX PERFORMANCE
+        if Config.MaxPerformance and FishCaught then
+            for i = 1, 2 do -- Extra 2 fish
+                FishCaught:FireServer({
+                    Name = "🚀 ULTRA FISH",
+                    Tier = math.random(6, 7),
+                    SellPrice = math.random(20000, 50000),
+                    Rarity = "MYTHIC"
+                })
+                catches = catches + 1
+            end
+        end
+    end)
+    
+    return catches
+end
+
+local function StartUltraInstantBite()
+    if UltraBiteActive then return end
+    
+    print("🚀 ACTIVATING ULTRA INSTANT BITE...")
+    
+    UltraBiteActive = true
+    TotalCatches = 0
+    StartTime = tick()
+    
+    -- MAIN ULTRA BITE LOOP
+    task.spawn(function()
+        while UltraBiteActive do
+            local cycleStart = tick()
+            
+            -- EXECUTE COMPLETE FISHING CYCLE
+            local catchesThisCycle = ExecuteUltraBiteCycle()
+            TotalCatches = TotalCatches + catchesThisCycle
+            
+            -- ULTRA FAST CYCLE TIMING - FIXED 0.1s
+            local cycleTime = tick() - cycleStart
+            local waitTime = math.max(0.1 - cycleTime, 0.01) -- TETAP 0.1
+            
+            task.wait(waitTime)
+        end
+    end)
+    
+    -- PERFORMANCE MONITOR
+    task.spawn(function()
+        while UltraBiteActive do
+            local elapsed = tick() - StartTime
+            local currentRate = math.floor(TotalCatches / math.max(elapsed, 1))
+            
+            task.wait(0.5)
+        end
+    end)
+    
+    Rayfield:Notify({
+        Title = "🚀 Fishing V2 Activated",
+        Content = "Speed: 0.1s", -- TAMPILKAN SPEED TETAP
+        Duration = 5
+    })
+end
+
+local function StopUltraInstantBite()
+    if not UltraBiteActive then return end
+    
+    UltraBiteActive = false
+    
+    local totalTime = tick() - StartTime
+    local avgRate = math.floor(TotalCatches / math.max(totalTime, 1))
+    
+    Rayfield:Notify({
+        Title = "🛑 Fishing V2 stopped",
+        Content = "Total: " .. TotalCatches .. " fish | Avg: " .. avgRate .. "/sec",
+        Duration = 5
+    })
+    
+end
+
 
 -- ===================================
 -- ========== ENHANCE FISHING ========
@@ -1608,31 +1608,6 @@ PatchNote:CreateButton({
 -- Main Tab
 local MainTab = Window:CreateTab("🔥 Main Tab", 4483362458)
 
-MainTab:CreateSection("🚀 Auto Fishing x2")
-
-MainTab:CreateToggle({
-    Name = "⚡ Auto Fishing x2",
-    CurrentValue = false,
-    Flag = "UltraBiteToggle",
-    Callback = function(Value)
-        if Value then
-            StartUltraInstantBite()
-        else
-            StopUltraInstantBite()
-        end
-    end,
-})
-
-MainTab:CreateToggle({
-    Name = "🚀 Max Performance",
-    CurrentValue = true,
-    Flag = "MaxPerformanceToggle",
-    Callback = function(Value)
-        Config.MaxPerformance = Value
-    end,
-})
-
-MainTab:CreateSection("💀 EXTREME CHAOS MODE")
 
 MainTab:CreateParagraph({
     Title = "⚠️ WARNING",
@@ -1690,9 +1665,29 @@ MainTab:CreateSlider({
     end
 })
 
-MainTab:CreateLabel("💀 Expected Rate: " .. (EXTREME_THREADS * BATCH_SIZE * 10000) .. " fish/sec")
+MainTab:CreateSection("🚀 Auto Fishing x2")
 
+MainTab:CreateToggle({
+    Name = "⚡ Auto Fishing x2",
+    CurrentValue = false,
+    Flag = "UltraBiteToggle",
+    Callback = function(Value)
+        if Value then
+            StartUltraInstantBite()
+        else
+            StopUltraInstantBite()
+        end
+    end,
+})
 
+MainTab:CreateToggle({
+    Name = "🚀 Max Performance",
+    CurrentValue = true,
+    Flag = "MaxPerformanceToggle",
+    Callback = function(Value)
+        Config.MaxPerformance = Value
+    end,
+})
 
 MainTab:CreateSection("Auto Fishing")
 
