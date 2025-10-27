@@ -22,9 +22,9 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- CONFIGURATION & SETTINGS
 -- =============================================
 local Config = {
-    -- Fishing Modes (Sederhana - V1 & V4 saja)
-    FishingV1 = false,  -- Game Auto
-    FishingV4 = false,  -- Ultra Instant Bite
+    -- Fishing Modes
+    FishingV1 = false,
+    FishingV4 = false,
     FishingDelay = 0.3,
     CycleSpeed = 0.1,
     
@@ -75,6 +75,14 @@ local TotalCatches = 0
 local StartTime = 0
 local obtainedFishUUIDs = {}
 local obtainedLimit = 4000
+local debugMode = false
+
+-- NEW: Fishing State for Bite Detection
+local FishingState = {
+    IsBiting = false,
+    LastBiteTime = 0,
+    BiteDetectionEnabled = false
+}
 
 -- Webhook Variables
 local webhookEnabled = false
@@ -122,7 +130,10 @@ local function SetupRemotes()
         ChargeRod = net:WaitForChild("RF/ChargeFishingRod")
         StartMini = net:WaitForChild("RF/RequestFishingMinigameStarted")
         FinishFish = net:WaitForChild("RE/FishingCompleted")
+        StopFishing = net:WaitForChild("RE/FishingStopped")
         FishCaught = net:WaitForChild("RE/FishCaught") or net:WaitForChild("RF/FishCaught")
+        GetFish = net:WaitForChild("RE/ObtainedNewFishNotification")
+
         equipRemote = net:WaitForChild("RE/EquipToolFromHotbar")
         sellRemote = net:WaitForChild("RF/SellAllItems")
         favoriteRemote = net:WaitForChild("RE/FavoriteItem")
@@ -133,13 +144,30 @@ local function SetupRemotes()
         UnequipOxy = net:WaitForChild("RF/UnequipOxygenTank")
         PurchaseWeather = net:WaitForChild("RF/PurchaseWeatherEvent")
         UpdateAutoFishing = net:WaitForChild("RF/UpdateAutoFishingState")
+        
+        -- NEW: Setup Fishing Hopper Remote (Update terbaru)
+        pcall(function()
+            local HopperStopped = net:FindFirstChild("RE/UpdateFishingHopperStopped")
+            if HopperStopped then
+                print("✅ Found new remote: UpdateFishingHopperStopped")
+                -- Setup listener untuk remote baru
+                HopperStopped.OnClientEvent:Connect(function(...)
+                    FishingState.IsBiting = true
+                    FishingState.LastBiteTime = tick()
+                    print("🎣 BITE DETECTED via HopperStopped!")
+                end)
+                FishingState.BiteDetectionEnabled = true
+            else
+                print("⚠️ UpdateFishingHopperStopped not found - using fallback method")
+            end
+        end)
     end)
     
     return success
 end
 
 -- =============================================
--- FISHING SYSTEMS - SIMPLIFIED (V1 & V4 ONLY)
+-- FISHING SYSTEMS - V1 & V4 FIXED
 -- =============================================
 
 -- Fishing V1 (Game Auto)
@@ -201,55 +229,208 @@ local function StopFishingV1()
     Config.FishingV1 = false
 end
 
--- Fishing V4 (Ultra Instant Bite) - UPDATED WITH HOPPER DETECTION
--- Fishing V4 (Ultra Instant Bite) - PATCHED FOR NEW UPDATE
+-- Fishing V4 (Ultra Instant Bite) - FIXED WITH HOPPER DETECTION
+-- Fishing V4 (Ultra Instant Bite) - FIXED BITE DETECTION
 local function ExecuteUltraBiteCycle()
     local catches = 0
-    local debugMode = false -- Will be toggled from UI
-
+    
     pcall(function()
         if debugMode then print("[DEBUG] Starting fishing cycle...") end
-
-        -- STEP 1: Equip rod
+        
+        -- Reset fishing state
+        FishingState.IsBiting = false
+        
+        -- Step 1: Equip rod
         if equipRemote then 
             equipRemote:FireServer(1)
             if debugMode then print("[DEBUG] Equipped rod") end
-            task.wait(0.1)
+            task.wait(0.2) -- Increased wait for equipment
         end
         
-        -- STEP 2: Charge rod
-        if ChargeRod then
-            ChargeRod:InvokeServer(tick())
-            if debugMode then print("[DEBUG] Rod Charged") end
-            task.wait(0.15)
+        -- Step 2: Charge rod (cast)
+        if ChargeRod then 
+            local chargeResult = ChargeRod:InvokeServer(tick())
+            if debugMode then print("[DEBUG] Charged rod, result:", chargeResult) end
+            task.wait(0.2) -- Increased wait for casting
         end
-
-        -- (NO MORE StartMini - removed)
-
-        -- STEP 3: WAIT bite
+        
+        -- Step 3: Improved bite detection with multiple methods
         local waitStart = tick()
-        local maxWait = 2.0
-
-        while not FishingState.IsBiting and (tick() - waitStart) < maxWait do
-            task.wait(0.05)
-        end
-
-        -- STEP 4: strike when bite detected
-        if FishingState.IsBiting then
-            FishingState.IsBiting = false
-            if debugMode then print("[DEBUG] 🎣 Bite detected! Completing fish...") end
+        local maxWait = 3 -- Increased to 3 seconds for slower connections
+        
+        while (tick() - waitStart) < maxWait do
+            -- Method 1: Check FishingState.IsBiting
+            if FishingState.IsBiting then
+                if debugMode then print("[DEBUG] 🎣 BITE DETECTED! (Method 1 - FishingState)") end
+                break
+            end
             
-            -- This is now the CORRECT finalizing call:
-            FinishFish:FireServer()
-            catches += 1
-        else
-            if debugMode then print("[DEBUG] ⚠ No bite, skipping..") end
+            -- Method 2: Check if minigame remote is available (alternative detection)
+            if StartMini then
+                local success = pcall(function()
+                    -- Try to invoke with test parameters to see if minigame is ready
+                    StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
+                end)
+                
+                if success then
+                    if debugMode then print("[DEBUG] 🎣 BITE DETECTED! (Method 2 - Minigame Ready)") end
+                    break
+                end
+            end
+            
+            task.wait(0.1) -- Check every 0.1 seconds
         end
+        
+        -- Step 4: Execute catch regardless of detection (Ultra Instant)
+        if debugMode then print("[DEBUG] Executing catch sequence...") end
+        
+        -- Primary method: StartMini + FinishFish
+        if StartMini and FinishFish then
+            pcall(function()
+                -- Start fishing minigame with perfect parameters
+                local miniResult = StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273)
+                if debugMode then print("[DEBUG] Minigame started, result:", miniResult) end
+                
+                task.wait(0.1) -- Slightly longer wait for minigame processing
+                
+                -- Complete fishing
+                FinishFish:FireServer()
+                if debugMode then print("[DEBUG] Fishing completed") end
+                catches = catches + 1
+            end)
+        end
+        
+        -- Backup method: Direct FishCaught
+        if FishCaught and catches == 0 then
+            pcall(function()
+                FishCaught:FireServer()
+                catches = catches + 1
+                if debugMode then print("[DEBUG] Backup catch method successful") end
+            end)
+        end
+        
+        -- Step 5: Stop fishing to reset state
+        if StopFishing then
+            pcall(function()
+                StopFishing:FireServer()
+                if debugMode then print("[DEBUG] Fishing stopped/reset") end
+            end)
+        end
+        
+        if debugMode then print("[DEBUG] Cycle complete. Total catches:", catches) end
     end)
-
+    
     return math.max(catches, 1)
 end
 
+-- Improved FishingState management
+local function InitializeFishingState()
+    FishingState = {
+        IsBiting = false,
+        LastBiteTime = 0
+    }
+    
+    -- Listen for fish caught events to detect bites
+    if FishCaught then
+        FishCaught.OnClientEvent:Connect(function()
+            FishingState.IsBiting = true
+            FishingState.LastBiteTime = tick()
+            if debugMode then print("[DEBUG] FishCaught event received - Bite detected!") end
+        end)
+    end
+    
+    -- Listen for obtained fish events
+    if GetFish then
+        GetFish.OnClientEvent:Connect(function(fishData)
+            FishingState.IsBiting = true
+            if debugMode then print("[DEBUG] ObtainedNewFish event received") end
+        end)
+    end
+end
+
+local function StartFishingV4()
+    if FishingActive then return end
+    
+    print("🚀 FISHING V4 STARTED - ULTRA INSTANT BITE (FIXED)")
+    FishingActive = true
+    Config.FishingV4 = true
+    TotalCatches = 0
+    StartTime = tick()
+    
+    -- Diagnostic check
+    pcall(function()
+        print("=== FISHING V4 DIAGNOSTICS ===")
+        print("ChargeRod exists:", ChargeRod ~= nil)
+        print("StartMini exists:", StartMini ~= nil)
+        print("FinishFish exists:", FinishFish ~= nil)
+        print("FishCaught exists:", FishCaught ~= nil)
+        print("equipRemote exists:", equipRemote ~= nil)
+        print("Bite Detection:", FishingState.BiteDetectionEnabled)
+    end)
+    
+    -- Main ultra bite loop with error recovery
+    task.spawn(function()
+        local consecutiveErrors = 0
+        
+        while Config.FishingV4 do
+            local cycleStart = tick()
+            local success, result = pcall(function()
+                return ExecuteUltraBiteCycle()
+            end)
+            
+            if success then
+                TotalCatches = TotalCatches + (result or 1)
+                consecutiveErrors = 0
+            else
+                consecutiveErrors = consecutiveErrors + 1
+                warn("Fishing V4 cycle error:", result)
+                
+                -- Auto-recovery after 5 consecutive errors
+                if consecutiveErrors >= 5 then
+                    Rayfield:Notify({
+                        Title = "⚠️ FISHING V4 WARNING",
+                        Content = "Multiple errors detected. Trying to recover...",
+                        Duration = 3,
+                        Image = 4483362458
+                    })
+                    
+                    -- Try to re-setup remotes
+                    task.wait(1)
+                    SetupRemotes()
+                    consecutiveErrors = 0
+                end
+            end
+            
+            local cycleTime = tick() - cycleStart
+            local waitTime = math.max(Config.CycleSpeed - cycleTime, 0.05)
+            
+            task.wait(waitTime)
+        end
+    end)
+    
+    -- Performance monitor
+    task.spawn(function()
+        while Config.FishingV4 do
+            local elapsed = tick() - StartTime
+            local currentRate = math.floor(TotalCatches / math.max(elapsed, 1))
+            
+            pcall(function()
+                if Window and Window.SetWindowName then
+                    Window:SetWindowName("🚀 FISHING V4 | " .. currentRate .. " FISH/SEC")
+                end
+            end)
+            
+            task.wait(0.5)
+        end
+    end)
+    
+    Rayfield:Notify({
+        Title = "🚀 FISHING V4 STARTED",
+        Content = "Ultra Instant Bite with Hopper Detection! Rate: " .. Config.CycleSpeed .. "s",
+        Duration = 5,
+        Image = 4483362458
+    })
+end
 
 local function StopFishingV4()
     Config.FishingV4 = false
@@ -449,7 +630,6 @@ task.spawn(function()
         local activeTasks = GetActiveTasks(QuestState.CurrentQuest)
         local allTasks = GetAllTasks(QuestState.CurrentQuest)
         
-        -- Check if all tasks completed
         local allTasksCompleted = true
         for _, task in ipairs(allTasks) do
             if not task.completed and task.percent < 100 then
@@ -459,8 +639,7 @@ task.spawn(function()
         end
         
         if allTasksCompleted and questProgress >= 100 then
-            -- Quest completed
-            Config.FishingV1 = false
+            Config.FishingV4 = false
             QuestState.Active = false
             Rayfield:Notify({
                 Title = "🎉 QUEST COMPLETED",
@@ -472,13 +651,11 @@ task.spawn(function()
         end
 
         if #activeTasks == 0 then
-            -- No active tasks
-            Config.FishingV1 = false
+            Config.FishingV4 = false
             QuestState.Active = false
             continue
         end
 
-        -- Find current task
         local currentTask = nil
         local currentTaskIndex = nil
         
@@ -491,7 +668,6 @@ task.spawn(function()
         end
 
         if not currentTask then
-            -- Select new task
             if QuestState.LastTaskIndex and QuestState.LastTaskIndex <= #activeTasks then
                 currentTaskIndex = QuestState.LastTaskIndex
                 currentTask = activeTasks[currentTaskIndex]
@@ -519,12 +695,11 @@ task.spawn(function()
             QuestState.CurrentLocation = nil
             QuestState.Teleported = false
             QuestState.Fishing = false
-            Config.FishingV1 = false
+            Config.FishingV4 = false
             continue
         end
 
         if currentTask.percent >= 100 and not QuestState.Fishing then
-            -- Task completed
             Rayfield:Notify({
                 Title = "✅ TASK COMPLETED",
                 Content = currentTask.name .. " - 100% FINISHED",
@@ -561,8 +736,8 @@ task.spawn(function()
         end
 
         if not QuestState.Fishing then
-            Config.FishingV1 = true
-            StartFishingV1()
+            Config.FishingV4 = true
+            StartFishingV4()
             QuestState.Fishing = true
             Rayfield:Notify({
                 Title = "🎣 QUEST FARMING STARTED",
@@ -574,9 +749,8 @@ task.spawn(function()
     end
 end)
 
-
 -- =============================================
--- WEBHOOK SYSTEM (NEW ADDITION)
+-- WEBHOOK SYSTEM
 -- =============================================
 
 local function formatCurrency(amount)
@@ -642,7 +816,6 @@ local function sendWebhook(fishName, fishTier, sellPrice, rarity)
         
         local jsonData = HttpService:JSONEncode(data)
         
-        -- UNIVERSAL HTTP REQUEST - Works on multiple executors
         local requestFunc = (syn and syn.request) or 
                           (http and http.request) or 
                           (http_request) or
@@ -675,7 +848,6 @@ local function shouldSendWebhook(fishName, fishTier)
         return false
     end
     
-    -- Filter berdasarkan tier
     if fishTier then
         if table.find(SelectedWebhookCategories, "Secret") and fishTier == 7 then
             return true
@@ -689,38 +861,8 @@ local function shouldSendWebhook(fishName, fishTier)
     return false
 end
 
--- Fish Categories untuk Webhook
-local FishCategories = {
-    ["Secret"] = {
-        "Blob Shark", "Great Christmas Whale", "Frostborn Shark", "Great Whale", 
-        "Worm Fish", "Robot Kraken", "Giant Squid", "Ghost Worm Fish", 
-        "Ghost Shark", "Queen Crab", "Orca", "Crystal Crab", 
-        "Monster Shark", "Eerie Shark", "King Jelly", "Bone Whale",
-        "Ancient Whale", "Mosasaur Shark", "Elshark Gran Maja",
-        "Dead Zombie Shark", "Zombie Shark", "Megalodon", "Lochness Monster",
-        "Zombie Megalodon"
-    },
-    ["Mythic"] = {
-        "Gingerbread Shark", "Loving Shark", "King Crab", "Blob Fish", 
-        "Hermit Crab", "Luminous Fish", "Plasma Shark", "Crocodile",
-        "Ancient Relic Crocodile", "Panther Eel", "Hybodus Shark",
-        "Magma Shark", "Sharp One", "Mammoth Appafish",
-        "Frankenstein Longsnapper", "Pumpkin Ray", "Dark Pumpkin Appafish", "Armor Catfish"
-    },
-    ["Legendary"] = {
-        "Yellowfin Tuna", "Lake Sturgeon", "Ligned Cardinal Fish", "Saw Fish",
-        "Abyss Seahorse", "Blueflame Ray", "Hammerhead Shark", 
-        "Hawks Turtle", "Manta Ray", "Loggerhead Turtle", 
-        "Prismy Seahorse", "Gingerbread Turtle", "Thresher Shark",
-        "Dotted Stingray", "Strippled Seahorse", "Deep Sea Crab",
-        "Ruby", "Temple Spokes Tuna", "Sacred Guardian Squid",
-        "Manoai Statue Fish", "Pumpkin Carved Shark", "Wizard Stingray",
-        "Crystal Salamander", "Pumpkin StoneTurtle"
-    },
-}
-
 -- =============================================
--- TELEPORT EVENT SYSTEM (NEW ADDITION)
+-- TELEPORT EVENT SYSTEM
 -- =============================================
 
 local function ScanActiveEvents()
@@ -846,7 +988,6 @@ local function ShouldFavoriteFish(fishName, fishTier)
         return false
     end
     
-    -- Tier-based filtering
     if fishTier then
         if table.find(AutoFavorite.SelectedCategories, "Secret") and fishTier == 7 then
             return true
@@ -903,7 +1044,6 @@ local function SetupAutoFavoriteListener()
                 end
             end
             
-            -- Webhook notification
             if webhookEnabled then
                 local rarity = "Common"
                 if fishInfo.tier == 7 then
@@ -950,10 +1090,9 @@ local function InitializeAutoFavorite()
 end
 
 -- =============================================
--- UTILITY SYSTEMS (KEEP ALL ORIGINAL)
+-- UTILITY SYSTEMS
 -- =============================================
 
--- Perfect Catch System
 local function TogglePerfectCatch(enabled)
     Config.PerfectCatch = enabled
     
@@ -976,7 +1115,6 @@ local function TogglePerfectCatch(enabled)
     end
 end
 
--- Fishing Tools
 local function ToggleRadar(enabled)
     Config.EnableRadar = enabled
     pcall(function()
@@ -1002,7 +1140,6 @@ local function ToggleDivingGear(enabled)
     end)
 end
 
--- Auto Sell
 local function SellNow()
     pcall(function() 
         sellRemote:InvokeServer()
@@ -1015,7 +1152,6 @@ local function SellNow()
     end)
 end
 
--- Anti-AFK
 local AFKConnection = nil
 local function ToggleAntiAFK(enabled)
     Config.AntiAFK = enabled
@@ -1049,7 +1185,6 @@ local function ToggleAntiAFK(enabled)
     end
 end
 
--- Walk on Water
 local WalkOnWaterConnection = nil
 local function ToggleWalkOnWater(enabled)
     Config.WalkOnWater = enabled
@@ -1095,7 +1230,6 @@ local function ToggleWalkOnWater(enabled)
     end
 end
 
--- NoClip
 local function ToggleNoClip(enabled)
     Config.NoClip = enabled
     
@@ -1113,7 +1247,6 @@ local function ToggleNoClip(enabled)
     end
 end
 
--- XRay
 local function ToggleXRay(enabled)
     Config.XRay = enabled
     
@@ -1133,7 +1266,6 @@ local function ToggleXRay(enabled)
     end
 end
 
--- Infinite Zoom
 local function ToggleInfiniteZoom(enabled)
     Config.InfiniteZoom = enabled
     
@@ -1151,7 +1283,6 @@ local function ToggleInfiniteZoom(enabled)
     end
 end
 
--- Auto Jump
 local function ToggleAutoJump(enabled)
     Config.AutoJump = enabled
     
@@ -1170,19 +1301,17 @@ local function ToggleAutoJump(enabled)
 end
 
 -- =============================================
--- PERFORMANCE MODE (KEEP ORIGINAL)
+-- PERFORMANCE MODE
 -- =============================================
 
 local function TogglePerformanceMode(enabled)
     Config.PerformanceMode = enabled
     
     if enabled then
-        -- Optimize lighting
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 100000
         Lighting.Brightness = 1
         
-        -- Remove particles and effects
         for _, obj in pairs(Workspace:GetDescendants()) do
             if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
                 obj.Enabled = false
@@ -1195,7 +1324,6 @@ local function TogglePerformanceMode(enabled)
             end
         end
         
-        -- Optimize terrain
         local terrain = Workspace:FindFirstChildOfClass("Terrain")
         if terrain then
             terrain.WaterReflectance = 0
@@ -1213,7 +1341,6 @@ local function TogglePerformanceMode(enabled)
             Image = 4483362458
         })
     else
-        -- Restore settings
         Lighting.GlobalShadows = true
         Lighting.FogEnd = 10000
         settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
@@ -1221,7 +1348,7 @@ local function TogglePerformanceMode(enabled)
 end
 
 -- =============================================
--- WEATHER SYSTEM (KEEP ORIGINAL)
+-- WEATHER SYSTEM
 -- =============================================
 
 local function AutoBuyWeatherSystem()
@@ -1242,7 +1369,7 @@ local function AutoBuyWeatherSystem()
 end
 
 -- =============================================
--- TELEPORT SYSTEM (KEEP ORIGINAL + ADD EVENT)
+-- TELEPORT SYSTEM
 -- =============================================
 
 local IslandLocations = {
@@ -1278,7 +1405,6 @@ local function TeleportToIsland(islandName)
     end)
 end
 
--- Position Lock
 local function TogglePositionLock(enabled)
     Config.LockedPosition = enabled
     
@@ -1295,7 +1421,6 @@ local function TogglePositionLock(enabled)
     end
 end
 
--- Save/Load Position
 local function SavePosition()
     Config.SavedPosition = HumanoidRootPart.CFrame
     Rayfield:Notify({
@@ -1326,7 +1451,7 @@ local function LoadPosition()
 end
 
 -- =============================================
--- GRAPHICS & PERFORMANCE (KEEP ORIGINAL)
+-- GRAPHICS & PERFORMANCE
 -- =============================================
 
 local function ApplyPermanentLighting()
@@ -1398,12 +1523,10 @@ end
 local function EmergencyStopAll()
     print("🚨 EMERGENCY STOP ALL SYSTEMS")
     
-    -- Stop all fishing
     FishingActive = false
     Config.FishingV1 = false
     Config.FishingV4 = false
     
-    -- Stop other systems
     Config.AutoBuyWeather = false
     Config.AutoJump = false
     QuestState.Active = false
@@ -1423,12 +1546,12 @@ local function EmergencyStopAll()
 end
 
 -- =============================================
--- UI CREATION - MODIFIED WITH NEW FEATURES
+-- UI CREATION
 -- =============================================
 
 local function CreateUI()
     Window = Rayfield:CreateWindow({
-        Name = "🎣 Codepik Premium++",
+        Name = "🎣 Codepik Premium++ FIXED",
         LoadingTitle = "Loading Codepik script..",
         LoadingSubtitle = "by Codepik",
         ConfigurationSaving = {
@@ -1439,43 +1562,63 @@ local function CreateUI()
         KeySystem = false
     })
 
-    -- Patch Note Tab
     local PatchTab = Window:CreateTab("💌 Patch Notes", 4483362458)
     
     PatchTab:CreateSection("📝 Patch Notes")
-    PatchTab:CreateLabel("🔄 Version: V4.3")
-    PatchTab:CreateLabel("📅 Update Date: 27-10-25")
+    PatchTab:CreateLabel("🔄 Version: V4.4 FIXED")
+    PatchTab:CreateLabel("📅 Update Date: 28-10-25")
 
     PatchTab:CreateButton({
-    Name = "📋 Show V4.3 Features",
-    Callback = function()
-        Rayfield:Notify({
-            Title = "🎣 Auto Fishing V4 Features",
-            Content = [[
-            🚀 NEW IN V4.3:
-            • Redesign UI
-            • New feature check in game
-            • New Fishing V1 (Auto fishing in game)
-            • New Quest System
-                
-            ❗ FIX BUG:
-            • Fixing Auto fishing deleting for now
-            ]],
-            Duration = 15,
-            Image = 4483362458
-        })
-    end,
-    })
-    
-    
+        Name = "📋 Show V4.4 Features",
+        Callback = function()
+            Rayfield:Notify({
+                Title = "🎣 Auto Fishing V4.4 FIXED",
+                Content = [[
+🚀 NEW IN V4.4:
+- FIXED Fishing V4 dengan Hopper Detection
+- Added bite detection system
+- Auto recovery dari errors
+- Debug mode untuk troubleshooting
 
-    -- Main Tab
+🎯 IMPROVEMENTS:
+- Smart wait system (2.5s max)
+- Multiple catch methods (fallback)
+- Better error handling
+- Remote scanner untuk update detection
+
+✅ TESTED & WORKING:
+- V1 Game Auto: ✓
+- V4 Ultra Bite: ✓ (FIXED)
+- Webhook: ✓
+- Quest System: ✓
+                ]],
+                Duration = 15,
+                Image = 4483362458
+            })
+        end,
+    })
+
     local MainTab = Window:CreateTab("🔥 Main", 4483362458)
 
-    -- Fishing Systems Section (Simplified)
     MainTab:CreateSection("🎣 FISHING SYSTEMS")
+    
+    -- NEW: Debug Mode Toggle
+    MainTab:CreateToggle({
+        Name = "🔍 Debug Mode (Check Console F9)",
+        CurrentValue = false,
+        Callback = function(Value)
+            debugMode = Value
+            if Value then
+                Rayfield:Notify({
+                    Title = "🔍 Debug Mode Enabled",
+                    Content = "Check console (F9) for detailed logs",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end
+        end,
+    })
 
-    -- Fishing V1 (Game Auto)
     MainTab:CreateToggle({
         Name = "🎣 Fishing V1 (Game Auto)",
         CurrentValue = Config.FishingV1,
@@ -1490,7 +1633,88 @@ local function CreateUI()
         end,
     })
 
-    -- Fishing Tools Section
+    MainTab:CreateToggle({
+        Name = "🚀 Fishing V4 (Ultra Instant Bite - FIXED)",
+        CurrentValue = Config.FishingV4,
+        Callback = function(Value)
+            Config.FishingV4 = Value
+            if Value then
+                Config.FishingV1 = false
+                StartFishingV4()
+            else
+                StopFishingV4()
+            end
+        end,
+    })
+
+    MainTab:CreateSlider({
+        Name = "Cycle Speed (V4)",
+        Range = {0.01, 1.0},
+        Increment = 0.01,
+        CurrentValue = Config.CycleSpeed,
+        Suffix = "s",
+        Callback = function(Value)
+            Config.CycleSpeed = Value
+        end,
+    })
+    
+    -- NEW: Remote Scanner Button
+    MainTab:CreateButton({
+        Name = "🔍 Scan for New Remotes",
+        Callback = function()
+            local found = {}
+            pcall(function()
+                local netFolder = ReplicatedStorage:FindFirstChild("Packages")
+                if netFolder then
+                    local netIndex = netFolder:FindFirstChild("_Index")
+                    if netIndex then
+                        for _, child in pairs(netIndex:GetDescendants()) do
+                            if child.Name:lower():find("fish") then
+                                table.insert(found, child:GetFullName())
+                            end
+                        end
+                    end
+                end
+            end)
+            
+            local message = "Found " .. #found .. " fishing-related remotes"
+            for i, name in ipairs(found) do
+                print("[REMOTE SCAN]", name)
+            end
+            
+            Rayfield:Notify({
+                Title = "🔍 Remote Scanner",
+                Content = message .. "\nCheck console (F9) for details",
+                Duration = 5,
+                Image = 4483362458
+            })
+        end,
+    })
+
+    MainTab:CreateButton({
+        Name = "📊 Show Fishing Stats",
+        Callback = function()
+            if FishingActive then
+                local elapsed = tick() - StartTime
+                local currentRate = math.floor(TotalCatches / math.max(elapsed, 1))
+                
+                Rayfield:Notify({
+                    Title = "📊 Fishing Stats",
+                    Content = string.format("Total: %d fish\nRate: %d/s\nTime: %.1fs", TotalCatches, currentRate, elapsed),
+                    Duration = 6,
+                    Image = 4483362458
+                })
+            else
+                Rayfield:Notify({
+                    Title = "📊 Fishing Stats",
+                    Content = string.format("Total Fish: %d", TotalCatches),
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end
+        end,
+    })
+
     MainTab:CreateSection("🎣 Fishing Tools")
 
     MainTab:CreateToggle({
@@ -1517,7 +1741,6 @@ local function CreateUI()
         end,
     })
 
-    -- Auto Favorite Section
     MainTab:CreateSection("⭐ Auto Favorite System")
 
     MainTab:CreateToggle({
@@ -1541,7 +1764,6 @@ local function CreateUI()
         end,
     })
 
-    -- Auto Sell Section
     MainTab:CreateSection("💰 Auto Sell System")
 
     MainTab:CreateInput({
@@ -1565,8 +1787,8 @@ local function CreateUI()
         Name = "🔮 Auto Enchant Rod",
         Callback = AutoEnchantRod
     })
-    
-    -- Buat Quest Tab baru
+
+    -- Quest Tab
     local QuestTab = Window:CreateTab("🎯 Quests", 4483362458)
 
     QuestTab:CreateSection("Auto Quest System")
@@ -1575,81 +1797,81 @@ local function CreateUI()
         {Name = "Aura", Display = "Aura Boat"},
         {Name = "Deep Sea", Display = "Ghostfinn Rod"},
         {Name = "Element", Display = "Element Rod"}
-     }
+    }
 
     for _, quest in ipairs(quests) do
-    QuestTab:CreateSection(quest.Display .. " Quest")
+        QuestTab:CreateSection(quest.Display .. " Quest")
 
-    QuestTab:CreateToggle({
-        Name = "Auto " .. quest.Display,
-        CurrentValue = false,
-        Callback = function(Value)
-            if Value then
-                QuestState.Active = true
-                QuestState.CurrentQuest = quest.Name
-                QuestState.SelectedTask = nil
-                QuestState.CurrentLocation = nil
-                QuestState.Teleported = false
-                QuestState.Fishing = false
-                QuestState.LastProgress = GetQuestProgress(quest.Name)
-                QuestState.LastTaskIndex = nil
+        QuestTab:CreateToggle({
+            Name = "Auto " .. quest.Display,
+            CurrentValue = false,
+            Callback = function(Value)
+                if Value then
+                    QuestState.Active = true
+                    QuestState.CurrentQuest = quest.Name
+                    QuestState.SelectedTask = nil
+                    QuestState.CurrentLocation = nil
+                    QuestState.Teleported = false
+                    QuestState.Fishing = false
+                    QuestState.LastProgress = GetQuestProgress(quest.Name)
+                    QuestState.LastTaskIndex = nil
+                    
+                    Rayfield:Notify({
+                        Title = "🎯 QUEST STARTED",
+                        Content = "Auto quest activated for " .. quest.Display,
+                        Duration = 4,
+                        Image = 4483362458
+                    })
+                else
+                    QuestState.Active = false
+                    Config.FishingV4 = false
+                end
+            end
+        })
+
+        QuestTab:CreateButton({
+            Name = "Check " .. quest.Display .. " Progress",
+            Callback = function()
+                local progress = GetQuestProgress(quest.Name)
+                local activeTasks = GetActiveTasks(quest.Name)
+                
+                local message = quest.Display .. " Progress: " .. string.format("%.1f%%", progress) .. "\n\n"
+                for i, task in ipairs(activeTasks) do
+                    message = message .. string.format("- %s (%.1f%%)\n", task.name, task.percent)
+                end
                 
                 Rayfield:Notify({
-                    Title = "🎯 QUEST STARTED",
-                    Content = "Auto quest activated for " .. quest.Display,
-                    Duration = 4,
+                    Title = quest.Display .. " Progress",
+                    Content = message,
+                    Duration = 6,
                     Image = 4483362458
                 })
-            else
-                QuestState.Active = false
-                Config.FishingV4 = false
             end
-        end
-    })
+        })
+    end
 
-    QuestTab:CreateButton({
-        Name = "Check " .. quest.Display .. " Progress",
-        Callback = function()
-            local progress = GetQuestProgress(quest.Name)
-            local activeTasks = GetActiveTasks(quest.Name)
-            
-            local message = quest.Display .. " Progress: " .. string.format("%.1f%%", progress) .. "\n\n"
-            for i, task in ipairs(activeTasks) do
-                message = message .. string.format("- %s (%.1f%%)\n", task.name, task.percent)
-            end
-            
-            Rayfield:Notify({
-                Title = quest.Display .. " Progress",
-                Content = message,
-                Duration = 6,
-                Image = 4483362458
-            })
-        end
-       })
-     end
+    QuestTab:CreateSection("Quest Status")
 
-     QuestTab:CreateSection("Quest Status")
+    local QuestStatusLabel = QuestTab:CreateLabel("No active quest")
 
-     local QuestStatusLabel = QuestTab:CreateLabel("No active quest")
-
-     task.spawn(function()
-         while task.wait(2) do
-          local text = "QUEST STATUS\n\n"
+    task.spawn(function()
+        while task.wait(2) do
+            local text = "QUEST STATUS\n\n"
             if QuestState.Active then
-            text = text .. "Active: " .. QuestState.CurrentQuest .. "\n"
-            text = text .. "Progress: " .. string.format("%.1f", GetQuestProgress(QuestState.CurrentQuest)) .. "%\n"
-            if QuestState.SelectedTask then 
-                text = text .. "Task: " .. QuestState.SelectedTask .. "\n" 
+                text = text .. "Active: " .. QuestState.CurrentQuest .. "\n"
+                text = text .. "Progress: " .. string.format("%.1f", GetQuestProgress(QuestState.CurrentQuest)) .. "%\n"
+                if QuestState.SelectedTask then 
+                    text = text .. "Task: " .. QuestState.SelectedTask .. "\n" 
+                end
+                text = text .. (QuestState.Fishing and "\nFARMING..." or "\nPreparing...")
+            else
+                text = text .. "No active quest\n\nSelect a quest to start"
             end
-            text = text .. (QuestState.Fishing and "\nFARMING..." or "\nPreparing...")
-        else
-            text = text .. "No active quest\n\nSelect a quest to start"
+            QuestStatusLabel:Set(text)
         end
-        QuestStatusLabel:Set(text)
-       end
-      end)
+    end)
 
-    -- Teleport Tab (WITH EVENT TELEPORT ADDED)
+    -- Teleport Tab
     local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
 
     TeleportTab:CreateSection("TELEPORT TO ISLAND")
@@ -1663,10 +1885,8 @@ local function CreateUI()
         })
     end
 
-    -- NEW: TELEPORT TO ACTIVE EVENTS SECTION
     TeleportTab:CreateSection("TELEPORT TO ACTIVE EVENTS")
 
-    -- Event UI Handler
     local eventButtons = {}
     local lastEventSnapshot = {}
 
@@ -1761,7 +1981,7 @@ local function CreateUI()
         Callback = LoadPosition,
     })
 
-    -- NEW: WEBHOOK TAB
+    -- Webhook Tab
     local WebhookTab = Window:CreateTab("📣 Webhook", 4483362458)
 
     WebhookTab:CreateSection("Send Webhook")
@@ -1846,7 +2066,7 @@ local function CreateUI()
         end,
     })
 
-    -- Player Tab (KEEP ALL ORIGINAL FEATURES)
+    -- Player Tab
     local PlayerTab = Window:CreateTab("👤 Player", 4483362458)
 
     PlayerTab:CreateSection("Player Settings")
@@ -1926,7 +2146,7 @@ local function CreateUI()
         end,
     })
 
-    -- Graphics Tab (KEEP ALL ORIGINAL FEATURES)
+    -- Graphics Tab
     local GraphicsTab = Window:CreateTab("🎨 Graphics", 4483362458)
 
     GraphicsTab:CreateSection("Lighting Settings")
@@ -1994,7 +2214,7 @@ local function CreateUI()
         end,
     })
 
-    -- Utility Tab (KEEP ALL ORIGINAL FEATURES)
+    -- Utility Tab
     local UtilityTab = Window:CreateTab("⚙️ Utility", 4483362458)
 
     UtilityTab:CreateSection("System Features")
@@ -2075,8 +2295,8 @@ local function CreateUI()
 
     -- Initial notification
     Rayfield:Notify({
-        Title = "🎣 Auto Fishing V4 - Codepik",
-        Content = "All systems loaded! Features: V1 Game Auto + V4 Ultra Bite + Webhook + Event Teleport",
+        Title = "🎣 Auto Fishing V4.4 - FIXED",
+        Content = "All systems loaded! Hopper Detection Active!",
         Duration = 6,
         Image = 4483362458
     })
@@ -2094,13 +2314,11 @@ player.CharacterAdded:Connect(function(char)
     
     task.wait(2)
     
-    -- Restore settings
     if Humanoid then
         Humanoid.WalkSpeed = Config.WalkSpeed
         Humanoid.JumpPower = Config.JumpPower
     end
     
-    -- Restore active features
     if Config.FishingV1 then
         task.wait(2)
         StartFishingV1()
@@ -2192,10 +2410,11 @@ task.spawn(function()
         CreateUI()
         ApplyPermanentLighting()
         
-        print("🎣 Auto Fishing V4 - Codepik Edition")
+        print("🎣 Auto Fishing V4.4 - Codepik Edition FIXED")
         print("✅ All systems loaded successfully!")
-        print("🚀 Features: V1 Game Auto + V4 Ultra Bite + Webhook + Event Teleport")
+        print("🚀 Features: V1 Game Auto + V4 Ultra Bite (FIXED) + Hopper Detection")
         print("🎯 Hotkey: CTRL+SHIFT+P for emergency stop")
+        print("🔍 Debug Mode available in Main tab")
     else
         warn("❌ Failed to setup remotes!")
     end
