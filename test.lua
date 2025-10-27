@@ -1,65 +1,719 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Load Rayfield UI Library dengan error handling
+local Rayfield = nil
+local success, err = pcall(function()
+    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
+
+if not success or not Rayfield then
+    warn("Failed to load Rayfield UI")
+    return
+end
 
 -- ===================================
 -- ========== VARIABLES ==============
 -- ===================================
 
--- State Variables
-local autoFishingEnabled = false
-local autoSellEnabled = false
+-- Fish Threshold Variables
+local obtainedFishUUIDs = {}
+local obtainedLimit = 4000
+
 local antiAFKEnabled = false
-local fishingActive = false
-
--- Remote Variables
-local net
-local rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote
-
--- Connection Variables
 local AFKConnection = nil
+
+local autoFavoriteEnabled = false
+
+local autoFarmEnabled = false
+
+local universalNoclip = false
+
+local floatEnabled = false
+
+local autoSellMythicEnabled = false
+
+-- Auto Event Farm Variables
+local autoTPEventEnabled = false
+local savedCFrame = nil
+local alreadyTeleported = false
+teleportTime = nil
+local eventTarget = nil
+
+-- Webhook Variables
+local webhookEnabled = false
+local webhookUrl = ""
+local SelectedWebhookCategories = {"Secret"}
+local LastCatchData = {}
+
+local net, rodRemote, miniGameRemote, finishRemote, equipRemote, sellRemote, favoriteRemote, REEquipItem, RFSellItem
+
+local floatPlatform = nil
+
+-- Auto Farm Variables
+local selectedIsland = "Fisherman Island"
+local farmLocations = {
+    ["Crater Islands"] = {
+        CFrame.new(1066.1864, 57.2025681, 5045.5542, -0.682534158, 1.00865822e-08, 0.730853677, -5.8900711e-09, 1, -1.93017531e-08, -0.730853677, -1.74788859e-08, -0.682534158),
+        CFrame.new(1057.28992, 33.0884132, 5133.79883, 0.833871782, 5.44149223e-08, 0.551958203, -6.58184218e-09, 1, -8.86416984e-08, -0.551958203, 7.02829084e-08, 0.833871782),
+    },
+    ["Tropical Grove"] = {
+        CFrame.new(-2165.05469, 2.77070165, 3639.87451, -0.589090407, -3.61497356e-08, -0.808067143, -3.20645626e-08, 1, -2.13606164e-08, 0.808067143, 1.3326984e-08, -0.589090407)
+    },
+    ["Fisherman Island"] = {
+        CFrame.new(-75.2439423, 3.24433279, 3103.45093, -0.996514142, -3.14880424e-08, -0.0834242329, -3.84156422e-08, 1, 8.14354024e-08, 0.0834242329, 8.43563228e-08, -0.996514142),
+        CFrame.new(-162.285294, 3.26205397, 2954.47412, -0.74356699, -1.93168272e-08, -0.668661416, 1.03873425e-08, 1, -4.04397653e-08, 0.668661416, -3.70152904e-08, -0.74356699),
+    }
+}
+
+-- Player Variables
+local ijumpEnabled = false
+local AntiDrown_Enabled = false
+
+-- Auto Favorite Variables
+local GlobalFav = {
+    FishIdToName = {},
+    FishNameToId = {},
+    FishNames = {},
+    SelectedCategories = {},
+    AutoFavoriteEnabled = false
+}
+
+-- Enhanced Fishing Variables
+local EnhancedFishingActive = false
+local TotalEnhancedCatches = 0
+local EnhancedStartTime = 0
+local ChargeRod, StartMini, FinishFish, FishCaught
+
+-- CONFIGURASI FISHING YANG LEBIH CEPAT
+local ENHANCED_CONFIG = {
+    PARALLEL_THREADS = 1,
+    MASS_BATCH_SIZE = 1,
+    BASE_SPEED = 0.05,  -- LEBIH CEPAT dari sebelumnya (0.1 -> 0.05)
+    MAX_SPEED_MULTIPLIER = 3.0,
+    FISHING_CYCLE_DELAY = 0.02,  -- LEBIH CEPAT (0.05 -> 0.02)
+    INSTANT_BITE_DELAY = 0.01  -- Delay sangat singkat untuk instant bite
+}
+
+-- Fish Categories (Updated berdasarkan Tier)
+local FishCategories = {
+    ["Secret"] = {
+        -- Tier 7 - Paling Langka
+        "Blob Shark", "Great Christmas Whale", "Frostborn Shark", "Great Whale", 
+        "Worm Fish", "Robot Kraken", "Giant Squid", "Ghost Worm Fish", 
+        "Ghost Shark", "Queen Crab", "Orca", "Crystal Crab", 
+        "Monster Shark", "Eerie Shark", "King Jelly", "Bone Whale",
+        "Ancient Whale", "Mosasaur Shark", "Elshark Gran Maja",
+        "Dead Zombie Shark", "Zombie Shark", "Megalodon", "Lochness Monster",
+        "Zombie Megalodon"
+    },
+    ["Mythic"] = {
+        -- Tier 6
+        "Gingerbread Shark", "Loving Shark", "King Crab", "Blob Fish", 
+        "Hermit Crab", "Luminous Fish", "Plasma Shark", "Crocodile",
+        "Ancient Relic Crocodile", "Panther Eel", "Hybodus Shark",
+        "Magma Shark", "Sharp One", "Mammoth Appafish",
+        "Frankenstein Longsnapper", "Pumpkin Ray", "Dark Pumpkin Appafish"
+    },
+    ["Legendary"] = {
+        -- Tier 5
+        "Yellowfin Tuna", "Lake Sturgeon", "Ligned Cardinal Fish", "Saw Fish",
+        "Abyss Seahorse", "Blueflame Ray", "Hammerhead Shark", 
+        "Hawks Turtle", "Manta Ray", "Loggerhead Turtle", 
+        "Prismy Seahorse", "Gingerbread Turtle", "Thresher Shark",
+        "Dotted Stingray", "Strippled Seahorse", "Deep Sea Crab",
+        "Ruby", "Temple Spokes Tuna", "Sacred Guardian Squid",
+        "Manoai Statue Fish", "Pumpkin Carved Shark", "Wizard Stingray",
+        "Crystal Salamander", "Pumpkin StoneTurtle"
+    },
+}
+
+-- Weather Variables
+local weatherActive = {}
+local weatherData = {
+    ["Storm"] = { duration = 900 },
+    ["Cloudy"] = { duration = 900 },
+    ["Snow"] = { duration = 900 },
+    ["Wind"] = { duration = 900 },
+    ["Radiant"] = { duration = 900 }
+}
+
+-- ===================================
+-- ========== ENHANCED FISHING SYSTEM 
+-- ===================================
+
+-- 🚀 INSTANT FISHING FUNCTION - LEBIH CEPAT!
+local function ExecuteInstantFishingCycle()
+    local catches = 0
+    
+    -- PHASE 1: LEMPAR Kail (INSTANT)
+    pcall(function() 
+        if equipRemote then 
+            equipRemote:FireServer(1) 
+        end 
+    end)
+       
+    -- PHASE 2: CHARGE Rod 
+    pcall(function() 
+        if ChargeRod then 
+            ChargeRod:InvokeServer(tick()) 
+        end 
+    end)
+    
+    task.wait(ENHANCED_CONFIG.INSTANT_BITE_DELAY)
+    
+    -- PHASE 3: START Mini Game (lempar kail)
+    pcall(function() 
+        if StartMini then 
+            StartMini:InvokeServer(-1.233184814453125, 0.9945034885633273) 
+        end 
+    end)
+    
+    -- PHASE 4: FINISH Fishing (tarik kail INSTANT)
+    pcall(function() 
+        if FinishFish then 
+            FinishFish:FireServer() 
+        end 
+    end)
+   
+    pcall(function() 
+        if stopfishing then 
+            stopfishing:FireServer() 
+        end 
+    end)
+    
+    -- PHASE 5: CATCH Fish (satu ikan saja)
+    if FishCaught then
+        local success = pcall(function()
+            FishCaught:FireServer({
+                Name = "⚡ INSTANT FISH",
+                Tier = math.random(5, 7),
+                SellPrice = math.random(15000, 50000),
+                Rarity = "Legendary",
+                Weight = math.random(50, 200),
+                Length = math.random(100, 300)
+            })
+        end)
+        if success then
+            catches = catches + 1
+        end
+    end
+    
+    return catches
+end
+
+-- 🎣 SINGLE FISH GENERATION
+local function ExecuteSingleFish()
+    local catches = 0
+    
+    if not FishCaught then return catches end
+    
+    local fishTemplates = {
+        {
+            Name = "⚡ INSTANT FISH",
+            Tier = 5,
+            SellPrice = math.random(15000, 35000),
+            Rarity = "Legendary"
+        },
+        {
+            Name = "🚀 QUICK FISH", 
+            Tier = 6,
+            SellPrice = math.random(25000, 45000),
+            Rarity = "Mythic"
+        },
+        {
+            Name = "💨 SPEED FISH",
+            Tier = 7, 
+            SellPrice = math.random(35000, 60000),
+            Rarity = "Secret"
+        }
+    }
+    
+    local template = fishTemplates[math.random(1, #fishTemplates)]
+    local success = pcall(function()
+        FishCaught:FireServer({
+            Name = template.Name,
+            Tier = template.Tier,
+            SellPrice = template.SellPrice + math.random(-2000, 2000),
+            Rarity = template.Rarity,
+            Weight = math.random(80, 150),
+            Length = math.random(120, 250)
+        })
+    end)
+    
+    if success then
+        catches = catches + 1
+    end
+    
+    return catches
+end
+
+-- ===================================
+-- ========== EXCLAIM DETECTION ======
+-- ===================================
+
+-- Listener untuk detect exclaim (tanda seru) dan auto recast
+task.spawn(function()
+    local success, exclaimEvent = pcall(function()
+        return net:WaitForChild("RE/ReplicateTextEffect", 2)
+    end)
+
+    if success and exclaimEvent then
+        exclaimEvent.OnClientEvent:Connect(function(data)
+            if EnhancedFishingActive and data and data.TextData
+                and data.TextData.EffectType == "Exclaim" then
+
+                local head = player.Character and player.Character:FindFirstChild("Head")
+                if head and data.Container == head then
+                    task.spawn(function()
+                        for i = 1, 3 do
+                            task.wait(1)
+                            FinishFish:FireServer() 
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end)
+
+-- 🔥 ENHANCED FISHING LOOP - DENGAN AUTO CLEANUP
+local function StartEnhancedFishing()
+    if EnhancedFishingActive then
+        warn("⚠️ Enhanced Fishing sudah aktif!")
+        return
+    end
+    
+    print("🎣 AUTO FISHING V4 DIHIDUPKAN!")
+    print("Mode: INSTANT BITE - No Waiting!")
+    
+    EnhancedFishingActive = true
+    TotalEnhancedCatches = 0
+    EnhancedStartTime = tick()
+    
+    -- Single thread untuk instant fishing
+    task.spawn(function()
+        print("🎣 Instant Fishing Thread started!")
+        local cycleCount = 0
+        
+        while EnhancedFishingActive do
+            cycleCount = cycleCount + 1
+            
+            -- Execute instant fishing cycle
+            local cycleCatches = ExecuteInstantFishingCycle()
+            TotalEnhancedCatches = TotalEnhancedCatches + cycleCatches
+            
+            -- Tambahkan single fish
+            local singleCatches = ExecuteSingleFish()
+            TotalEnhancedCatches = TotalEnhancedCatches + singleCatches
+            
+            -- Adaptive speed - sangat cepat
+            local elapsed = tick() - EnhancedStartTime
+            local speedMultiplier = math.min(1 + (elapsed / 10), ENHANCED_CONFIG.MAX_SPEED_MULTIPLIER)
+            
+            -- Base speed dengan variasi kecil
+            local baseSpeed = ENHANCED_CONFIG.BASE_SPEED
+            local randomVariance = math.random(95, 105) / 100  -- 5% variance saja
+            local waitTime = (baseSpeed / speedMultiplier) * randomVariance
+            
+            -- Minimal delay untuk mencegah terlalu cepat tapi tetap instant
+            task.wait(math.max(waitTime, 0.02))
+            
+            -- Debug info setiap 100 cycle
+            if cycleCount % 100 == 0 then
+                local currentRate = math.floor(TotalEnhancedCatches / math.max(elapsed, 1))
+                print(string.format("♻️ Cycle: %d | Fish: %d | Rate: %d/s", cycleCount, TotalEnhancedCatches, currentRate))
+            end
+        end
+        
+        print("🛑 Instant Fishing Thread stopped! Total cycles: " .. cycleCount)
+        
+        -- AUTO CLEANUP: Hapus float platform ketika fishing berhenti
+        if floatPlatform then
+            floatPlatform:Destroy()
+            floatPlatform = nil
+            print("🧹 Float platform cleaned up!")
+        end
+    end)
+    
+    -- Performance monitor
+    task.spawn(function()
+        local lastUpdate = tick()
+        local lastCount = 0
+        
+        while EnhancedFishingActive do
+            local elapsed = tick() - EnhancedStartTime
+            local currentRate = math.floor(TotalEnhancedCatches / math.max(elapsed, 1))
+            
+            -- Calculate instant rate (last 2 seconds)
+            local instantRate = math.floor((TotalEnhancedCatches - lastCount) / math.max(tick() - lastUpdate, 0.1))
+            lastUpdate = tick()
+            lastCount = TotalEnhancedCatches
+            
+            pcall(function()
+                if Window and Window.SetWindowName then
+                    Window:SetWindowName(string.format(
+                        "🎣 AUTO FISHING V4 | %d/s | %d TOTAL",
+                        instantRate, TotalEnhancedCatches
+                    ))
+                end
+            end)
+            
+            task.wait(2) -- Update setiap 2 detik saja
+        end
+    end)
+    
+    Rayfield:Notify({
+        Title = "🎣 AUTO FISHING V4 STARTED",
+        Content = "INSTANT BITE Mode Activated!\nNo waiting for exclamation mark!",
+        Duration = 5,
+        Image = 4483362458
+    })
+end
+
+local function StopEnhancedFishing()
+    if not EnhancedFishingActive then
+        warn("⚠️ Enhanced Fishing tidak aktif!")
+        return
+    end
+    
+    print("🛑 MEMATIKAN AUTO FISHING V4...")
+    EnhancedFishingActive = false
+    
+    task.wait(0.3) -- Kasih waktu thread berhenti
+    
+    local totalTime = tick() - EnhancedStartTime
+    local avgRate = math.floor(TotalEnhancedCatches / math.max(totalTime, 1))
+    
+    Rayfield:Notify({
+        Title = "🎣 AUTO FISHING V4 STOPPED",
+        Content = string.format(
+            "Total: %d fish | Average: %d/s | Time: %.1fs",
+            TotalEnhancedCatches, avgRate, totalTime
+        ),
+        Duration = 6,
+        Image = 4483362458
+    })
+    
+    pcall(function()
+        if Window and Window.SetWindowName then
+            Window:SetWindowName("🎣 Auto Fishing V4")
+        end
+    end)
+end
+
+-- 🚨 EMERGENCY STOP ALL
+local function EmergencyStopAll()
+    print("🚨 EMERGENCY STOP AUTO FISHING V4!")
+    
+    EnhancedFishingActive = false
+    
+    -- Auto cleanup float platform
+    if floatPlatform then
+        floatPlatform:Destroy()
+        floatPlatform = nil
+        print("🧹 Float platform emergency cleaned!")
+    end
+    
+    task.wait(0.3)
+    
+    pcall(function()
+        if Window and Window.SetWindowName then
+            Window:SetWindowName("🎣 Auto Fishing V4")
+        end
+    end)
+    
+    Rayfield:Notify({
+        Title = "🚨 EMERGENCY STOP",
+        Content = "Auto fishing stopped immediately!\nFloat platform cleaned!",
+        Duration = 3,
+        Image = 4483362458
+    })
+end
 
 -- ===================================
 -- ========== HELPER FUNCTIONS =======
 -- ===================================
 
--- Fungsi untuk membuat instance dengan properties
-local function create(className, properties)
-    local instance = Instance.new(className)
-    for property, value in pairs(properties) do
-        if property ~= "Parent" then
-            instance[property] = value
+local function formatCurrency(amount)
+    if not amount or amount <= 0 then
+        return "$0"
+    elseif amount >= 1000000 then
+        return string.format("$%.2fM", amount / 1000000)
+    elseif amount >= 1000 then
+        return string.format("$%.2fK", amount / 1000)
+    else
+        return "$" .. tostring(math.floor(amount))
+    end
+end
+
+local function ScanActiveEvents()
+    local events = {}
+    local validEvents = {
+        "megalodon", "whale", "kraken", "hunt", "Ghost Worm", "Mount Hallow",
+        "admin", "Hallow Bay", "worm", "blackhole", "HalloweenFastTravel"
+    }
+
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("Folder") then
+            local name = obj.Name:lower()
+
+            for _, keyword in ipairs(validEvents) do
+                if name:find(keyword:lower()) and not name:find("boat") and not name:find("sharki") then
+                    local exists = false
+                    for _, e in ipairs(events) do
+                        if e.Name == obj.Name then
+                            exists = true
+                            break
+                        end
+                    end
+
+                    if not exists then
+                        local pos = Vector3.new(0, 0, 0)
+
+                        if obj:IsA("Model") then
+                            pcall(function()
+                                pos = obj:GetPivot().Position
+                            end)
+                        elseif obj:IsA("BasePart") then
+                            pos = obj.Position
+                        elseif obj:IsA("Folder") and #obj:GetChildren() > 0 then
+                            local child = obj:GetChildren()[1]
+                            if child:IsA("Model") then
+                                pcall(function()
+                                    pos = child:GetPivot().Position
+                                end)
+                            elseif child:IsA("BasePart") then
+                                pos = child.Position
+                            end
+                        end
+
+                        table.insert(events, {
+                            Name = obj.Name,
+                            Object = obj,
+                            Position = pos
+                        })
+                    end
+
+                    break
+                end
+            end
         end
     end
-    if properties.Parent then
-        instance.Parent = properties.Parent
+    return events
+end
+
+local function saveOriginalPosition()
+    local charFolder = workspace:FindFirstChild("Characters")
+    if not charFolder then return false end
+    
+    local char = charFolder:FindFirstChild(player.Name)
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        savedCFrame = char.HumanoidRootPart.CFrame
+        return true
     end
-    return instance
+    return false
 end
 
--- Fungsi untuk menambahkan efek hover pada button
-local function addHover(btn, normal, hover)
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = hover}):Play()
+local function returnToOriginalPosition()
+    if savedCFrame then
+        local charFolder = workspace:FindFirstChild("Characters")
+        if not charFolder then return end
+        
+        local char = charFolder:FindFirstChild(player.Name)
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CFrame = savedCFrame
+        end
+    end
+end
+
+local function teleportToEventPosition(position)
+    local success, err = pcall(function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart", 3)
+        if hrp then
+            hrp.CFrame = CFrame.new(position + Vector3.new(0, 20, 0))
+            task.wait(0.5)
+            return true
+        end
     end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = normal}):Play()
+    
+    return success, err
+end
+
+local function monitorAutoTP()
+    task.spawn(function()
+        while task.wait(5) do  -- Check every 5 seconds
+            if autoTPEventEnabled then
+                if not alreadyTeleported then
+                    local events = ScanActiveEvents()
+                    
+                    if #events > 0 then
+                        local event = events[1]  -- Take first available event
+                        if saveOriginalPosition() then
+                            local success, err = teleportToEventPosition(event.Position)
+                            if success then
+                                toggleFloat(true)
+                                alreadyTeleported = true
+                                teleportTime = tick()
+                                eventTarget = event.Name
+                                
+                                Rayfield:Notify({
+                                    Title = "🚀 Auto Event Farm",
+                                    Content = "Teleported to: " .. event.Name,
+                                    Duration = 5,
+                                    Image = 4483362458
+                                })
+                            end
+                        end
+                    end
+                else
+                    -- Check if event is still active or 15 minutes passed
+                    if teleportTime and (tick() - teleportTime >= 900) then
+                        returnToOriginalPosition()
+                        toggleFloat(false)
+                        alreadyTeleported = false
+                        teleportTime = nil
+                        eventTarget = nil
+                        
+                        Rayfield:Notify({
+                            Title = "🔄 Auto Event Farm",
+                            Content = "Returned to original position (15min elapsed)",
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                    end
+                end
+            else
+                if alreadyTeleported then
+                    returnToOriginalPosition()
+                    toggleFloat(false)
+                    alreadyTeleported = false
+                    teleportTime = nil
+                    eventTarget = nil
+                end
+            end
+        end
     end)
 end
 
--- ===================================
--- ========== REMOTE SETUP ===========
--- ===================================
+local function sendWebhook(fishName, fishTier, sellPrice, rarity)
+    if not webhookEnabled or webhookUrl == "" then
+        return
+    end
+    
+    local success, err = pcall(function()
+        local timestamp = DateTime.now():ToIsoDate()
+        
+        local embed = {
+            {
+                ["title"] = "🎣 FISH CAUGHT!",
+                ["color"] = 65280,
+                ["fields"] = {
+                    {
+                        ["name"] = "Fish Name",
+                        ["value"] = fishName,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "Tier",
+                        ["value"] = tostring(fishTier),
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "Rarity",
+                        ["value"] = rarity,
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = "Sell Price",
+                        ["value"] = formatCurrency(sellPrice),
+                        ["inline"] = true
+                    }
+                },
+                ["footer"] = {
+                    ["text"] = "Auto Fishing V4 • " .. timestamp
+                },
+                ["thumbnail"] = {
+                    ["url"] = "https://cdn.discordapp.com/attachments/1128833020023439502/1142635557613989948/Untitled_design.png"
+                }
+            }
+        }
+        
+        local data = {
+            ["embeds"] = embed,
+            ["username"] = "Fish Notifier",
+            ["avatar_url"] = "https://cdn.discordapp.com/attachments/1128833020023439502/1142635557613989948/Untitled_design.png"
+        }
+        
+        local jsonData = HttpService:JSONEncode(data)
+        
+        -- UNIVERSAL HTTP REQUEST - Works on multiple executors
+        local requestFunc = (syn and syn.request) or 
+                          (http and http.request) or 
+                          (http_request) or
+                          (request)
+        
+        if not requestFunc then
+            warn("❌ Your executor doesn't support HTTP requests!")
+            return
+        end
+        
+        requestFunc({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = jsonData
+        })
+        
+        print("📢 Webhook sent: " .. fishName)
+    end)
+    
+    if not success then
+        warn("Webhook error: " .. tostring(err))
+    end
+end
 
--- Setup remote events/functions untuk komunikasi dengan server
+local function shouldSendWebhook(fishName, fishTier)
+    if not webhookEnabled or #SelectedWebhookCategories == 0 then
+        return false
+    end
+    
+    -- Filter berdasarkan tier
+    if fishTier then
+        if table.find(SelectedWebhookCategories, "Secret") and fishTier == 7 then
+            return true
+        elseif table.find(SelectedWebhookCategories, "Mythic") and fishTier == 6 then
+            return true
+        elseif table.find(SelectedWebhookCategories, "Legendary") and fishTier == 5 then
+            return true
+        end
+    end
+    
+    -- Filter berdasarkan nama
+    local fishNameLower = string.lower(fishName)
+    for category, fishList in pairs(FishCategories) do
+        if table.find(SelectedWebhookCategories, category) then
+            for _, targetFish in ipairs(fishList) do
+                if fishNameLower == string.lower(targetFish) then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
 local function setupRemotes()
     local success, err = pcall(function()
         net = ReplicatedStorage:WaitForChild("Packages")
@@ -69,548 +723,627 @@ local function setupRemotes()
     end)
 
     if not success then
-        net = ReplicatedStorage:WaitForChild("Net")
-    end
-
-    rodRemote = net:WaitForChild("RF/ChargeFishingRod")
-    miniGameRemote = net:WaitForChild("RF/RequestFishingMinigameStarted")
-    finishRemote = net:WaitForChild("RE/FishingCompleted")
-    equipRemote = net:WaitForChild("RE/EquipToolFromHotbar")
-    sellRemote = net:WaitForChild("RF/SellAllItems")
-end
-
--- ===================================
--- ========== GUI CREATION ===========
--- ===================================
-
--- Hapus GUI lama jika ada
-if playerGui:FindFirstChild("FishItAutoGUI") then
-    playerGui:FindFirstChild("FishItAutoGUI"):Destroy()
-end
-
--- Main ScreenGui
-local screenGui = create("ScreenGui", {
-    Name = "FishItAutoGUI",
-    Parent = playerGui,
-    ResetOnSpawn = false,
-    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-})
-
--- Main Frame
-local mainFrame = create("Frame", {
-    Name = "MainFrame",
-    Parent = screenGui,
-    Size = UDim2.new(0, 300, 0, 420),
-    Position = UDim2.new(0.5, -150, 0.5, -210),
-    BackgroundColor3 = Color3.fromRGB(15, 20, 30),
-    BorderSizePixel = 0
-})
-
-create("UICorner", {Parent = mainFrame, CornerRadius = UDim.new(0, 10)})
-create("UIStroke", {Parent = mainFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
-
--- Title Bar dengan close dan minimize button
-local titleBar = create("Frame", {
-    Name = "TitleBar",
-    Parent = mainFrame,
-    Size = UDim2.new(1, 0, 0, 33),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 55),
-    BorderSizePixel = 0
-})
-
-create("UICorner", {Parent = titleBar, CornerRadius = UDim.new(0, 10)})
-
-local titleText = create("TextLabel", {
-    Parent = titleBar,
-    Size = UDim2.new(1, -66, 1, 0),
-    Position = UDim2.new(0, 12, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🐟 Fish It - Codepikk (free)",
-    Font = Enum.Font.GothamBold,
-    TextSize = 13,
-    TextColor3 = Color3.fromRGB(100, 180, 255),
-    TextXAlignment = Enum.TextXAlignment.Left
-})
-
-local closeBtn = create("TextButton", {
-    Parent = titleBar,
-    Size = UDim2.new(0, 25, 0, 25),
-    Position = UDim2.new(1, -29, 0, 4),
-    BackgroundColor3 = Color3.fromRGB(220, 50, 50),
-    Text = "X",
-    Font = Enum.Font.GothamBold,
-    TextSize = 13,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = closeBtn, CornerRadius = UDim.new(0, 6)})
-
-local minimizeBtn = create("TextButton", {
-    Parent = titleBar,
-    Size = UDim2.new(0, 25, 0, 25),
-    Position = UDim2.new(1, -58, 0, 4),
-    BackgroundColor3 = Color3.fromRGB(70, 80, 100),
-    Text = "—",
-    Font = Enum.Font.GothamBold,
-    TextSize = 13,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = minimizeBtn, CornerRadius = UDim.new(0, 6)})
-
--- Content Frame untuk menampung semua section
-local contentFrame = create("ScrollingFrame", {
-    Name = "Content",
-    Parent = mainFrame,
-    Size = UDim2.new(1, -18, 1, -51),
-    Position = UDim2.new(0, 9, 0, 42),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 5,
-    ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-    CanvasSize = UDim2.new(0, 0, 0, 400)
-})
-
--- ===================================
--- ========== STATUS SECTION =========
--- ===================================
-
--- Status box untuk menampilkan informasi status script
-local statusBox = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 50),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = statusBox, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = statusBox, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local statusLabel = create("TextLabel", {
-    Parent = statusBox,
-    Size = UDim2.new(1, -12, 1, -8),
-    Position = UDim2.new(0, 6, 0, 4),
-    BackgroundTransparency = 1,
-    Text = "🔴 Status: Idle\nScript: V.2.2\nUpdate: +Buff Speed Fishing, +Add Anti AFK\nNote: found bug on script? Pm me on discord!",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 100, 100),
-    TextXAlignment = Enum.TextXAlignment.Left
-})
-
--- Fungsi untuk update status dengan format yang dipertahankan
-local function updateStatus(newStatus, color)
-    local baseText = "Script: V.2.2\nUpdate: +Buff Speed Fishing, +Add Anti AFK\nNote: found bug on script? Pm me on discord!"
-    statusLabel.Text = newStatus .. "\n" .. baseText
-    statusLabel.TextColor3 = color or Color3.fromRGB(255, 100, 100)
-end
-
--- Inisialisasi status awal
-updateStatus("🔴 Status: Idle")
-
--- ===================================
--- ========== ANTI-AFK SECTION =======
--- ===================================
-
-local antiAFKSection = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 58),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = antiAFKSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = antiAFKSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local antiAFKTitle = create("TextLabel", {
-    Parent = antiAFKSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "⏰ Anti-AFK System",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local antiAFKBtn = create("TextButton", {
-    Parent = antiAFKSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
-    Text = "START",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = antiAFKBtn, CornerRadius = UDim.new(0, 6)})
-
--- ===================================
--- ========== FISHING V1 SECTION =====
--- ===================================
-
-local fishSection = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 106),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = fishSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = fishSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local fishTitle = create("TextLabel", {
-    Parent = fishSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🎣 Auto Instant Fishing V1 (perfect)",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local fishBtn = create("TextButton", {
-    Parent = fishSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
-    Text = "START",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = fishBtn, CornerRadius = UDim.new(0, 6)})
-
--- ===================================
--- ========== AUTO SELL SECTION ======
--- ===================================
-
-local sellSection = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 154),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = sellSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = sellSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local sellTitle = create("TextLabel", {
-    Parent = sellSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "💰 Auto Sell All (non favorite fish)",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local sellBtn = create("TextButton", {
-    Parent = sellSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(50, 150, 50),
-    Text = "START",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = sellBtn, CornerRadius = UDim.new(0, 6)})
-
--- ===================================
--- ========== TELEPORT SECTIONS ======
--- ===================================
-
--- Teleport to Islands Section
-local teleportSection = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 202),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = teleportSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = teleportSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local teleportTitle = create("TextLabel", {
-    Parent = teleportSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🚀 Teleport to Islands",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local teleportBtn = create("TextButton", {
-    Parent = teleportSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(150, 100, 50),
-    Text = "OPEN",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = teleportBtn, CornerRadius = UDim.new(0, 6)})
-
--- Teleport to NPC Section
-local teleportNPCSection = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 250),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = teleportNPCSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = teleportNPCSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local teleportNPCTitle = create("TextLabel", {
-    Parent = teleportNPCSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🧍 Teleport to NPC",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local teleportNPCBtn = create("TextButton", {
-    Parent = teleportNPCSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(100, 80, 180),
-    Text = "OPEN",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = teleportNPCBtn, CornerRadius = UDim.new(0, 6)})
-
--- Teleport to Event Section
-local teleportEventSection = create("Frame", {
-    Parent = contentFrame,
-    Size = UDim2.new(1, 0, 0, 40),
-    Position = UDim2.new(0, 0, 0, 298),
-    BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-})
-
-create("UICorner", {Parent = teleportEventSection, CornerRadius = UDim.new(0, 7)})
-create("UIStroke", {Parent = teleportEventSection, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-local teleportEventTitle = create("TextLabel", {
-    Parent = teleportEventSection,
-    Size = UDim2.new(0.55, 0, 1, 0),
-    Position = UDim2.new(0, 9, 0, 0),
-    BackgroundTransparency = 1,
-    Text = "🎯 Teleport to Events",
-    Font = Enum.Font.GothamBold,
-    TextSize = 9,
-    TextColor3 = Color3.fromRGB(220, 220, 220),
-    TextXAlignment = Enum.TextXAlignment.Left,
-    TextYAlignment = Enum.TextYAlignment.Center
-})
-
-local teleportEventBtn = create("TextButton", {
-    Parent = teleportEventSection,
-    Size = UDim2.new(0, 72, 0, 27),
-    Position = UDim2.new(1, -78, 0, 6),
-    BackgroundColor3 = Color3.fromRGB(180, 80, 120),
-    Text = "OPEN",
-    Font = Enum.Font.GothamBold,
-    TextSize = 10,
-    TextColor3 = Color3.fromRGB(255, 255, 255)
-})
-
-create("UICorner", {Parent = teleportEventBtn, CornerRadius = UDim.new(0, 6)})
-
--- ===================================
--- ========== DRAG FUNCTIONALITY =====
--- ===================================
-
--- Fungsi untuk drag window
-local dragging, dragInput, dragStart, startPos
-
-local function updateDrag(input)
-    local delta = input.Position - dragStart
-    TweenService:Create(mainFrame, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-        Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    }):Play()
-end
-
-titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-titleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        updateDrag(input)
-    end
-end)
-
--- ===================================
--- ========== HOVER EFFECTS ==========
--- ===================================
-
--- Tambahkan efek hover pada semua button
-addHover(closeBtn, Color3.fromRGB(220, 50, 50), Color3.fromRGB(240, 80, 80)) 
-addHover(minimizeBtn, Color3.fromRGB(70, 80, 100), Color3.fromRGB(90, 100, 120))
-addHover(antiAFKBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
-addHover(fishBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
-addHover(sellBtn, Color3.fromRGB(50, 150, 50), Color3.fromRGB(70, 170, 70))
-addHover(teleportBtn, Color3.fromRGB(150, 100, 50), Color3.fromRGB(170, 120, 70))
-addHover(teleportNPCBtn, Color3.fromRGB(100, 80, 180), Color3.fromRGB(120, 100, 200))
-addHover(teleportEventBtn, Color3.fromRGB(180, 80, 120), Color3.fromRGB(200, 100, 140))
-
--- ===================================
--- ========== ANTI-AFK SYSTEM ========
--- ===================================
-
--- Fungsi untuk toggle Anti-AFK system
-local function toggleAntiAFK()
-    antiAFKEnabled = not antiAFKEnabled
-    
-    if antiAFKEnabled then
-        -- Enable Anti-AFK
-        if AFKConnection then
-            AFKConnection:Disconnect()
-        end
-        
-        AFKConnection = player.Idled:Connect(function()
-            pcall(function()
-                VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                task.wait(1)
-                VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-            end)
-        end)
-        
-        antiAFKBtn.Text = "STOP"
-        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        updateStatus("⏰ Anti-AFK: Active", Color3.fromRGB(100, 255, 100))
-        
-    else
-        -- Disable Anti-AFK
-        if AFKConnection then
-            AFKConnection:Disconnect()
-            AFKConnection = nil
-        end
-        
-        antiAFKBtn.Text = "START"
-        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        updateStatus("🔴 Status: Idle")
-    end
-end
-
--- ===================================
--- ========== FISHING V1 SYSTEM ======
--- ===================================
-
--- Fungsi utama Auto Fishing V1
-local function autoFishingLoop()
-    while autoFishingEnabled do
-        local ok, err = pcall(function()
-            fishingActive = true
-            updateStatus("🎣 Status: Fishing", Color3.fromRGB(100, 255, 100))
-            equipRemote:FireServer(1)
-            task.wait(0.1)
-
-            local timestamp = workspace:GetServerTimeNow()
-            rodRemote:InvokeServer(timestamp)
-
-            local baseX, baseY = -0.7499996, 1
-            local x = baseX + (math.random(-500, 500) / 10000000)
-            local y = baseY + (math.random(-500, 500) / 10000000)
-
-            miniGameRemote:InvokeServer(x, y)
-            task.wait(2)
-            finishRemote:FireServer(true)
-            task.wait(2)
-        end)
-        if not ok then
-            -- Handle error silently
-        end
-        task.wait(0.2)
-    end
-    fishingActive = false
-    updateStatus("🔴 Status: Idle")
-end
-
--- ===================================
--- ========== FISHING V2 SYSTEM ======
--- ========== TAMBAH FITUR BARU DIBAWAH INI ==========
--- ===================================
-
--- [[ TAMBAHKAN FISHING V2 LOGIC DI SINI ]]
--- Buat fungsi autoFishingV2Loop() dan variabel autoFishingV2Enabled
-
--- ===================================
--- ========== AUTO SELL SYSTEM =======
--- ===================================
-
--- Fungsi untuk auto sell loop
-local function autoSellLoop()
-    while autoSellEnabled do
-        task.wait(1)
-        
-        local success, err = pcall(function()
-            updateStatus("💰 Status: Selling", Color3.fromRGB(255, 215, 0))
-            
-            local sellSuccess = pcall(function()
-                sellRemote:InvokeServer()
-            end)
-
-            if sellSuccess then
-                updateStatus("✅ Status: Sold!. Please Stop Selling Button", Color3.fromRGB(100, 255, 100))
-            else
-                updateStatus("❌ Status: Sell Failed")
-            end
+        success, err = pcall(function()
+            net = ReplicatedStorage:WaitForChild("Net")
         end)
         
         if not success then
-            updateStatus("❌ Status: Sell Error!")
+            warn("Failed to find net: " .. tostring(err))
+            return false
         end
     end
-    updateStatus("🔴 Status: Idle")
+
+    local function safeWaitForChild(parent, name, timeout)
+        timeout = timeout or 5
+        local start = tick()
+        while tick() - start < timeout do
+            local child = parent:FindFirstChild(name)
+            if child then return child end
+            task.wait(0.1)
+        end
+        warn("Timeout waiting for: " .. name)
+        return nil
+    end
+
+
+    rodRemote = safeWaitForChild(net, "RF/ChargeFishingRod")
+    miniGameRemote = safeWaitForChild(net, "RF/RequestFishingMinigameStarted")
+    finishRemote = safeWaitForChild(net, "RE/FishingCompleted")
+    stopfishing = safeWaitForChild(net, "RE/FishingStopped")
+    equipRemote = safeWaitForChild(net, "RE/EquipToolFromHotbar")
+    sellRemote = safeWaitForChild(net, "RF/SellAllItems")
+    favoriteRemote = safeWaitForChild(net, "RE/FavoriteItem")
+    REEquipItem = safeWaitForChild(net, "RE/EquipItem")
+    RFSellItem = safeWaitForChild(net, "RF/SellItem")
+    
+    -- Setup Enhanced Fishing Remotes
+    ChargeRod = rodRemote
+    StartMini = miniGameRemote
+    FinishFish = finishRemote
+    FishCaught = safeWaitForChild(net, "RE/FishCaught") or safeWaitForChild(net, "RF/FishCaught")
+    
+    return true
+end
+
+-- ===================================
+-- ========== FISH THRESHOLD =========
+-- ===================================
+
+local function monitorFishThreshold()
+    task.spawn(function()
+        while task.wait(1) do
+            if (EnhancedFishingActive) and #obtainedFishUUIDs >= obtainedLimit then
+                Rayfield:Notify({
+                    Title = "Fish Threshold",
+                    Content = "Selling all fishes...",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+                pcall(function() sellRemote:InvokeServer() end)
+                obtainedFishUUIDs = {}
+                task.wait(2)
+            end
+        end
+    end)
+end
+
+-- Setup fish obtained listener
+task.spawn(function()
+    local success, remoteV2 = pcall(function()
+        return ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    end)
+    
+    if success and remoteV2 then
+        remoteV2.OnClientEvent:Connect(function(_, _, data)
+            if data and data.InventoryItem and data.InventoryItem.UUID then
+                table.insert(obtainedFishUUIDs, data.InventoryItem.UUID)
+            end
+        end)
+    end
+end)
+
+-- ===================================
+-- ========== SISTEM AUTO FAVORITE ===
+-- ===================================
+
+local AutoFavorite = {
+    Enabled = false,
+    FishIdToName = {},
+    FishNameToId = {},
+    FishNames = {},
+    SelectedCategories = {"Secret"},
+    ScanCooldown = 5, -- detik antara scan
+    LastScanTime = 0
+}
+
+-- Build database ikan yang lengkap
+local function buildFishDatabase()
+    AutoFavorite.FishIdToName = {}
+    AutoFavorite.FishNameToId = {}
+    AutoFavorite.FishNames = {}
+    
+    local success, result = pcall(function()
+        local ItemsFolder = ReplicatedStorage:FindFirstChild("Items")
+        if not ItemsFolder then
+            warn("Folder Items tidak ditemukan di ReplicatedStorage")
+            return false
+        end
+        
+        for _, item in pairs(ItemsFolder:GetChildren()) do
+            local ok, data = pcall(function()
+                return require(item)
+            end)
+            
+            if ok and data and data.Data then
+                if data.Data.Type == "Fishes" then
+                    local id = tostring(data.Data.Id)
+                    local name = tostring(data.Data.Name)
+                    local tier = tonumber(data.Data.Tier) or 1
+                    
+                    AutoFavorite.FishIdToName[id] = {
+                        name = name,
+                        tier = tier,
+                        displayName = data.Data.DisplayName or name
+                    }
+                    AutoFavorite.FishNameToId[name] = id
+                    AutoFavorite.FishNameToId[string.lower(name)] = id
+                    table.insert(AutoFavorite.FishNames, name)
+                    
+                    -- Tambahkan display name jika berbeda
+                    if data.Data.DisplayName and data.Data.DisplayName ~= name then
+                        AutoFavorite.FishNameToId[data.Data.DisplayName] = id
+                        AutoFavorite.FishNameToId[string.lower(data.Data.DisplayName)] = id
+                    end
+                end
+            end
+        end
+        return true
+    end)
+    
+    if not success then
+        warn("Gagal membangun database ikan: " .. tostring(result))
+        return false
+    end
+    
+    print(string.format("✅ Database ikan berhasil: %d ikan dimuat", #AutoFavorite.FishNames))
+    return true
+end
+
+-- Ekstrak data ikan dari slot inventory berdasarkan struktur yang ada
+local function extractFishDataFromSlot(slot)
+    local fishData = {
+        uuid = nil,
+        name = nil,
+        tier = nil,
+        isFavorited = false
+    }
+    
+    -- Cek atribut di slot langsung
+    fishData.uuid = slot:GetAttribute("UUID") or 
+                   slot:GetAttribute("ItemUUID")
+    
+    -- Cek Inner frame
+    local inner = slot:FindFirstChild("Inner")
+    if inner then
+        -- Dapatkan UUID dari atribut Inner
+        if not fishData.uuid then
+            fishData.uuid = inner:GetAttribute("UUID") or 
+                           inner:GetAttribute("ItemUUID")
+        end
+        
+        -- Cek Tags untuk nama dan status favorite
+        local tags = inner:FindFirstChild("Tags")
+        if tags then
+            -- Dapatkan nama ikan dari ItemName
+            local itemName = tags:FindFirstChild("ItemName")
+            if itemName and itemName:IsA("StringValue") then
+                fishData.name = itemName.Value
+            end
+            
+            -- Cek apakah sudah di favorite
+            local favorited = tags:FindFirstChild("Favorited")
+            if favorited and favorited:IsA("BoolValue") then
+                fishData.isFavorited = favorited.Value == true
+            end
+            
+            -- Dapatkan ID ikan dari ItemId
+            local itemId = tags:FindFirstChild("ItemId")
+            if itemId and itemId:IsA("StringValue") and itemId.Value ~= "" then
+                local fishInfo = AutoFavorite.FishIdToName[itemId.Value]
+                if fishInfo then
+                    fishData.name = fishData.name or fishInfo.name
+                    fishData.tier = fishInfo.tier
+                end
+            end
+        end
+    end
+    
+    -- Jika punya nama tapi tidak ada tier, cari di database
+    if fishData.name and not fishData.tier then
+        local fishId = AutoFavorite.FishNameToId[fishData.name] or AutoFavorite.FishNameToId[string.lower(fishData.name)]
+        if fishId then
+            local fishInfo = AutoFavorite.FishIdToName[fishId]
+            if fishInfo then
+                fishData.tier = fishInfo.tier
+            end
+        end
+    end
+    
+    return (fishData.uuid and fishData.name) and fishData or nil
+end
+
+-- Tentukan apakah ikan harus di favorite berdasarkan kategori dan tier
+local function shouldFavoriteFish(fishName, fishTier)
+    if not fishName or not AutoFavorite.SelectedCategories or #AutoFavorite.SelectedCategories == 0 then
+        return false
+    end
+    
+    -- Filter berdasarkan tier (paling akurat)
+    if fishTier then
+        if table.find(AutoFavorite.SelectedCategories, "Secret") and fishTier == 7 then
+            return true
+        elseif table.find(AutoFavorite.SelectedCategories, "Mythic") and fishTier == 6 then
+            return true
+        elseif table.find(AutoFavorite.SelectedCategories, "Legendary") and fishTier == 5 then
+            return true
+        end
+    end
+    
+    -- Fallback berdasarkan nama
+    local fishNameLower = string.lower(fishName)
+    for category, fishList in pairs(FishCategories) do
+        if table.find(AutoFavorite.SelectedCategories, category) then
+            for _, targetFish in ipairs(fishList) do
+                if fishNameLower == string.lower(targetFish) then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- Favorite ikan berdasarkan UUID
+local function favoriteFishByUUID(uuid, fishName)
+    if not uuid or not favoriteRemote then
+        return false
+    end
+    
+    local success, err = pcall(function()
+        favoriteRemote:FireServer(uuid)
+        return true
+    end)
+    
+    if success then
+        print(string.format("⭐ Difavorite: %s (UUID: %s)", fishName, uuid))
+        return true
+    else
+        warn(string.format("Gagal memfavorite %s: %s", fishName, tostring(err)))
+        return false
+    end
+end
+
+-- Scan dan favorite ikan yang ada di inventory
+local function scanAndFavoriteExistingFish()
+    if not AutoFavorite.Enabled then 
+        Rayfield:Notify({
+            Title = "Auto Favorite",
+            Content = "Silakan aktifkan Auto Favorite terlebih dahulu!",
+            Duration = 3,
+            Image = 4483362458
+        })
+        return 
+    end
+    
+    -- Cek cooldown
+    if tick() - AutoFavorite.LastScanTime < AutoFavorite.ScanCooldown then
+        Rayfield:Notify({
+            Title = "Auto Favorite",
+            Content = "Tunggu sebentar sebelum scan lagi",
+            Duration = 2,
+            Image = 4483362458
+        })
+        return
+    end
+    
+    AutoFavorite.LastScanTime = tick()
+    
+    Rayfield:Notify({
+        Title = "🔍 Memindai Inventory (Not Working now)",
+        Content = "Mengecek ikan yang ada...",
+        Duration = 2,
+        Image = 4483362458
+    })
+    
+    local favoritedCount = 0
+    local scannedCount = 0
+    local skippedCount = 0
+    
+    task.spawn(function()
+        local success, err = pcall(function()
+            -- Cek Backpack GUI
+            local backpackGui = player.PlayerGui:FindFirstChild("Backpack")
+            if not backpackGui then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "Backpack GUI tidak ditemukan!",
+                    Duration = 3
+                })
+                return
+            end
+            
+            local display = backpackGui:FindFirstChild("Display")
+            if not display then
+                Rayfield:Notify({
+                    Title = "Error",
+                    Content = "Display tidak ditemukan di Backpack!",
+                    Duration = 3
+                })
+                return
+            end
+            
+            -- Scan semua slot di Display
+            for _, slot in pairs(display:GetChildren()) do
+                if slot:IsA("Frame") or slot:IsA("ImageButton") then
+                    scannedCount = scannedCount + 1
+                    
+                    local fishData = extractFishDataFromSlot(slot)
+                    if fishData then
+                        if fishData.isFavorited then
+                            skippedCount = skippedCount + 1
+                        elseif shouldFavoriteFish(fishData.name, fishData.tier) then
+                            if favoriteFishByUUID(fishData.uuid, fishData.name) then
+                                favoritedCount = favoritedCount + 1
+                                task.wait(0.15) -- Mencegah rate limiting
+                            end
+                        end
+                    end
+                end
+            end
+            
+        end)
+        
+        if not success then
+            warn("Error saat scan inventory: " .. tostring(err))
+            Rayfield:Notify({
+                Title = "Error Scan",
+                Content = "Terjadi error saat memindai inventory",
+                Duration = 3
+            })
+        end
+        
+        -- Laporkan hasil
+        task.wait(1)
+        local message = string.format("Slot dipindai: %d\nDifavorite: %d\nDilewati: %d", 
+                                    scannedCount, favoritedCount, skippedCount)
+        
+        if favoritedCount > 0 then
+            Rayfield:Notify({
+                Title = "✅ Scan Selesai",
+                Content = message,
+                Duration = 5,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "ℹ️ Scan Selesai",
+                Content = message,
+                Duration = 4,
+                Image = 4483362458
+            })
+        end
+        
+        -- Debug info
+        print(string.format("📊 HASIL SCAN: %d slot, %d difavorite, %d dilewati", 
+                          scannedCount, favoritedCount, skippedCount))
+    end)
+end
+
+-- Setup listener untuk ikan yang baru ditangkap
+local function setupAutoFavoriteListener()
+    local success, REObtainedNewFishNotification = pcall(function()
+        return ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    end)
+    
+    if success and REObtainedNewFishNotification then
+        REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, data)
+            if not AutoFavorite.Enabled then return end
+
+            local uuid = data.InventoryItem and data.InventoryItem.UUID
+            if not uuid then return end
+
+            local fishInfo = AutoFavorite.FishIdToName[tostring(itemId)]
+            if not fishInfo then return end
+            
+            local fishName = fishInfo.name
+            local fishTier = fishInfo.tier
+
+            if shouldFavoriteFish(fishName, fishTier) then
+                task.wait(0.2) -- Delay kecil untuk memastikan server memproses tangkapan
+                if favoriteFishByUUID(uuid, fishName) then
+                    Rayfield:Notify({
+                        Title = "⭐ Auto Favorite",
+                        Content = string.format("%s (Tier %d)", fishName, fishTier),
+                        Duration = 2,
+                        Image = 4483362458
+                    })
+                end
+            end
+        end)
+        
+        print("✅ Listener Auto Favorite berhasil di setup")
+        return true
+    else
+        warn("❌ Gagal setup listener Auto Favorite")
+        return false
+    end
+end
+
+-- Inisialisasi sistem auto favorite
+local function initializeAutoFavorite()
+    -- Build database ikan dulu
+    if not buildFishDatabase() then
+        Rayfield:Notify({
+            Title = "Error Auto Favorite",
+            Content = "Gagal memuat database ikan",
+            Duration = 5,
+            Image = 4483362458
+        })
+        return false
+    end
+    
+    -- Setup listener untuk tangkapan baru
+    if not setupAutoFavoriteListener() then
+        Rayfield:Notify({
+            Title = "Peringatan Auto Favorite",
+            Content = "Auto favorite live mungkin tidak bekerja",
+            Duration = 5,
+            Image = 4483362458
+        })
+    end
+    
+    return true
+end
+
+-- ===================================
+-- ========== AUTO SELL ==============
+-- ===================================
+
+local function sellNow()
+    local success, err = pcall(function()
+        sellRemote:InvokeServer()
+    end)
+
+    if success then
+        Rayfield:Notify({
+            Title = "Auto Sell",
+            Content = "Successfully sold items!",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        Rayfield:Notify({
+            Title = "Auto Sell Failed",
+            Content = "Error: " .. tostring(err),
+            Duration = 3
+        })
+    end
+end
+
+-- ===================================
+-- ========== WEATHER SYSTEM =========
+-- ===================================
+
+local function randomDelay(min, max)
+    return math.random(min * 100, max * 100) / 100
+end
+
+local function autoBuyWeather(weatherType)
+    local purchaseRemote = ReplicatedStorage:WaitForChild("Packages")
+        :WaitForChild("_Index")
+        :WaitForChild("sleitnick_net@0.2.0")
+        :WaitForChild("net")
+        :WaitForChild("RF/PurchaseWeatherEvent")
+
+    task.spawn(function()
+        while weatherActive[weatherType] do
+            pcall(function()
+                purchaseRemote:InvokeServer(weatherType)
+                
+                task.wait(weatherData[weatherType].duration)
+                local randomWait = randomDelay(2, 8)
+                task.wait(randomWait)
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
+-- ===================================
+-- ========== FLOATING PLATFORM ======
+-- ===================================
+
+local function toggleFloat(enabled)
+    if enabled then
+        local charFolder = workspace:WaitForChild("Characters", 5)
+        local char = charFolder:FindFirstChild(player.Name)
+        if not char then 
+            return 
+        end
+
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then 
+            return 
+        end
+
+        floatPlatform = Instance.new("Part")
+        floatPlatform.Anchored = true
+        floatPlatform.Size = Vector3.new(8, 1, 8)
+        floatPlatform.Transparency = 0.8
+        floatPlatform.Material = Enum.Material.Neon
+        floatPlatform.Color = Color3.fromRGB(0, 255, 255)
+        floatPlatform.CanCollide = true
+        floatPlatform.Name = "FloatPlatform_" .. math.random(1000,9999)
+        floatPlatform.Parent = workspace
+
+        task.spawn(function()
+            while floatPlatform and floatPlatform.Parent and task.wait(0.2) do
+                pcall(function()
+                    if char and hrp then
+                        floatPlatform.Position = hrp.Position - Vector3.new(0, 4, 0)
+                    end
+                end)
+            end
+        end)
+
+    else
+        if floatPlatform then
+            floatPlatform:Destroy()
+            floatPlatform = nil
+        end
+    end
+end
+
+-- ===================================
+-- ========== SERVER HOP =============
+-- ===================================
+
+local function Rejoin()
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+end
+
+local function QuickServerHop()
+    local placeId = game.PlaceId
+    local servers = {}
+    
+    Rayfield:Notify({
+        Title = "Quick Server Hop",
+        Content = "Finding available server...",
+        Duration = 3,
+        Image = 4483362458
+    })
+    
+    local success, result = pcall(function()
+        local url = "https://games.roblox.com/v1/games/"..placeId.."/servers/Public?sortOrder=Asc&limit=25"
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    
+    if success and result and result.data then
+        for _, server in pairs(result.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                table.insert(servers, server.id)
+            end
+        end
+    end
+    
+    if #servers > 0 then
+        local targetServer = servers[math.random(1, #servers)]
+        TeleportService:TeleportToPlaceInstance(placeId, targetServer, player)
+    else
+        Rayfield:Notify({
+            Title = "Server Hop Failed",
+            Content = "No servers available!",
+            Duration = 3
+        })
+    end
+end
+
+-- ===================================
+-- ========== BOOST FPS ==============
+-- ===================================
+
+local function BoostFPS()
+    Rayfield:Notify({
+        Title = "FPS Boost",
+        Content = "Optimizing performance...",
+        Duration = 3,
+        Image = 4483362458
+    })
+    
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("BasePart") and not v.Parent:FindFirstChildOfClass("Humanoid") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.Reflectance = 0
+        end
+    end
+
+    local Lighting = game:GetService("Lighting")
+    Lighting.GlobalShadows = false
+    Lighting.FogEnd = 1e10
+    
+    Rayfield:Notify({
+        Title = "Success",
+        Content = "Performance optimized!",
+        Duration = 3,
+        Image = 4483362458
+    })
 end
 
 -- ===================================
 -- ========== TELEPORT SYSTEMS =======
 -- ===================================
 
--- Koordinat island untuk teleport
 local islandCoords = {
     ["Weather Machine"] = Vector3.new(-1471, -3, 1929),
     ["Esoteric Depths"] = Vector3.new(3157, -1303, 1439),
@@ -628,569 +1361,1096 @@ local islandCoords = {
     ["Ancient Jungle"] = Vector3.new(1316, 7, -196)
 }
 
--- Fungsi untuk membuat GUI teleport islands
-local function createTeleportGUI()
-    local teleportGui = create("ScreenGui", {
-        Name = "TeleportGUI",
-        Parent = playerGui,
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    })
-
-    local teleportFrame = create("Frame", {
-        Name = "TeleportFrame",
-        Parent = teleportGui,
-        Size = UDim2.new(0, 280, 0, 300),
-        Position = UDim2.new(0.5, -140, 0.5, -150),
-        BackgroundColor3 = Color3.fromRGB(15, 20, 30),
-        BorderSizePixel = 0
-    })
-
-    create("UICorner", {Parent = teleportFrame, CornerRadius = UDim.new(0, 10)})
-    create("UIStroke", {Parent = teleportFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
-
-    local teleportTitle = create("TextLabel", {
-        Parent = teleportFrame,
-        Size = UDim2.new(1, 0, 0, 35),
-        BackgroundColor3 = Color3.fromRGB(25, 35, 55),
-        Text = "🚀 Island Teleport",
-        Font = Enum.Font.GothamBold,
-        TextSize = 14,
-        TextColor3 = Color3.fromRGB(100, 180, 255),
-        TextYAlignment = Enum.TextYAlignment.Center
-    })
-
-    create("UICorner", {Parent = teleportTitle, CornerRadius = UDim.new(0, 10)})
-
-    local closeTeleportBtn = create("TextButton", {
-        Parent = teleportTitle,
-        Size = UDim2.new(0, 22, 0, 22),
-        Position = UDim2.new(1, -26, 0, 6),
-        BackgroundColor3 = Color3.fromRGB(220, 50, 50),
-        Text = "X",
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        TextColor3 = Color3.fromRGB(255, 255, 255)
-    })
-
-    create("UICorner", {Parent = closeTeleportBtn, CornerRadius = UDim.new(0, 6)})
-
-    local scrollFrame = create("ScrollingFrame", {
-        Parent = teleportFrame,
-        Size = UDim2.new(1, -20, 1, -50),
-        Position = UDim2.new(0, 10, 0, 45),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 5,
-        ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-        CanvasSize = UDim2.new(0, 0, 0, #game:GetService("HttpService"):JSONEncode(islandCoords) * 35)
-    })
-
-    local yPosition = 0
-    for islandName, position in pairs(islandCoords) do
-        local islandBtn = create("TextButton", {
-            Parent = scrollFrame,
-            Size = UDim2.new(1, 0, 0, 32),
-            Position = UDim2.new(0, 0, 0, yPosition),
-            BackgroundColor3 = Color3.fromRGB(35, 45, 65),
-            Text = "📍 " .. islandName,
-            Font = Enum.Font.Gotham,
-            TextSize = 11,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
-            TextYAlignment = Enum.TextYAlignment.Center
-        })
-
-        create("UICorner", {Parent = islandBtn, CornerRadius = UDim.new(0, 6)})
-        create("UIStroke", {Parent = islandBtn, Color = Color3.fromRGB(60, 100, 160), Thickness = 1})
-
-        addHover(islandBtn, Color3.fromRGB(35, 45, 65), Color3.fromRGB(45, 55, 75))
-
-        islandBtn.MouseButton1Click:Connect(function()
-            local charFolder = workspace:WaitForChild("Characters", 5)
-            local char = charFolder:FindFirstChild(player.Name)
-            if not char then 
-                updateStatus("❌ Character not found")
-                return 
-            end
-            
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if not hrp then 
-                updateStatus("❌ HRP not found")
-                return 
-            end
-
-            local success, err = pcall(function()
-                hrp.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
-            end)
-
-            if success then
-                updateStatus("✅ Success Teleport to " .. islandName, Color3.fromRGB(100, 255, 100))
-                teleportGui:Destroy()
-            else
-                updateStatus("❌ Teleport failed")
-            end
-        end)
-
-        yPosition = yPosition + 35
-    end
-
-    closeTeleportBtn.MouseButton1Click:Connect(function()
-        teleportGui:Destroy()
-    end)
-end
-
--- Fungsi untuk membuat GUI teleport NPC
-local function createNPCTeleportGUI()
-    local npcFolder = ReplicatedStorage:FindFirstChild("NPC")
-    if not npcFolder then
-        updateStatus("❌ NPC folder not found")
+local function teleportToIsland(islandName)
+    local pos = islandCoords[islandName]
+    if not pos then 
         return
     end
-
-    local npcList = {}
-    for _, npc in pairs(npcFolder:GetChildren()) do
-        if npc:IsA("Model") then
-            local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-            if hrp then
-                table.insert(npcList, npc.Name)
-            end
-        end
-    end
-
-    if #npcList == 0 then
-        updateStatus("❌ No NPCs found")
-        return
-    end
-
-    local npcTeleportGui = create("ScreenGui", {
-        Name = "NPCTeleportGUI",
-        Parent = playerGui,
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    })
-
-    local npcTeleportFrame = create("Frame", {
-        Name = "NPCTeleportFrame",
-        Parent = npcTeleportGui,
-        Size = UDim2.new(0, 280, 0, 350),
-        Position = UDim2.new(0.5, -140, 0.5, -175),
-        BackgroundColor3 = Color3.fromRGB(15, 20, 30),
-        BorderSizePixel = 0
-    })
-
-    create("UICorner", {Parent = npcTeleportFrame, CornerRadius = UDim.new(0, 10)})
-    create("UIStroke", {Parent = npcTeleportFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
-
-    local npcTeleportTitle = create("TextLabel", {
-        Parent = npcTeleportFrame,
-        Size = UDim2.new(1, 0, 0, 35),
-        BackgroundColor3 = Color3.fromRGB(25, 35, 55),
-        Text = "🧍 NPC Teleport",
-        Font = Enum.Font.GothamBold,
-        TextSize = 14,
-        TextColor3 = Color3.fromRGB(100, 180, 255),
-        TextYAlignment = Enum.TextYAlignment.Center
-    })
-
-    create("UICorner", {Parent = npcTeleportTitle, CornerRadius = UDim.new(0, 10)})
-
-    local closeNPCTeleportBtn = create("TextButton", {
-        Parent = npcTeleportTitle,
-        Size = UDim2.new(0, 22, 0, 22),
-        Position = UDim2.new(1, -26, 0, 6),
-        BackgroundColor3 = Color3.fromRGB(220, 50, 50),
-        Text = "X",
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        TextColor3 = Color3.fromRGB(255, 255, 255)
-    })
-
-    create("UICorner", {Parent = closeNPCTeleportBtn, CornerRadius = UDim.new(0, 6)})
-
-    local searchBox = create("TextBox", {
-        Parent = npcTeleportFrame,
-        Size = UDim2.new(1, -20, 0, 30),
-        Position = UDim2.new(0, 10, 0, 45),
-        BackgroundColor3 = Color3.fromRGB(25, 35, 50),
-        PlaceholderText = "🔍 Search NPC...",
-        PlaceholderColor3 = Color3.fromRGB(150, 150, 150),
-        Text = "",
-        Font = Enum.Font.Gotham,
-        TextSize = 12,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ClearTextOnFocus = false
-    })
-
-    create("UICorner", {Parent = searchBox, CornerRadius = UDim.new(0, 6)})
-    create("UIStroke", {Parent = searchBox, Color = Color3.fromRGB(40, 60, 90), Thickness = 1})
-
-    create("UIPadding", {
-        Parent = searchBox,
-        PaddingLeft = UDim.new(0, 8)
-    })
-
-    local scrollFrame = create("ScrollingFrame", {
-        Parent = npcTeleportFrame,
-        Size = UDim2.new(1, -20, 1, -95),
-        Position = UDim2.new(0, 10, 0, 85),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 5,
-        ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-        CanvasSize = UDim2.new(0, 0, 0, #npcList * 35)
-    })
-
-    local function createNPCButtons(filterText)
-        for _, child in ipairs(scrollFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-
-        local yPosition = 0
-        local filteredCount = 0
-
-        for _, npcName in ipairs(npcList) do
-            if string.lower(npcName):find(string.lower(filterText or "")) then
-                local npcBtn = create("TextButton", {
-                    Parent = scrollFrame,
-                    Size = UDim2.new(1, 0, 0, 32),
-                    Position = UDim2.new(0, 0, 0, yPosition),
-                    BackgroundColor3 = Color3.fromRGB(35, 45, 65),
-                    Text = "🧍 " .. npcName,
-                    Font = Enum.Font.Gotham,
-                    TextSize = 11,
-                    TextColor3 = Color3.fromRGB(220, 220, 220),
-                    TextYAlignment = Enum.TextYAlignment.Center
-                })
-
-                create("UICorner", {Parent = npcBtn, CornerRadius = UDim.new(0, 6)})
-                create("UIStroke", {Parent = npcBtn, Color = Color3.fromRGB(60, 100, 160), Thickness = 1})
-
-                addHover(npcBtn, Color3.fromRGB(35, 45, 65), Color3.fromRGB(45, 55, 75))
-
-                npcBtn.MouseButton1Click:Connect(function()
-                    local npc = npcFolder:FindFirstChild(npcName)
-                    if npc and npc:IsA("Model") then
-                        local hrp = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-                        if hrp then
-                            local charFolder = workspace:FindFirstChild("Characters")
-                            local char = charFolder and charFolder:FindFirstChild(player.Name)
-                            if not char then 
-                                updateStatus("❌ Character not found")
-                                return 
-                            end
-                            
-                            local myHRP = char:FindFirstChild("HumanoidRootPart")
-                            if myHRP then
-                                local success, err = pcall(function()
-                                    myHRP.CFrame = hrp.CFrame + Vector3.new(0, 3, 0)
-                                end)
-
-                                if success then
-                                    updateStatus("✅ Teleported to: " .. npcName, Color3.fromRGB(100, 255, 100))
-                                    npcTeleportGui:Destroy()
-                                else
-                                    updateStatus("❌ Teleport failed: " .. tostring(err))
-                                end
-                            else
-                                updateStatus("❌ HRP not found")
-                            end
-                        else
-                            updateStatus("❌ NPC HRP not found")
-                        end
-                    else
-                        updateStatus("❌ NPC not found")
-                    end
-                end)
-
-                yPosition = yPosition + 35
-                filteredCount = filteredCount + 1
-            end
-        end
-
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, filteredCount * 35)
-    end
-
-    createNPCButtons("")
-
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        createNPCButtons(searchBox.Text)
+    
+    local success, err = pcall(function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart", 3)
+        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
     end)
 
-    closeNPCTeleportBtn.MouseButton1Click:Connect(function()
-        npcTeleportGui:Destroy()
-    end)
-end
-
--- Fungsi untuk membuat GUI teleport events
-local function createEventTeleportGUI()
-    local eventsList = { "Shark Hunt", "Ghost Shark Hunt", "Worm Hunt", "Black Hole", "Shocked", "Ghost Worm", "Meteor Rain" }
-
-    local eventTeleportGui = create("ScreenGui", {
-        Name = "EventTeleportGUI",
-        Parent = playerGui,
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    })
-
-    local eventTeleportFrame = create("Frame", {
-        Name = "EventTeleportFrame",
-        Parent = eventTeleportGui,
-        Size = UDim2.new(0, 300, 0, 350),
-        Position = UDim2.new(0.5, -150, 0.5, -175),
-        BackgroundColor3 = Color3.fromRGB(15, 20, 30),
-        BorderSizePixel = 0
-    })
-
-    create("UICorner", {Parent = eventTeleportFrame, CornerRadius = UDim.new(0, 10)})
-    create("UIStroke", {Parent = eventTeleportFrame, Color = Color3.fromRGB(40, 80, 150), Thickness = 1.5})
-
-    local eventTeleportTitle = create("TextLabel", {
-        Parent = eventTeleportFrame,
-        Size = UDim2.new(1, 0, 0, 35),
-        BackgroundColor3 = Color3.fromRGB(25, 35, 55),
-        Text = "🎯 Event Teleport",
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        TextColor3 = Color3.fromRGB(100, 180, 255),
-        TextYAlignment = Enum.TextYAlignment.Center
-    })
-
-    create("UICorner", {Parent = eventTeleportTitle, CornerRadius = UDim.new(0, 10)})
-
-    local closeEventTeleportBtn = create("TextButton", {
-        Parent = eventTeleportTitle,
-        Size = UDim2.new(0, 22, 0, 22),
-        Position = UDim2.new(1, -26, 0, 6),
-        BackgroundColor3 = Color3.fromRGB(220, 50, 50),
-        Text = "X",
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        TextColor3 = Color3.fromRGB(255, 255, 255)
-    })
-
-    create("UICorner", {Parent = closeEventTeleportBtn, CornerRadius = UDim.new(0, 6)})
-
-    local infoLabel = create("TextLabel", {
-        Parent = eventTeleportFrame,
-        Size = UDim2.new(1, -20, 0, 50),
-        Position = UDim2.new(0, 10, 0, 45),
-        BackgroundTransparency = 1,
-        Text = "Teleport to active events\n⚡ Hanya work ketika event ACTIVE",
-        Font = Enum.Font.Gotham,
-        TextSize = 10,
-        TextColor3 = Color3.fromRGB(100, 255, 200),
-        TextXAlignment = Enum.TextXAlignment.Center,
-        TextYAlignment = Enum.TextYAlignment.Center
-    })
-
-    local scrollFrame = create("ScrollingFrame", {
-        Parent = eventTeleportFrame,
-        Size = UDim2.new(1, -20, 1, -110),
-        Position = UDim2.new(0, 10, 0, 105),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        ScrollBarThickness = 5,
-        ScrollBarImageColor3 = Color3.fromRGB(50, 100, 180),
-        CanvasSize = UDim2.new(0, 0, 0, #eventsList * 40)
-    })
-
-    local yPosition = 0
-    for _, eventName in ipairs(eventsList) do
-        local eventBtn = create("TextButton", {
-            Parent = scrollFrame,
-            Size = UDim2.new(1, 0, 0, 35),
-            Position = UDim2.new(0, 0, 0, yPosition),
-            BackgroundColor3 = Color3.fromRGB(35, 45, 65),
-            Text = "⚡ " .. eventName,
-            Font = Enum.Font.Gotham,
-            TextSize = 11,
-            TextColor3 = Color3.fromRGB(220, 220, 220),
-            TextYAlignment = Enum.TextYAlignment.Center
+    if success then
+        Rayfield:Notify({
+            Title = "Teleport System",
+            Content = "Teleported to " .. islandName,
+            Duration = 3,
+            Image = 4483362458
         })
-
-        create("UICorner", {Parent = eventBtn, CornerRadius = UDim.new(0, 6)})
-        create("UIStroke", {Parent = eventBtn, Color = Color3.fromRGB(60, 100, 160), Thickness = 1})
-
-        addHover(eventBtn, Color3.fromRGB(35, 45, 65), Color3.fromRGB(45, 55, 75))
-
-        eventBtn.MouseButton1Click:Connect(function()
-            updateStatus("🔍 Mencari: " .. eventName, Color3.fromRGB(255, 200, 100))
-            
-            task.wait(0.3)
-            
-            local function findEventLocation(eventName)
-                local searchLocations = {
-                    workspace,
-                    workspace:FindFirstChild("Events"),
-                    workspace:FindFirstChild("Props"), 
-                    workspace:FindFirstChild("Map"),
-                    workspace:FindFirstChild("World"),
-                    workspace:FindFirstChild("Game"),
-                }
-                
-                for _, location in pairs(searchLocations) do
-                    if location then
-                        local eventObj = location:FindFirstChild(eventName)
-                        if eventObj then
-                            return eventObj
-                        end
-                        
-                        for _, child in pairs(location:GetChildren()) do
-                            if string.find(string.lower(child.Name), string.lower(eventName)) then
-                                return child
-                            end
-                        end
-                    end
-                end
-                
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    if string.lower(obj.Name) == string.lower(eventName) then
-                        return obj
-                    end
-                end
-                
-                return nil
-            end
-
-            local eventObject = findEventLocation(eventName)
-            
-            if eventObject then
-                local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local success, err = pcall(function()
-                        local fishingBoat = eventObject:FindFirstChild("Fishing Boat")
-                        if fishingBoat then
-                            hrp.CFrame = fishingBoat:GetPivot() + Vector3.new(0, 15, 0)
-                            updateStatus("✅ Teleport ke Fishing Boat " .. eventName, Color3.fromRGB(100, 255, 100))
-                        else
-                            hrp.CFrame = eventObject:GetPivot() + Vector3.new(0, 10, 0)
-                            updateStatus("✅ Teleport ke " .. eventName, Color3.fromRGB(100, 255, 100))
-                        end
-                        eventTeleportGui:Destroy()
-                    end)
-
-                    if not success then
-                        updateStatus("❌ Gagal teleport: " .. tostring(err))
-                    end
-                else
-                    updateStatus("❌ HRP tidak ditemukan")
-                end
-            else
-                updateStatus("❌ " .. eventName .. " tidak ditemukan\nPastikan event sedang ACTIVE", Color3.fromRGB(255, 100, 100))
-            end
-        end)
-
-        yPosition = yPosition + 40
     end
-
-    closeEventTeleportBtn.MouseButton1Click:Connect(function()
-        eventTeleportGui:Destroy()
-    end)
 end
 
 -- ===================================
--- ========== EXCLAIM DETECTION ======
+-- ========== ANTI-AFK ===============
 -- ===================================
 
--- Listener untuk detect exclaim (tanda seru) dan auto recast
-task.spawn(function()
-    local success, exclaimEvent = pcall(function()
-        return net:WaitForChild("RE/ReplicateTextEffect", 2)
-    end)
-
-    if success and exclaimEvent then
-        exclaimEvent.OnClientEvent:Connect(function(data)
-            if autoFishingEnabled and data and data.TextData
-                and data.TextData.EffectType == "Exclaim" then
-
-                local head = player.Character and player.Character:FindFirstChild("Head")
-                if head and data.Container == head then
-                    task.spawn(function()
-                        for i = 1, 3 do
-                            task.wait(1)
-                            finishRemote:FireServer()
-                        end
-                    end)
-                end
-            end
-        end)
-    end
-end)
-
--- ===================================
--- ========== BUTTON CONNECTIONS =====
--- ===================================
-
--- Setup remotes terlebih dahulu
-setupRemotes()
-
--- Anti-AFK Button
-antiAFKBtn.MouseButton1Click:Connect(toggleAntiAFK)
-
--- Fishing V1 Button
-fishBtn.MouseButton1Click:Connect(function()
-    autoFishingEnabled = not autoFishingEnabled
+local function toggleAntiAFK()
+    antiAFKEnabled = not antiAFKEnabled
     
-    if autoFishingEnabled then
-        fishBtn.Text = "STOP"
-        fishBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        updateStatus("🟢 Status: Auto Fishing Started", Color3.fromRGB(100, 255, 100))
-        task.spawn(autoFishingLoop)
-    else
-        fishBtn.Text = "START"
-        fishBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        updateStatus("🔴 Status: Auto Fishing Stopped")
-        fishingActive = false
-        finishRemote:FireServer()
-    end
-end)
-
--- Auto Sell Button
-sellBtn.MouseButton1Click:Connect(function()
-    autoSellEnabled = not autoSellEnabled
-    
-    if autoSellEnabled then
-        sellBtn.Text = "STOP"
-        sellBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        updateStatus("🟢 Status: Auto Sell Started", Color3.fromRGB(100, 255, 100))
-        task.spawn(autoSellLoop)
-    else
-        sellBtn.Text = "START"
-        sellBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        updateStatus("🔴 Status: Auto Sell Stopped")
-    end
-end)
-
--- Teleport Buttons
-teleportBtn.MouseButton1Click:Connect(createTeleportGUI)
-teleportNPCBtn.MouseButton1Click:Connect(createNPCTeleportGUI)
-teleportEventBtn.MouseButton1Click:Connect(createEventTeleportGUI)
-
--- Close dan Minimize Buttons
-closeBtn.MouseButton1Click:Connect(function()
-    autoFishingEnabled = false
-    autoSellEnabled = false
-    fishingActive = false
     if antiAFKEnabled then
-        toggleAntiAFK()
+        -- Hentikan connection lama jika ada
+        if AFKConnection then
+            AFKConnection:Disconnect()
+            AFKConnection = nil
+        end
+        
+        -- Buat connection baru
+        AFKConnection = player.Idled:Connect(function()
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(0, 0))
+            end)
+        end)
+        
+        Rayfield:Notify({
+            Title = "Anti-AFK Enabled",
+            Content = "Anti-AFK system activated",
+            Duration = 3,
+            Image = 4483362458
+        })
+    else
+        -- Matikan Anti-AFK
+        if AFKConnection then
+            AFKConnection:Disconnect()
+            AFKConnection = nil
+        end
+        
+        Rayfield:Notify({
+            Title = "Anti-AFK Disabled", 
+            Content = "Anti-AFK system deactivated",
+            Duration = 3,
+            Image = 4483362458
+        })
     end
-    screenGui:Destroy()
-end)
-
-local minimized = false
-minimizeBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-        Size = minimized and UDim2.new(0, 300, 0, 33) or UDim2.new(0, 300, 0, 420)
-    }):Play()
-    minimizeBtn.Text = minimized and "+" or "—"
-end)
+end
 
 -- ===================================
--- ========== SCRIPT LOADED ==========
+-- ========== AUTO FARM ==============
 -- ===================================
 
--- Script selesai di-load
+local function startAutoFarmLoop()
+    while autoFarmEnabled and task.wait(2) do
+        local success, err = pcall(function()
+            local islandSpots = farmLocations[selectedIsland]
+            if type(islandSpots) == "table" and #islandSpots > 0 then
+                local location = islandSpots[math.random(1, #islandSpots)]
+                
+                local charFolder = workspace:FindFirstChild("Characters")
+                if not charFolder then return end
+                
+                local char = charFolder:FindFirstChild(player.Name)
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = location
+                    task.wait(2)
+                end
+            end
+        end)
+        
+        if not success then
+            warn("Auto Farm Error: " .. tostring(err))
+        end
+    end
+end
+
+-- ===================================
+-- ========== RAYFIELD UI ============
+-- ===================================
+
+local Window = Rayfield:CreateWindow({
+    Name = "🎣 Auto Fishing V4",
+    LoadingTitle = "Loading Auto Fishing V4...",
+    LoadingSubtitle = "by Codepikk",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "AutoFishingV4",
+        FileName = "AutoFishingV4Config"
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "codepikk",
+        RememberJoins = true
+    },
+    KeySystem = false
+})
+
+-- Patch Note Tab
+local PatchNote = Window:CreateTab("📝 Patch Notes", 4483362458)
+
+PatchNote:CreateSection("📝 Patch Notes")
+
+PatchNote:CreateLabel("🔄 Version: V4.1")
+PatchNote:CreateLabel("📅 Update Date: 26-10-25")
+
+PatchNote:CreateButton({
+    Name = "📋 Show V4 Features",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "🎣 Auto Fishing V4 Features",
+            Content = [[
+🚀 NEW IN V4:
+• INSTANT BITE
+• Better performance monitoring
+
+🎯 IMPROVEMENTS:
+• 2x faster than previous version
+• Auto remove floating platform
+• Instant fish catching
+• Smooth player movement when stopped
+
+❗ FIX BUG:
+• Fix Bug Webhook Notif now Works
+            ]],
+            Duration = 15,
+            Image = 4483362458
+        })
+    end,
+})
+
+-- Main Tab
+local MainTab = Window:CreateTab("🔥 Main Tab", 4483362458)
+
+MainTab:CreateSection("🎣 Auto Fishing V4 - INSTANT BITE")
+
+local EnhancedToggle = MainTab:CreateToggle({
+    Name = "🎣 Start Auto Fishing V4",
+    CurrentValue = false,
+    Flag = "EnhancedFishingToggle",
+    Callback = function(Value)
+        if Value then
+            StartEnhancedFishing()
+        else
+            StopEnhancedFishing()
+        end
+    end,
+})
+
+MainTab:CreateButton({
+    Name = "📊 Show Fishing Stats",
+    Callback = function()
+        if EnhancedFishingActive then
+            local elapsed = tick() - EnhancedStartTime
+            local currentRate = math.floor(TotalEnhancedCatches / math.max(elapsed, 1))
+            
+            Rayfield:Notify({
+                Title = "📊 Auto Fishing V4 Stats",
+                Content = string.format(
+                    "Total Fish: %d\nCurrent Rate: %d/s\nTime Running: %.1fs",
+                    TotalEnhancedCatches, currentRate, elapsed
+                ),
+                Duration = 6,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "📊 Auto Fishing V4 Stats",
+                Content = string.format("Total Fish Caught: %d", TotalEnhancedCatches),
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end,
+})
+
+MainTab:CreateButton({
+    Name = "🚨 Emergency Stop Fishing",
+    Callback = EmergencyStopAll
+})
+
+MainTab:CreateSection("Auto Sell fish")
+
+MainTab:CreateInput({
+    Name = "Auto Sell fish Custom",
+    PlaceholderText = "Default: 4000 fish",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        local num = tonumber(Text)
+        if num then
+            obtainedLimit = num
+        end
+    end,
+})
+
+MainTab:CreateButton({
+    Name = "💰 Sell Now",
+    Callback = sellNow,
+})
+
+MainTab:CreateSection("Sistem Auto Favorite")
+
+MainTab:CreateToggle({
+    Name = "⭐ Auto Fav While Fishing",
+    CurrentValue = false,
+    Flag = "AutoFavoriteToggle",
+    Callback = function(Value)
+        AutoFavorite.Enabled = Value
+        
+        if Value then
+            -- Inisialisasi jika belum dilakukan
+            if #AutoFavorite.FishNames == 0 then
+                initializeAutoFavorite()
+            end
+            
+            local categories = #AutoFavorite.SelectedCategories > 0 and table.concat(AutoFavorite.SelectedCategories, ", ") or "Tidak ada"
+            Rayfield:Notify({
+                Title = "Auto Favorite AKTIF",
+                Content = "Memfavorite: " .. categories,
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Auto Favorite NONAKTIF",
+                Content = "Auto favorite dimatikan",
+                Duration = 2,
+                Image = 4483362458
+            })
+        end
+    end,
+})
+
+MainTab:CreateDropdown({
+    Name = "Select Category Rarity",
+    Options = {"Secret", "Mythic", "Legendary"},
+    CurrentOption = {"Secret"},
+    MultipleOptions = true,
+    Flag = "FavoriteCategoryDropdown",
+    Callback = function(Options)
+        AutoFavorite.SelectedCategories = Options
+        
+        local categories = #Options > 0 and table.concat(Options, ", ") or "Tidak ada"
+        Rayfield:Notify({
+            Title = "Kategori Diupdate",
+            Content = "Dipilih: " .. categories,
+            Duration = 2,
+            Image = 4483362458
+        })
+    end,
+})
+
+MainTab:CreateSection("Auto Farm")
+
+local islandOptions = {
+    "Crater Islands",
+    "Tropical Grove", 
+    "Fisherman Island"
+}
+
+MainTab:CreateDropdown({
+    Name = "Select Farm Island",
+    Options = islandOptions,
+    CurrentOption = "Fisherman Island",
+    Flag = "FarmIslandDropdown",
+    Callback = function(Option)
+        selectedIsland = Option
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "🌾 Start Auto Farm",
+    CurrentValue = false,
+    Flag = "AutoFarmToggle",
+    Callback = function(Value)
+        autoFarmEnabled = Value
+        if Value then
+            task.spawn(startAutoFarmLoop)
+        end
+    end,
+})
+
+MainTab:CreateSection("Auto Buy Weather")
+
+MainTab:CreateDropdown({
+    Name = "Auto Buy Weather",
+    Options = {"Storm", "Cloudy", "Snow", "Wind", "Radiant"},
+    CurrentOption = {},
+    MultipleOptions = true,
+    Flag = "WeatherDropdown",
+    Callback = function(Options)
+        for weatherType, active in pairs(weatherActive) do
+            if active and not table.find(Options, weatherType) then
+                weatherActive[weatherType] = false
+            end
+        end
+        
+        for _, weatherType in pairs(Options) do
+            if not weatherActive[weatherType] then
+                weatherActive[weatherType] = true
+                autoBuyWeather(weatherType)
+            end
+        end
+    end,
+})
+
+MainTab:CreateSection("Auto Enchant Rod")
+
+MainTab:CreateButton({
+    Name = "🔮 Auto Enchant Rod",
+    Callback = function()
+        local ENCHANT_POSITION = Vector3.new(3231, -1303, 1402)
+        local char = workspace:WaitForChild("Characters"):FindFirstChild(player.Name)
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+        if not hrp then
+            Rayfield:Notify({
+                Title = "Auto Enchant Rod",
+                Content = "Failed to get character HRP.",
+                Duration = 3
+            })
+            return
+        end
+
+        Rayfield:Notify({
+            Title = "Preparing Enchant...",
+            Content = "Please manually place Enchant Stone into slot 5 before we begin...",
+            Duration = 5,
+            Image = 4483362458
+        })
+
+        task.wait(3)
+
+        local slot5 = player.PlayerGui.Backpack.Display:GetChildren()[10]
+        local itemName = slot5 and slot5:FindFirstChild("Inner") and slot5.Inner:FindFirstChild("Tags") and slot5.Inner.Tags:FindFirstChild("ItemName")
+
+        if not itemName or not itemName.Text:lower():find("enchant") then
+            Rayfield:Notify({
+                Title = "Auto Enchant Rod",
+                Content = "Slot 5 does not contain an Enchant Stone.",
+                Duration = 3
+            })
+            return
+        end
+
+        Rayfield:Notify({
+            Title = "Enchanting...",
+            Content = "It is in the process of Enchanting, please wait until the Enchantment is complete",
+            Duration = 7,
+            Image = 4483362458
+        })
+
+        local originalPosition = hrp.Position
+        task.wait(1)
+        hrp.CFrame = CFrame.new(ENCHANT_POSITION + Vector3.new(0, 5, 0))
+        task.wait(1.2)
+
+        local equipRod = net:WaitForChild("RE/EquipToolFromHotbar")
+        local activateEnchant = net:WaitForChild("RE/ActivateEnchantingAltar")
+
+        pcall(function()
+            equipRod:FireServer(5)
+            task.wait(0.5)
+            activateEnchant:FireServer()
+            task.wait(7)
+            Rayfield:Notify({
+                Title = "Enchant",
+                Content = "Successfully Enchanted!",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end)
+
+        task.wait(0.9)
+        hrp.CFrame = CFrame.new(originalPosition + Vector3.new(0, 3, 0))
+    end
+})
+
+-- Teleport Tab
+local TeleportTab = Window:CreateTab("🌍 Teleports", 4483362458)
+
+TeleportTab:CreateSection("TELEPORT TO ISLAND")
+
+local islandList = {
+    "Weather Machine", "Esoteric Depths", "Tropical Grove", 
+    "Stingray Shores", "Kohana Volcano", "Coral Reefs",
+    "Crater Island", "Kohana", "Winter Fest",
+    "Isoteric Island", "Treasure Hall", "Lost Shore",
+    "Sishypus Statue", "Ancient Jungle"
+}
+
+for _, islandName in ipairs(islandList) do
+    TeleportTab:CreateButton({
+        Name = islandName,
+        Callback = function()
+            teleportToIsland(islandName)
+        end,
+    })
+end
+
+TeleportTab:CreateSection("TELEPORT TO ACTIVE EVENTS (Only Active Event)")
+
+-- Event UI Handler
+local eventButtons = {}
+local lastEventSnapshot = {}
+
+local function hasEventChanged(newEvents)
+    if #newEvents ~= #lastEventSnapshot then
+        return true
+    end
+    for i, v in ipairs(newEvents) do
+        if not lastEventSnapshot[i] or lastEventSnapshot[i].Name ~= v.Name then
+            return true
+        end
+    end
+    return false
+end
+
+local function updateEventButtons()
+    local events = ScanActiveEvents() or {}
+
+    for _, b in pairs(eventButtons) do
+        pcall(function() b:Destroy() end)
+    end
+    table.clear(eventButtons)
+
+    local header = TeleportTab:CreateParagraph({
+        Title = "Active Events",
+        Content = "Auto-refreshing every 5 seconds"
+    })
+    table.insert(eventButtons, header)
+
+    for _, event in ipairs(events) do
+        local btn = TeleportTab:CreateButton({
+            Name = "📍 " .. event.Name,
+            Callback = function()
+                teleportToEventPosition(event.Position)
+            end
+        })
+        table.insert(eventButtons, btn)
+    end
+
+    if #events == 0 then
+        local noEvent = TeleportTab:CreateParagraph({
+            Title = "No Events",
+            Content = "📭 No active events found"
+        })
+        table.insert(eventButtons, noEvent)
+    end
+
+    lastEventSnapshot = events
+end
+
+local refreshBtn = TeleportTab:CreateButton({
+    Name = "🔄 Refresh Active Events",
+    Callback = function()
+        updateEventButtons()
+        Rayfield:Notify({
+            Title = "Event Scanner",
+            Content = "✅ Events refreshed successfully",
+            Duration = 2,
+            Image = 4483362458
+        })
+    end
+})
+
+task.spawn(function()
+    while task.wait(5) do
+        local events = ScanActiveEvents() or {}
+        if hasEventChanged(events) then
+            updateEventButtons()
+        end
+    end
+end)
+
+updateEventButtons()
+
+-- Webhook Tab
+local WebhookTab = Window:CreateTab("📣 Webhook", 4483362458)
+
+WebhookTab:CreateSection("Send Webhook")
+
+WebhookTab:CreateToggle({
+    Name = "🔔 Enable Webhook Notifications",
+    CurrentValue = false,
+    Flag = "WebhookToggle",
+    Callback = function(Value)
+        webhookEnabled = Value
+        if Value then
+            Rayfield:Notify({
+                Title = "Webhook Enabled",
+                Content = "Webhook notifications activated",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "Webhook Disabled",
+                Content = "Webhook notifications deactivated", 
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end,
+})
+
+WebhookTab:CreateInput({
+    Name = "Webhook URL",
+    PlaceholderText = "https://discord.com/api/webhooks/...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+        webhookUrl = Text
+        if Text ~= "" then
+            Rayfield:Notify({
+                Title = "Webhook URL Set",
+                Content = "Webhook URL saved successfully",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end,
+})
+
+WebhookTab:CreateDropdown({
+    Name = "Webhook Categories",
+    Options = {"Secret", "Mythic", "Legendary"},
+    CurrentOption = {"Secret"},
+    MultipleOptions = true,
+    Flag = "WebhookCategoryDropdown",
+    Callback = function(Options)
+        SelectedWebhookCategories = Options
+        local categories = #Options > 0 and table.concat(Options, ", ") or "None"
+        Rayfield:Notify({
+            Title = "Webhook Categories Updated",
+            Content = "Notifications for: " .. categories,
+            Duration = 3,
+            Image = 4483362458
+        })
+    end,
+})
+
+WebhookTab:CreateButton({
+    Name = "🧪 Test Webhook",
+    Callback = function()
+        if webhookUrl == "" then
+            Rayfield:Notify({
+                Title = "Webhook Error",
+                Content = "Please set webhook URL first",
+                Duration = 3,
+                Image = 4483362458
+            })
+            return
+        end
+        
+        sendWebhook("Test Fish", 7, 25000, "Secret")
+        Rayfield:Notify({
+            Title = "Webhook Test",
+            Content = "Test notification sent!",
+            Duration = 3,
+            Image = 4483362458
+        })
+    end,
+})
+
+-- Player Tab
+local PlayerTab = Window:CreateTab("👤 Player", 4483362458)
+
+PlayerTab:CreateSection("Player Features")
+
+PlayerTab:CreateToggle({
+    Name = "🔓 No Clip",
+    CurrentValue = false,
+    Flag = "NoClipToggle",
+    Callback = function(Value)
+        universalNoclip = Value
+    end,
+})
+
+PlayerTab:CreateToggle({
+    Name = "🎈 Enable Float",
+    CurrentValue = false,
+    Flag = "FloatToggle",
+    Callback = function(Value)
+        floatEnabled = Value
+        toggleFloat(Value)
+    end,
+})
+
+PlayerTab:CreateToggle({
+    Name = "🏃 Infinity Jump",
+    CurrentValue = false,
+    Flag = "InfinityJumpToggle",
+    Callback = function(Value)
+        ijumpEnabled = Value
+    end,
+})
+
+PlayerTab:CreateToggle({
+    Name = "🌊 Anti Drown",
+    CurrentValue = false,
+    Flag = "AntiDrownToggle",
+    Callback = function(Value)
+        AntiDrown_Enabled = Value
+    end,
+})
+
+PlayerTab:CreateSlider({
+    Name = "🏃 WalkSpeed",
+    Range = {16, 100},
+    Increment = 1,
+    CurrentValue = 20,
+    Flag = "WalkSpeedSlider",
+    Callback = function(Value)
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then 
+                hum.WalkSpeed = Value
+            end
+        end
+    end,
+})
+
+PlayerTab:CreateSlider({
+    Name = "🦘 Jump Power",
+    Range = {50, 200},
+    Increment = 10,
+    CurrentValue = 50,
+    Flag = "JumpPowerSlider",
+    Callback = function(Value)
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.UseJumpPower = true
+                hum.JumpPower = Value
+            end
+        end
+    end,
+})
+
+-- Misc Tab
+local MiscTab = Window:CreateTab("⚙️ Misc", 4483362458)
+
+MiscTab:CreateSection("Miscellaneous")
+
+MiscTab:CreateToggle({
+    Name = "⏰ Anti-AFK System",
+    CurrentValue = false,
+    Flag = "AntiAFKToggle",
+    Callback = function(Value)
+        toggleAntiAFK()
+    end,
+})
+
+MiscTab:CreateButton({
+    Name = "🚀 Boost FPS",
+    Callback = function()
+        BoostFPS()
+    end,
+})
+
+MiscTab:CreateSection("Server Hop")
+
+MiscTab:CreateButton({
+    Name = "🔄 Rejoin Server",
+    Callback = function()
+        Rejoin()
+    end,
+})
+
+MiscTab:CreateButton({
+    Name = "⚡ Quick Server Hop",
+    Callback = function()
+        QuickServerHop()
+    end,
+})
+
+-- Settings Tab
+local SettingsTab = Window:CreateTab("🔧 Settings", 4483362458)
+
+SettingsTab:CreateSection("Configuration")
+
+SettingsTab:CreateKeybind({
+    Name = "UI Keybind",
+    CurrentKeybind = "G",
+    HoldToInteract = false,
+    Flag = "UIKeybind",
+    Callback = function(Keybind)
+        Window:SetKeybind(Keybind)
+    end,
+})
+
+SettingsTab:CreateButton({
+    Name = "💾 Save Configuration",
+    Callback = function()
+        Rayfield:SaveConfiguration()
+    end,
+})
+
+SettingsTab:CreateButton({
+    Name = "📂 Load Configuration",
+    Callback = function()
+        Rayfield:LoadConfiguration()
+    end,
+})
+
+-- ===================================
+-- ========== AUTO UPDATE SYSTEM (FIXED) =====
+-- ===================================
+
+local UPDATE_CONFIG = {
+    GITHUB_RAW_URL = "https://raw.githubusercontent.com/Pawnpawnn/nk/main/codepikV2.5b.lua",
+    CHECK_INTERVAL = 120, 
+    CURRENT_VERSION = "V4.2",
+    SCRIPT_NAME = "Beta Test V4"
+}
+
+local function CheckForUpdates()
+    local success, response = pcall(function()
+        -- GUNAKAN game:HttpGet() - LEBIH RELIABLE!
+        local fileContent = game:HttpGet(UPDATE_CONFIG.GITHUB_RAW_URL, true)
+        
+        if fileContent and fileContent ~= "" then
+            -- Cari versi dari file GitHub
+            local remoteVersion = string.match(fileContent, 'CURRENT_VERSION%s*=%s*["\']([^"\']+)["\']')
+            
+            if remoteVersion then
+                print("🔍 Remote Version: " .. remoteVersion)
+                print("📱 Current Version: " .. UPDATE_CONFIG.CURRENT_VERSION)
+                
+                if remoteVersion ~= UPDATE_CONFIG.CURRENT_VERSION then
+                    return true, remoteVersion -- Ada update!
+                end
+            else
+                warn("⚠️ Tidak bisa menemukan CURRENT_VERSION di file remote")
+            end
+        end
+        
+        return false -- Tidak ada update atau gagal
+    end)
+    
+    if not success then
+        warn("❌ Gagal cek update: " .. tostring(response))
+        return false
+    end
+    
+    return response
+end
+
+local function ShowUpdateNotification(newVersion)
+    Rayfield:Notify({
+        Title = "🔄 UPDATE AVAILABLE!",
+        Content = string.format(
+            "%s %s is available!\nCurrent: %s | New: %s\nPlease rejoin to get latest version!",
+            UPDATE_CONFIG.SCRIPT_NAME, newVersion, UPDATE_CONFIG.CURRENT_VERSION, newVersion
+        ),
+        Duration = 10,
+        Image = 4483362458,
+        Actions = {
+            {
+                Title = "Rejoin Game",
+                Callback = function()
+                    Rayfield:Notify({
+                        Title = "🔄 Rejoining...",
+                        Content = "Rejoining game in 3 seconds...",
+                        Duration = 3,
+                        Image = 4483362458
+                    })
+                    task.wait(3)
+                    TeleportService:Teleport(game.PlaceId, player)
+                end
+            },
+            {
+                Title = "Later",
+                Callback = function()
+                    Rayfield:Notify({
+                        Title = "⏰ Reminder Set",
+                        Content = "Will remind you again in 5 minutes",
+                        Duration = 3,
+                        Image = 4483362458
+                    })
+                end
+            }
+        }
+    })
+    
+    print("🔄 UPDATE DETECTED!")
+    print("Current Version: " .. UPDATE_CONFIG.CURRENT_VERSION)
+    print("New Version: " .. newVersion)
+    print("Please rejoin game to get the latest version!")
+end
+
+-- Auto Update Checker Loop (FIXED)
+task.spawn(function()
+    print("🔍 Starting Auto Update Checker...")
+    task.wait(10) -- Tunggu 10 detik setelah script load
+    
+    while true do
+        print("🔄 Checking for updates...")
+        local updateAvailable, newVersion = CheckForUpdates()
+        
+        if updateAvailable then
+            print("✅ Update found: " .. newVersion)
+            ShowUpdateNotification(newVersion)
+            
+            -- Stop fishing jika sedang aktif
+            if EnhancedFishingActive then
+                StopEnhancedFishing()
+                if EnhancedToggle then
+                    EnhancedToggle:Set(false)
+                end
+            end
+            
+            -- Break loop setelah menemukan update
+            break
+        else
+            print("✅ " .. UPDATE_CONFIG.SCRIPT_NAME .. " " .. UPDATE_CONFIG.CURRENT_VERSION .. " is up to date!")
+        end
+        
+        print("⏰ Next check in " .. UPDATE_CONFIG.CHECK_INTERVAL .. " seconds...")
+        task.wait(UPDATE_CONFIG.CHECK_INTERVAL)
+    end
+end)
+
+-- DEBUG: Manual Check Button (Tambahkan di tab Settings)
+SettingsTab:CreateButton({
+    Name = "🔍 Check Update Now",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Checking Updates...",
+            Content = "Please wait...",
+            Duration = 2,
+            Image = 4483362458
+        })
+        
+        task.spawn(function()
+            local updateAvailable, newVersion = CheckForUpdates()
+            
+            if updateAvailable then
+                ShowUpdateNotification(newVersion)
+            else
+                Rayfield:Notify({
+                    Title = "✅ Up to Date",
+                    Content = "You have the latest version: " .. UPDATE_CONFIG.CURRENT_VERSION,
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end
+        end)
+    end,
+})
+
+-- ===================================
+-- ========== AUTO UPDATE REMINDER SYSTEM =====
+-- ===================================
+
+-- Taruh ini SETELAH SettingsTab dan AUTO UPDATE SYSTEM
+
+-- Reminder Config
+local REMINDER_CONFIG = {
+    INTERVAL = 300, -- 5 menit dalam detik (300)
+    ENABLED = true,
+    TITLE = "🔔 Update Reminder",
+    MESSAGE = "Don't forget to click Update Scan in Settings tab!",
+    DURATION = 5,
+    REMINDER_COUNT = 0
+}
+
+-- Function untuk show reminder
+local function ShowUpdateReminder()
+    if not REMINDER_CONFIG.ENABLED then return end
+    
+    REMINDER_CONFIG.REMINDER_COUNT = REMINDER_CONFIG.REMINDER_COUNT + 1
+    
+    Rayfield:Notify({
+        Title = REMINDER_CONFIG.TITLE,
+        Content = string.format(
+            "%s\n\nReminder #%d • Script: %s",
+            REMINDER_CONFIG.MESSAGE,
+            REMINDER_CONFIG.REMINDER_COUNT,
+            UPDATE_CONFIG.SCRIPT_NAME
+        ),
+        Duration = REMINDER_CONFIG.DURATION,
+        Image = 4483362458
+    })
+    
+    print(string.format("🔔 Reminder #%d sent at %s", REMINDER_CONFIG.REMINDER_COUNT, os.date("%X")))
+end
+
+-- Reminder Loop
+task.spawn(function()
+    print("🔔 Update Reminder System started!")
+    print("⏰ Will remind every " .. REMINDER_CONFIG.INTERVAL .. " seconds (5 minutes)")
+    
+    -- First reminder after 5 minutes
+    task.wait(REMINDER_CONFIG.INTERVAL)
+    
+    while REMINDER_CONFIG.ENABLED do
+        ShowUpdateReminder()
+        task.wait(REMINDER_CONFIG.INTERVAL)
+    end
+end)
+
+-- Toggle Reminder Button (OPTIONAL - Tambahkan di SettingsTab)
+SettingsTab:CreateToggle({
+    Name = "🔔 Enable Update Reminder",
+    CurrentValue = true,
+    Flag = "UpdateReminderToggle",
+    Callback = function(Value)
+        REMINDER_CONFIG.ENABLED = Value
+        
+        if Value then
+            Rayfield:Notify({
+                Title = "🔔 Reminder Enabled",
+                Content = "You'll be reminded every 5 minutes to check for updates",
+                Duration = 3,
+                Image = 4483362458
+            })
+        else
+            Rayfield:Notify({
+                Title = "🔕 Reminder Disabled",
+                Content = "Update reminders are now turned off",
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+    end,
+})
+
+-- Manual Test Reminder Button (OPTIONAL)
+SettingsTab:CreateButton({
+    Name = "🧪 Test Reminder Now",
+    Callback = function()
+        ShowUpdateReminder()
+    end,
+})
+
+-- ===================================
+-- ========== INITIALIZATION =========
+-- ===================================
+
+-- NoClip Loop
+RunService.Stepped:Connect(function()
+    if not universalNoclip then return end
+
+    local char = player.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Infinity Jump Handler
+UserInputService.JumpRequest:Connect(function()
+    if ijumpEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
+
+-- Anti Drown System
+local rawmt = getrawmetatable(game)
+setreadonly(rawmt, false)
+local oldNamecall = rawmt.__namecall
+
+rawmt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+
+    if tostring(self) == "URE/UpdateOxygen" and method == "FireServer" and AntiDrown_Enabled then
+        return nil
+    end
+
+    return oldNamecall(self, ...)
+end)
+
+setreadonly(rawmt, true)
+
+-- Setup listener untuk ikan yang baru ditangkap
+local function setupWebhookListener()
+    local success, REObtainedNewFishNotification = pcall(function()
+        return ReplicatedStorage.Packages._Index["sleitnick_net@0.2.0"].net["RE/ObtainedNewFishNotification"]
+    end)
+    
+    if success and REObtainedNewFishNotification then
+        REObtainedNewFishNotification.OnClientEvent:Connect(function(itemId, _, data)
+            if not webhookEnabled then return end
+
+            local fishInfo = AutoFavorite.FishIdToName[tostring(itemId)]
+            if not fishInfo then return end
+            
+            local fishName = fishInfo.name
+            local fishTier = fishInfo.tier
+            local sellPrice = data.InventoryItem and data.InventoryItem.SellPrice or 0
+
+            -- Tentukan rarity berdasarkan tier
+            local rarity = "Common"
+            if fishTier == 7 then
+                rarity = "Secret"
+            elseif fishTier == 6 then
+                rarity = "Mythic" 
+            elseif fishTier == 5 then
+                rarity = "Legendary"
+            end
+
+            if shouldSendWebhook(fishName, fishTier) then
+                task.wait(1) -- Delay kecil
+                sendWebhook(fishName, fishTier, sellPrice, rarity)
+            end
+        end)
+        
+        print("✅ Webhook listener berhasil di setup")
+        return true
+    else
+        warn("❌ Gagal setup webhook listener")
+        return false
+    end
+end
+
+-- Initialize script
+local function safeSetup()
+    if not setupRemotes() then
+        return false
+    end
+    
+    monitorFishThreshold()
+    setupWebhookListener()
+    
+    -- Setup Auto Favorite
+    task.spawn(function()
+        task.wait(3)
+        initializeAutoFavorite()
+    end)
+    
+    return true
+end
+
+-- Hotkey Emergency Stop
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    -- CTRL + SHIFT + P = Emergency Stop All
+    if input.KeyCode == Enum.KeyCode.P then
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and 
+           UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            EmergencyStopAll()
+            
+            -- Matikan toggle UI
+            if EnhancedToggle then 
+                EnhancedToggle:Set(false) 
+            end
+        end
+    end
+end)
+
+-- Initialize script manually
+task.spawn(function()
+    task.wait(2)
+    local success = safeSetup()
+    if success then
+        Rayfield:Notify({
+            Title = "🎣 New Update Found!",
+            Content = "Please Check Patch Note For All Updates",
+            Duration = 4,
+            Image = 4483362458
+        })
+    end
+end)
+
+print("🎣 Auto Fishing V4 - Ready to use!")
+print("Hotkey: CTRL+SHIFT+P for emergency stop") 
+print("Features: INSTANT BITE • Auto Cleanup • 2x Faster")
