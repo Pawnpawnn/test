@@ -484,16 +484,6 @@ PlayerDropdown = MainTab:CreateDropdown({
             return
         end
         
-        -- Extract username from "DisplayName (@Username)" format
-        local username = selected:match("@(.-)%)")
-        if not username then
-            username = selected:match("%((.-)%)")
-        end
-        
-        -- FIX: If still no username, use the original string
-        if not username then
-            username = selected
-        end
         
         local targetPlayer = Players:FindFirstChild(username)
         if targetPlayer then
